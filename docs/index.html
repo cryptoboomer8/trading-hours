@@ -108,6 +108,20 @@
     .error-state p { color: var(--negative); font-size: 1.1rem; }
     .error-state code { display: block; margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem; }
 
+    /* Top-N controls */
+    .topn-controls { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 24px; margin-bottom: 28px; position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
+    .topn-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .topn-label { font-weight: 600; font-size: 0.95rem; color: var(--text); white-space: nowrap; min-width: 130px; }
+    .topn-label span { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+    .topn-hint { font-size: 0.8rem; }
+    #topNSlider { flex: 1; min-width: 220px; accent-color: var(--accent); height: 4px; }
+    .session-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); }
+    .sl-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+    .sl-asia { background: rgba(147,51,234,0.22); }
+    .sl-eu { background: rgba(0,229,255,0.22); }
+    .sl-us { background: rgba(0,230,118,0.22); }
+    .sl-overlap { background: rgba(255,171,0,0.30); }
+
     /* KPI Grid */
     .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
     .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
@@ -198,6 +212,21 @@
 
       <!-- Dashboard content (hidden until data loads) -->
       <div id="dashboardContent" style="display:none;">
+
+        <!-- Top-N slider -->
+        <section class="topn-controls animate delay-0" aria-label="Top-N selector">
+          <div class="topn-row">
+            <label for="topNSlider" class="topn-label">Top&nbsp;<span id="topNValue">20</span>&nbsp;coins</label>
+            <input type="range" id="topNSlider" min="1" max="20" step="1" value="20" aria-label="Select how many top coins to include (1 to 20)">
+            <span class="topn-hint text-secondary">Drag to narrow focus &mdash; all metrics update live</span>
+          </div>
+          <div class="session-legend" aria-label="Trading sessions (CEST)">
+            <span class="sl-swatch sl-asia"></span><span>Asia 00&ndash;08</span>
+            <span class="sl-swatch sl-eu"></span><span>Europe 08&ndash;16</span>
+            <span class="sl-swatch sl-us"></span><span>US 14&ndash;22</span>
+            <span class="sl-swatch sl-overlap"></span><span>EU&thinsp;&times;&thinsp;US 14&ndash;16</span>
+          </div>
+        </section>
 
         <!-- KPIs -->
         <section class="kpi-grid" aria-label="Key findings" id="kpiSection"></section>
@@ -320,24 +349,33 @@
 
     // === STATE ===
     var dataReady = false;
+    var rawData = [];
+    var currentTopN = 20;
     var snapshots = [];
     var heatmap = {};
     var dayOrder = [];
     var hourlyAvg = [];
     var hourlyVolAvg = [];
+    var hourlyStd = [];       // std dev of trade totals per hour (across all samples of that hour)
+    var hourlySamples = [];   // sample count per hour
     var dayAvg = {};
-    var bestHour = 0, bestHourVal = 0;
+    var bestHour = 0, bestHourVal = 0, bestHourStd = 0, bestHourSamples = 0;
     var bestDay = '', bestDayVal = 0;
     var peakSnap = null, quietSnap = null;
     var currentMetric = 'trades';
 
     // === FETCH + PROCESS ===
-    function processData(raw) {
+    function sumTopN(arr, n) { var s = 0; var lim = Math.min(n, arr.length); for (var i = 0; i < lim; i++) s += arr[i] || 0; return s; }
+
+    function processData(raw, topN) {
       var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
       snapshots = raw.map(function(r) {
         var d = new Date(r.ts);
-        return { date: d, hour: d.getHours(), day: dayNames[d.getDay()], dayIdx: d.getDay(), totalTrades: r.tT, totalVol: r.tV, topTrades: r.tt, label: r.ts.substring(5,10) + ' ' + r.ts.substring(11,16) };
+        var tT = sumTopN(r.tR || [], topN);
+        var tV = sumTopN(r.vR || [], topN);
+        var tt = (r.tR && r.tR.length) ? r.tR[0] : 0;
+        return { date: d, hour: d.getHours(), day: dayNames[d.getDay()], dayIdx: d.getDay(), totalTrades: tT, totalVol: tV, topTrades: tt, label: r.ts.substring(5,10) + ' ' + r.ts.substring(11,16) };
       });
 
       if (snapshots.length === 0) return;
@@ -349,31 +387,56 @@
         if (!seen[s.day]) { seen[s.day] = true; dayOrder.push(s.day); }
       });
 
-      // Build heatmap
+      // Build heatmap with per-cell sample list (for std dev)
       heatmap = {};
-      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0 }; });
-      snapshots.forEach(function(s) { var cell = heatmap[s.day] && heatmap[s.day][s.hour]; if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; } });
+      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0, tradeSamples: [] }; });
+      snapshots.forEach(function(s) {
+        var cell = heatmap[s.day] && heatmap[s.day][s.hour];
+        if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; cell.tradeSamples.push(s.totalTrades); }
+      });
+      // Compute per-cell std dev on trade counts
+      dayOrder.forEach(function(d) {
+        for (var h=0; h<24; h++) {
+          var c = heatmap[d][h];
+          if (c.count > 1) {
+            var mean = c.trades / c.count;
+            var sq = 0;
+            for (var i=0; i<c.tradeSamples.length; i++) { var dv = c.tradeSamples[i] - mean; sq += dv*dv; }
+            c.std = Math.sqrt(sq / c.count);
+          } else {
+            c.std = 0;
+          }
+        }
+      });
 
-      // Hourly averages
-      hourlyAvg = []; hourlyVolAvg = [];
+      // Hourly stats: pool samples across days for hour h to get hourlyAvg, hourlyStd, hourlySamples
+      hourlyAvg = []; hourlyVolAvg = []; hourlyStd = []; hourlySamples = [];
       for (var h=0; h<24; h++) {
-        var sumT=0, sumV=0, cnt=0;
-        dayOrder.forEach(function(d) { var c = heatmap[d][h]; if (c.count > 0) { sumT += c.trades / c.count; sumV += c.vol / c.count; cnt++; } });
-        hourlyAvg.push(cnt > 0 ? Math.round(sumT / cnt) : 0);
-        hourlyVolAvg.push(cnt > 0 ? Math.round(sumV / cnt) : 0);
+        var tradeSamples = [];
+        var volSamples = [];
+        snapshots.forEach(function(s) { if (s.hour === h) { tradeSamples.push(s.totalTrades); volSamples.push(s.totalVol); } });
+        if (tradeSamples.length === 0) { hourlyAvg.push(0); hourlyVolAvg.push(0); hourlyStd.push(0); hourlySamples.push(0); continue; }
+        var meanT = tradeSamples.reduce(function(a,b){return a+b;}, 0) / tradeSamples.length;
+        var meanV = volSamples.reduce(function(a,b){return a+b;}, 0) / volSamples.length;
+        var sqT = 0;
+        for (var i=0; i<tradeSamples.length; i++) { var d = tradeSamples[i] - meanT; sqT += d*d; }
+        var std = tradeSamples.length > 1 ? Math.sqrt(sqT / tradeSamples.length) : 0;
+        hourlyAvg.push(Math.round(meanT));
+        hourlyVolAvg.push(Math.round(meanV));
+        hourlyStd.push(Math.round(std));
+        hourlySamples.push(tradeSamples.length);
       }
 
-      // Day averages
+      // Day averages (mean of per-snapshot totals on that weekday)
       dayAvg = {};
       dayOrder.forEach(function(d) {
-        var sumT=0, cnt=0;
-        for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) { sumT += c.trades / c.count; cnt++; } }
-        dayAvg[d] = cnt > 0 ? Math.round(sumT / cnt) : 0;
+        var vals = snapshots.filter(function(s){return s.day===d;}).map(function(s){return s.totalTrades;});
+        dayAvg[d] = vals.length ? Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length) : 0;
       });
 
       // Best hour / day / peak / quiet
-      bestHour = 0; bestHourVal = 0;
-      hourlyAvg.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; } });
+      bestHour = 0; bestHourVal = 0; bestHourStd = 0; bestHourSamples = 0;
+      hourlyAvg.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; bestHourStd = hourlyStd[i]; bestHourSamples = hourlySamples[i]; } });
       bestDay = dayOrder[0]; bestDayVal = 0;
       dayOrder.forEach(function(d) { if (dayAvg[d] > bestDayVal) { bestDayVal = dayAvg[d]; bestDay = d; } });
       peakSnap = snapshots.reduce(function(a,b) { return a.totalTrades > b.totalTrades ? a : b; });
@@ -387,9 +450,16 @@
       var dayRange = dayOrder[0] + '\u2013' + dayOrder[dayOrder.length - 1];
 
       var sub = document.getElementById('subtitleText');
-      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; ' + dateRange + ' (' + dayRange + ') &nbsp;|&nbsp; CEST (UTC+2)';
+      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; ' + dateRange + ' (' + dayRange + ') &nbsp;|&nbsp; CEST (UTC+2) &nbsp;|&nbsp; Top ' + topN;
 
       dataReady = true;
+    }
+
+    function rebuildAll() {
+      processData(rawData, currentTopN);
+      buildKPIs();
+      buildHeatmap();
+      buildCharts();
     }
 
     // === BUILD KPIs ===
@@ -400,7 +470,7 @@
         '<div class="kpi-card kpi-cyan animate delay-1">' +
           '<div class="kpi-label">Best Hour (CEST)</div>' +
           '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
-          '<div class="kpi-detail">Avg ' + bestHourVal.toLocaleString() + ' trades across top 20</div>' +
+          '<div class="kpi-detail">Avg ' + bestHourVal.toLocaleString() + ' trades &middot; &sigma; ' + bestHourStd.toLocaleString() + ' &middot; n=' + bestHourSamples + '</div>' +
         '</div>' +
         '<div class="kpi-card kpi-magenta animate delay-2">' +
           '<div class="kpi-label">Best Day</div>' +
@@ -464,7 +534,10 @@
             var bg = getHeatColor(intensity);
             var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
             var display = currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
-            html += '<td class="heatmap-cell" style="background:' + bg + ';color:' + textColor + '" title="' + d + ' ' + h + ':00 \u2014 ' + (currentMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString()) + '">' +
+            // Confidence: dim cells with low sample counts
+            var opacity = c.count >= 4 ? 1 : (c.count === 3 ? 0.9 : (c.count === 2 ? 0.75 : 0.55));
+            var tip = d + ' ' + h + ':00 \u2014 ' + (currentMetric === 'trades' ? 'avg ' + Math.round(val).toLocaleString() + ' trades' : 'avg $' + Math.round(val).toLocaleString()) + '  (n=' + c.count + (c.std ? ', \u03C3 ' + Math.round(c.std).toLocaleString() : '') + ')';
+            html += '<td class="heatmap-cell" style="background:' + bg + ';color:' + textColor + ';opacity:' + opacity + '" title="' + tip + '">' +
               '<div class="cell-val">' + display + '</div></td>';
           }
         }
@@ -500,6 +573,62 @@
       parent.replaceChild(canvas, old); return canvas;
     }
 
+    // Chart.js plugin: draw trading-session bands behind bars (hourly chart)
+    var sessionBandsPlugin = {
+      id: 'sessionBands',
+      beforeDatasetsDraw: function(chart) {
+        var yScale = chart.scales.y;
+        var bars = chart.getDatasetMeta(0).data;
+        if (!yScale || bars.length < 2) return;
+        var halfWidth = (bars[1].x - bars[0].x) / 2;
+        var bands = [
+          { from: 0,  to: 8,  color: 'rgba(147,51,234,0.10)' },  // Asia 00-08
+          { from: 8,  to: 16, color: 'rgba(0,229,255,0.10)' },   // Europe 08-16
+          { from: 14, to: 22, color: 'rgba(0,230,118,0.10)' },   // US 14-22
+          { from: 14, to: 16, color: 'rgba(255,171,0,0.16)' }    // EU×US overlap
+        ];
+        var ctx = chart.ctx;
+        ctx.save();
+        bands.forEach(function(b) {
+          if (b.to - 1 >= bars.length || b.from >= bars.length) return;
+          var x1 = bars[b.from].x - halfWidth;
+          var x2 = bars[b.to - 1].x + halfWidth;
+          ctx.fillStyle = b.color;
+          ctx.fillRect(x1, yScale.top, x2 - x1, yScale.bottom - yScale.top);
+        });
+        ctx.restore();
+      }
+    };
+
+    // Chart.js plugin: draw vertical error bars (±1σ) on each bar
+    var errorBarsPlugin = {
+      id: 'errorBars',
+      afterDatasetsDraw: function(chart, args, opts) {
+        if (!opts || !opts.data) return;
+        var meta = chart.getDatasetMeta(0);
+        var scale = chart.scales.y;
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.strokeStyle = opts.color || 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1.5;
+        meta.data.forEach(function(bar, i) {
+          var std = opts.data[i];
+          if (!std || std <= 0) return;
+          var val = chart.data.datasets[0].data[i];
+          if (!val) return;
+          var top = scale.getPixelForValue(val + std);
+          var bottom = scale.getPixelForValue(Math.max(0, val - std));
+          var x = bar.x;
+          ctx.beginPath();
+          ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+          ctx.moveTo(x - 4, top); ctx.lineTo(x + 4, top);
+          ctx.moveTo(x - 4, bottom); ctx.lineTo(x + 4, bottom);
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+    };
+
     function buildCharts() {
       if (typeof Chart === 'undefined' || snapshots.length === 0) return;
       var c = getChartColors();
@@ -518,8 +647,9 @@
         ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Average trades by hour');
         new Chart(ctx1, {
           type: 'bar',
+          plugins: [sessionBandsPlugin, errorBarsPlugin],
           data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:'Avg Trades',data:hourlyAvg,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' avg trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex;return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:{data:hourlyStd,color:isDark?'rgba(255,255,255,0.55)':'rgba(0,0,0,0.45)'}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
         });
       }
 
@@ -574,6 +704,21 @@
 
     // === INIT ===
     document.addEventListener('DOMContentLoaded', function() {
+      // Slider wiring — throttled via rAF to stay smooth while dragging
+      var slider = document.getElementById('topNSlider');
+      var valEl = document.getElementById('topNValue');
+      var pending = false;
+      if (slider) {
+        slider.addEventListener('input', function() {
+          var v = parseInt(slider.value, 10);
+          if (valEl) valEl.textContent = v;
+          currentTopN = v;
+          if (!dataReady || pending) return;
+          pending = true;
+          requestAnimationFrame(function() { pending = false; rebuildAll(); });
+        });
+      }
+
       fetch('./data/snapshots.json?_=' + Date.now())
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
@@ -581,14 +726,11 @@
         })
         .then(function(raw) {
           if (!raw || raw.length === 0) throw new Error('No snapshot data found');
-          processData(raw);
+          rawData = raw;
+          rebuildAll();
 
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('dashboardContent').style.display = '';
-
-          buildKPIs();
-          buildHeatmap();
-          buildCharts();
           setupReveal();
         })
         .catch(function(err) {

@@ -1,4 +1,12 @@
-"""Produce dashboard/data/snapshots.json from snapshots/*.json."""
+"""Produce docs/data/snapshots.json from snapshots/*.json.
+
+Output schema (one object per snapshot):
+  ts: ISO timestamp
+  tR: list[int]   -- trade_count per rank (length up to 20)
+  vR: list[int]   -- rounded volume per rank (length up to 20)
+
+The dashboard sums tR[0:N] and vR[0:N] live based on the top-N slider.
+"""
 
 import json
 from pathlib import Path
@@ -14,14 +22,10 @@ def aggregate():
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
         top20 = data.get("top_20", [])
-        total_trades = sum(x["trade_count"] for x in top20)
-        total_volume = round(sum(x["volume"] for x in top20))
-        top_trade = top20[0]["trade_count"] if top20 else 0
         rows.append({
             "ts": data["timestamp"],
-            "tt": top_trade,
-            "tT": total_trades,
-            "tV": total_volume,
+            "tR": [int(x["trade_count"]) for x in top20],
+            "vR": [round(x["volume"]) for x in top20],
         })
     return rows
 
