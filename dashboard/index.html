@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orion Screener - Best Trading Hours</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>Chart.defaults.animation = false;</script>
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { interpolate-size: allow-keywords; }
+
+    html.theme-dark {
+      --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1; --text-secondary: #6b7f99;
+      --accent: #00e5ff; --accent-secondary: #e040fb;
+      --positive: #00e676; --negative: #ff1744; --warning: #ffab00;
+      --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
+      --glow-green: rgba(0,230,118,0.12);
+      --grid-line: rgba(0,229,255,0.04);
+    }
+    html.theme-light {
+      --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
+      --border: rgba(0,0,0,0.08);
+      --text: #0f172a; --text-secondary: #64748b;
+      --accent: #0891b2; --accent-secondary: #9333ea;
+      --positive: #059669; --negative: #e11d48; --warning: #d97706;
+      --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
+      --glow-green: rgba(5,150,105,0.06);
+      --grid-line: rgba(0,0,0,0.06);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em; font-feature-settings: 'cv11', 'ss01';
+      transition: background 0.3s, color 0.3s; scrollbar-gutter: stable;
+    }
+    h1,h2,h3,h4,h5,h6 { color: var(--text); letter-spacing: -0.03em; line-height: 1.08; text-wrap: balance; }
+    h1 { font-weight: 700; font-size: 3rem; }
+    h2 { font-weight: 600; font-size: 2rem; }
+    h3 { font-weight: 500; font-size: 1.5rem; }
+    body, p, li, td, th, span, label { font-weight: 400; }
+    p,li,td,th,span,label { color: var(--text); }
+    .text-secondary { color: var(--text-secondary); }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
+    .card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.15); }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .animate { animation: fadeInUp 0.6s ease-out both; }
+    .animate.delay-1 { animation-delay: 0.1s; }
+    .animate.delay-2 { animation-delay: 0.2s; }
+    .animate.delay-3 { animation-delay: 0.3s; }
+    .animate.delay-4 { animation-delay: 0.4s; }
+    .animate.delay-5 { animation-delay: 0.5s; }
+    .animate.delay-6 { animation-delay: 0.6s; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+    @media print {
+      body { background: white !important; color: black !important; }
+      .viz-menu { display: none; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .card { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
+      .bg-atmosphere { display: none; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+    @page { margin: 0.75in; }
+
+    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
+    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); transition: all 0.2s; }
+    .viz-menu-toggle:hover { background: var(--surface-hover); }
+    .viz-menu-dropdown { position: absolute; top: 52px; right: 0; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.2s; backdrop-filter: blur(16px); }
+    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .viz-menu-dropdown button { width: 100%; padding: 10px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
+    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+
+    /* === LAYOUT === */
+    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+    .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
+
+    .dashboard-header { text-align: center; margin-bottom: 48px; position: relative; z-index: 1; }
+    .dashboard-header h1 { font-size: clamp(2rem, 5vw, 3.2rem); margin-bottom: 8px; }
+    .accent-text { color: var(--accent); }
+    .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
+
+    /* Loading state */
+    .loading-state { text-align: center; padding: 80px 24px; position: relative; z-index: 1; }
+    .loading-state p { color: var(--text-secondary); font-size: 1.1rem; }
+    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-state { text-align: center; padding: 80px 24px; position: relative; z-index: 1; }
+    .error-state p { color: var(--negative); font-size: 1.1rem; }
+    .error-state code { display: block; margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem; }
+
+    /* KPI Grid */
+    .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
+    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
+    .kpi-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 20px rgba(0,0,0,0.15); }
+    .kpi-label { font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .kpi-value { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-detail { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; }
+    .kpi-cyan .kpi-value { color: var(--accent); }
+    .kpi-magenta .kpi-value { color: var(--accent-secondary); }
+    .kpi-green .kpi-value { color: var(--positive); }
+    .kpi-amber .kpi-value { color: var(--warning); }
+
+    /* Heatmap */
+    .heatmap-section { margin-bottom: 48px; position: relative; z-index: 1; }
+    .heatmap-section h2 { margin-bottom: 6px; }
+    .section-sub { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px; }
+
+    .heatmap-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; overflow-x: auto; }
+    .heatmap-table { width: 100%; border-collapse: separate; border-spacing: 4px; }
+    .heatmap-table th { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 4px; text-align: center; white-space: nowrap; }
+    .heatmap-table .day-label { text-align: right; padding-right: 12px; min-width: 50px; }
+    .heatmap-cell { border-radius: 4px; padding: 8px 4px; text-align: center; cursor: default; transition: transform 0.15s, box-shadow 0.15s; position: relative; min-width: 44px; }
+    .heatmap-cell:hover { transform: scale(1.15); z-index: 2; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+    .heatmap-cell .cell-val { font-size: 0.7rem; font-weight: 700; }
+    .heatmap-cell.empty { background: var(--surface-hover); opacity: 0.3; }
+
+    .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: center; }
+    .heatmap-legend span { font-size: 0.75rem; color: var(--text-secondary); }
+    .legend-bar { width: 200px; height: 12px; border-radius: 6px; }
+
+    /* Toggle */
+    .metric-toggle { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; margin-bottom: 16px; }
+    .metric-toggle button { padding: 6px 16px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
+    .metric-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
+
+    /* Chart sections */
+    .chart-section { margin-bottom: 48px; position: relative; z-index: 1; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; transition: box-shadow 0.2s ease; }
+    .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
+    .chart-container { position: relative; height: 380px; }
+
+    .dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px; position: relative; z-index: 1; }
+
+    @media (max-width: 768px) {
+      .dual-grid { grid-template-columns: 1fr; }
+      .container { padding: 20px 16px; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .heatmap-wrap { padding: 16px; }
+      h1 { font-size: 2rem; }
+    }
+    @media (max-width: 375px) {
+      body { overflow-x: hidden; }
+      .chart-container { height: 280px; }
+      .kpi-card .kpi-value { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-atmosphere"></div>
+
+  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:10000;padding:8px 16px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;" onfocus="this.style.cssText='position:fixed;left:16px;top:16px;z-index:10000;padding:8px 16px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;'" onblur="this.style.cssText='position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;'">Skip to content</a>
+
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon"></span><span id="themeLabel">Dark</span></button>
+      <button onclick="downloadImage()"><span>PNG</span><span>Download PNG</span></button>
+      <button onclick="window.print()"><span>PDF</span><span>Print / PDF</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <div class="container">
+
+      <section class="dashboard-header animate">
+        <h1><span class="accent-text">Best Trading Hours</span></h1>
+        <p class="subtitle" id="subtitleText"><span class="status-dot"></span>Loading snapshots&hellip;</p>
+      </section>
+
+      <!-- Loading / Error states -->
+      <div id="loadingState" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Fetching snapshot data&hellip;</p>
+      </div>
+      <div id="errorState" class="error-state" style="display:none;"></div>
+
+      <!-- Dashboard content (hidden until data loads) -->
+      <div id="dashboardContent" style="display:none;">
+
+        <!-- KPIs -->
+        <section class="kpi-grid" aria-label="Key findings" id="kpiSection"></section>
+
+        <!-- HEATMAP -->
+        <section class="heatmap-section animate delay-3">
+          <h2>Activity Heatmap</h2>
+          <p class="section-sub">Total top-20 trade count by day and hour &mdash; hover for details</p>
+          <div class="metric-toggle" id="metricToggle">
+            <button class="active" data-metric="trades">Trades</button>
+            <button data-metric="volume">Volume</button>
+          </div>
+          <div class="heatmap-wrap">
+            <table class="heatmap-table" id="heatmapTable" aria-label="Heatmap of trading activity by day and hour"></table>
+            <div class="heatmap-legend">
+              <span>Low</span>
+              <div class="legend-bar" id="legendBar"></div>
+              <span>High</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- HOURLY AVERAGE CHART -->
+        <section class="chart-section" data-reveal>
+          <h2>Average Activity by Hour</h2>
+          <p class="section-sub">Aggregated across all days &mdash; which hours consistently produce the most activity</p>
+          <div class="chart-card">
+            <div class="chart-container" role="img" aria-label="Bar chart showing average total trades by hour of day across all snapshots">
+              <canvas id="hourlyChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- DUAL: Volume by hour + Day comparison -->
+        <section class="dual-grid" data-reveal>
+          <div class="chart-section" style="margin-bottom:0;">
+            <h2>Volume by Hour</h2>
+            <p class="section-sub">Average top-20 volume ($) by hour of day</p>
+            <div class="chart-card">
+              <div class="chart-container" role="img" aria-label="Bar chart showing average volume in dollars by hour of day">
+                <canvas id="volumeHourChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="chart-section" style="margin-bottom:0;">
+            <h2>Day-over-Day</h2>
+            <p class="section-sub">Average trades per snapshot by day of week</p>
+            <div class="chart-card">
+              <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
+                <canvas id="dayChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TIMELINE -->
+        <section class="chart-section" data-reveal>
+          <h2>Full Timeline</h2>
+          <p class="section-sub">Total top-20 trade count over every snapshot &mdash; spot the surges</p>
+          <div class="chart-card">
+            <div class="chart-container" style="height:320px;" role="img" aria-label="Line chart showing total top-20 trade count across all snapshots over time">
+              <canvas id="timelineChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // === Menu ===
+    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
+    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+
+    // === Theme ===
+    var savedTheme = localStorage.getItem('viz-theme');
+    var currentTheme = savedTheme || 'dark';
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      var icon = document.getElementById('themeIcon');
+      var label = document.getElementById('themeLabel');
+      if (icon) icon.textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
+      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+      if (typeof onThemeChange === 'function' && dataReady) onThemeChange();
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+    applyTheme(currentTheme);
+
+    // === Scroll Reveal ===
+    var revealObserver = new IntersectionObserver(function(entries) { entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } }); }, { threshold: 0.15 });
+
+    function setupReveal() {
+      document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); revealObserver.observe(el); });
+    }
+
+    // === Counter ===
+    function animateCounters() {
+      document.querySelectorAll('[data-count]').forEach(function(el) {
+        if (el.dataset.counted) return; el.dataset.counted = '1';
+        var target = parseFloat(el.dataset.count), prefix = el.dataset.prefix || '', suffix = el.dataset.suffix || '';
+        var start = performance.now(), duration = 1200;
+        (function tick(now) {
+          var p = Math.min((now - start) / duration, 1), eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = prefix + Math.round(target * eased).toLocaleString() + suffix;
+          if (p < 1) requestAnimationFrame(tick);
+        })(start);
+      });
+    }
+
+    // === Download PNG ===
+    async function downloadImage() {
+      var menu = document.querySelector('.viz-menu'); menu.style.display = 'none';
+      try { var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2 }); var a = document.createElement('a'); a.href = url; a.download = 'best-trading-hours.png'; a.click(); } catch(e) { console.error(e); }
+      menu.style.display = '';
+    }
+
+    // === STATE ===
+    var dataReady = false;
+    var snapshots = [];
+    var heatmap = {};
+    var dayOrder = [];
+    var hourlyAvg = [];
+    var hourlyVolAvg = [];
+    var dayAvg = {};
+    var bestHour = 0, bestHourVal = 0;
+    var bestDay = '', bestDayVal = 0;
+    var peakSnap = null, quietSnap = null;
+    var currentMetric = 'trades';
+
+    // === FETCH + PROCESS ===
+    function processData(raw) {
+      var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+      snapshots = raw.map(function(r) {
+        var d = new Date(r.ts);
+        return { date: d, hour: d.getHours(), day: dayNames[d.getDay()], dayIdx: d.getDay(), totalTrades: r.tT, totalVol: r.tV, topTrades: r.tt, label: r.ts.substring(5,10) + ' ' + r.ts.substring(11,16) };
+      });
+
+      if (snapshots.length === 0) return;
+
+      // Determine day order from actual data (chronological, unique)
+      var seen = {};
+      dayOrder = [];
+      snapshots.forEach(function(s) {
+        if (!seen[s.day]) { seen[s.day] = true; dayOrder.push(s.day); }
+      });
+
+      // Build heatmap
+      heatmap = {};
+      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0 }; });
+      snapshots.forEach(function(s) { var cell = heatmap[s.day] && heatmap[s.day][s.hour]; if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; } });
+
+      // Hourly averages
+      hourlyAvg = []; hourlyVolAvg = [];
+      for (var h=0; h<24; h++) {
+        var sumT=0, sumV=0, cnt=0;
+        dayOrder.forEach(function(d) { var c = heatmap[d][h]; if (c.count > 0) { sumT += c.trades / c.count; sumV += c.vol / c.count; cnt++; } });
+        hourlyAvg.push(cnt > 0 ? Math.round(sumT / cnt) : 0);
+        hourlyVolAvg.push(cnt > 0 ? Math.round(sumV / cnt) : 0);
+      }
+
+      // Day averages
+      dayAvg = {};
+      dayOrder.forEach(function(d) {
+        var sumT=0, cnt=0;
+        for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) { sumT += c.trades / c.count; cnt++; } }
+        dayAvg[d] = cnt > 0 ? Math.round(sumT / cnt) : 0;
+      });
+
+      // Best hour / day / peak / quiet
+      bestHour = 0; bestHourVal = 0;
+      hourlyAvg.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; } });
+      bestDay = dayOrder[0]; bestDayVal = 0;
+      dayOrder.forEach(function(d) { if (dayAvg[d] > bestDayVal) { bestDayVal = dayAvg[d]; bestDay = d; } });
+      peakSnap = snapshots.reduce(function(a,b) { return a.totalTrades > b.totalTrades ? a : b; });
+      quietSnap = snapshots.reduce(function(a,b) { return a.totalTrades < b.totalTrades ? a : b; });
+
+      // Derive date range for subtitle
+      var first = snapshots[0].date;
+      var last = snapshots[snapshots.length - 1].date;
+      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var dateRange = months[first.getMonth()] + ' ' + first.getDate() + '\u2013' + last.getDate() + ', ' + first.getFullYear();
+      var dayRange = dayOrder[0] + '\u2013' + dayOrder[dayOrder.length - 1];
+
+      var sub = document.getElementById('subtitleText');
+      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; ' + dateRange + ' (' + dayRange + ') &nbsp;|&nbsp; CEST (UTC+2)';
+
+      dataReady = true;
+    }
+
+    // === BUILD KPIs ===
+    function buildKPIs() {
+      var sec = document.getElementById('kpiSection');
+      if (!sec || !peakSnap) return;
+      sec.innerHTML =
+        '<div class="kpi-card kpi-cyan animate delay-1">' +
+          '<div class="kpi-label">Best Hour (CEST)</div>' +
+          '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
+          '<div class="kpi-detail">Avg ' + bestHourVal.toLocaleString() + ' trades across top 20</div>' +
+        '</div>' +
+        '<div class="kpi-card kpi-magenta animate delay-2">' +
+          '<div class="kpi-label">Best Day</div>' +
+          '<div class="kpi-value">' + bestDay + '</div>' +
+          '<div class="kpi-detail">Avg ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
+        '</div>' +
+        '<div class="kpi-card kpi-green animate delay-3">' +
+          '<div class="kpi-label">Peak Snapshot</div>' +
+          '<div class="kpi-value" data-count="' + peakSnap.totalTrades + '">0</div>' +
+          '<div class="kpi-detail">' + peakSnap.day + ' ' + peakSnap.label + ' CEST</div>' +
+        '</div>' +
+        '<div class="kpi-card kpi-amber animate delay-4">' +
+          '<div class="kpi-label">Quietest Snapshot</div>' +
+          '<div class="kpi-value">' + quietSnap.totalTrades.toLocaleString() + '</div>' +
+          '<div class="kpi-detail">' + quietSnap.day + ' ' + quietSnap.label + ' CEST</div>' +
+        '</div>';
+      var ce = sec.querySelector('[data-count]');
+      if (ce) { var co = new IntersectionObserver(function(es) { es.forEach(function(e) { if (e.isIntersecting) { animateCounters(); co.disconnect(); } }); }, {threshold:0.3}); co.observe(ce); }
+    }
+
+    // === HEATMAP ===
+    function getHeatColor(intensity) {
+      var isDark = document.documentElement.classList.contains('theme-dark');
+      if (isDark) {
+        var r = Math.round(13 + intensity * (0 - 13));
+        var g = Math.round(21 + intensity * (229 - 21));
+        var b = Math.round(32 + intensity * (255 - 32));
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+      } else {
+        var r = Math.round(240 - intensity * (240 - 8));
+        var g = Math.round(244 - intensity * (244 - 145));
+        var b = Math.round(248 - intensity * (248 - 178));
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+      }
+    }
+
+    function buildHeatmap() {
+      var table = document.getElementById('heatmapTable');
+      if (!table || dayOrder.length === 0) return;
+      var isDark = document.documentElement.classList.contains('theme-dark');
+
+      var allVals = [];
+      dayOrder.forEach(function(d) { for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) allVals.push(currentMetric === 'trades' ? c.trades / c.count : c.vol / c.count); } });
+      var minVal = Math.min.apply(null, allVals);
+      var maxVal = Math.max.apply(null, allVals);
+      var range = maxVal - minVal || 1;
+
+      var html = '<thead><tr><th class="day-label"></th>';
+      for (var h=0; h<24; h++) html += '<th>' + (h < 10 ? '0' : '') + h + '</th>';
+      html += '</tr></thead><tbody>';
+
+      dayOrder.forEach(function(d) {
+        html += '<tr><th class="day-label">' + d + '</th>';
+        for (var h=0; h<24; h++) {
+          var c = heatmap[d][h];
+          if (c.count === 0) {
+            html += '<td class="heatmap-cell empty"><div class="cell-val">-</div></td>';
+          } else {
+            var val = currentMetric === 'trades' ? c.trades / c.count : c.vol / c.count;
+            var intensity = (val - minVal) / range;
+            var bg = getHeatColor(intensity);
+            var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
+            var display = currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
+            html += '<td class="heatmap-cell" style="background:' + bg + ';color:' + textColor + '" title="' + d + ' ' + h + ':00 \u2014 ' + (currentMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString()) + '">' +
+              '<div class="cell-val">' + display + '</div></td>';
+          }
+        }
+        html += '</tr>';
+      });
+      html += '</tbody>';
+      table.innerHTML = html;
+
+      var bar = document.getElementById('legendBar');
+      if (bar) bar.style.background = 'linear-gradient(to right, ' + getHeatColor(0) + ', ' + getHeatColor(0.5) + ', ' + getHeatColor(1) + ')';
+    }
+
+    document.getElementById('metricToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      currentMetric = btn.dataset.metric;
+      document.querySelectorAll('#metricToggle button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      buildHeatmap();
+    });
+
+    // === CHARTS ===
+    var chartsBuilt = false;
+
+    function getChartColors() {
+      var s = getComputedStyle(document.documentElement);
+      return { text: s.getPropertyValue('--text').trim(), textSecondary: s.getPropertyValue('--text-secondary').trim(), accent: s.getPropertyValue('--accent').trim(), accentSecondary: s.getPropertyValue('--accent-secondary').trim(), positive: s.getPropertyValue('--positive').trim(), warning: s.getPropertyValue('--warning').trim(), gridLine: s.getPropertyValue('--grid-line').trim(), surface: s.getPropertyValue('--surface').trim() };
+    }
+
+    function resetCanvas(id) {
+      var old = document.getElementById(id); if (!old) return null;
+      var parent = old.parentNode; var canvas = document.createElement('canvas'); canvas.id = id;
+      parent.replaceChild(canvas, old); return canvas;
+    }
+
+    function buildCharts() {
+      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
+      var c = getChartColors();
+      var isDark = document.documentElement.classList.contains('theme-dark');
+
+      var hourColors = hourlyAvg.map(function(v) {
+        var sorted = hourlyAvg.slice().sort(function(a,b){return b-a;});
+        if (v >= sorted[0]) return 'rgba(0,229,255,1)';
+        if (v >= sorted[1]) return 'rgba(0,229,255,0.75)';
+        if (v >= sorted[2]) return 'rgba(0,229,255,0.55)';
+        return isDark ? 'rgba(0,229,255,0.2)' : 'rgba(8,145,178,0.2)';
+      });
+
+      var ctx1 = resetCanvas('hourlyChart');
+      if (ctx1) {
+        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Average trades by hour');
+        new Chart(ctx1, {
+          type: 'bar',
+          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:'Avg Trades',data:hourlyAvg,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' avg trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+        });
+      }
+
+      var volColors = hourlyVolAvg.map(function(v) {
+        var sorted = hourlyVolAvg.slice().sort(function(a,b){return b-a;});
+        if (v >= sorted[0]) return 'rgba(224,64,251,1)';
+        if (v >= sorted[1]) return 'rgba(224,64,251,0.75)';
+        if (v >= sorted[2]) return 'rgba(224,64,251,0.55)';
+        return isDark ? 'rgba(224,64,251,0.2)' : 'rgba(147,51,234,0.2)';
+      });
+      var ctx2 = resetCanvas('volumeHourChart');
+      if (ctx2) {
+        ctx2.setAttribute('role','img'); ctx2.setAttribute('aria-label','Average volume by hour');
+        new Chart(ctx2, {
+          type: 'bar',
+          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:'Avg Volume',data:hourlyVolAvg,backgroundColor:volColors,borderRadius:4,borderSkipped:false}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K');}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
+        });
+      }
+
+      var dayColors = dayOrder.map(function(d) {
+        return d === bestDay ? (isDark ? 'rgba(0,229,255,1)' : 'rgba(8,145,178,1)') : (isDark ? 'rgba(0,229,255,0.3)' : 'rgba(8,145,178,0.3)');
+      });
+      var ctx3 = resetCanvas('dayChart');
+      if (ctx3) {
+        ctx3.setAttribute('role','img'); ctx3.setAttribute('aria-label','Average trades by day');
+        new Chart(ctx3, {
+          type: 'bar',
+          data: { labels: dayOrder, datasets: [{label:'Avg Trades/Snapshot',data:dayOrder.map(function(d){return dayAvg[d];}),backgroundColor:dayColors,borderRadius:4,borderSkipped:false}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' avg trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:12,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+        });
+      }
+
+      var ctx4 = resetCanvas('timelineChart');
+      if (ctx4) {
+        ctx4.setAttribute('role','img'); ctx4.setAttribute('aria-label','Full timeline of trades');
+        new Chart(ctx4, {
+          type: 'line',
+          data: { labels: snapshots.map(function(s){return s.label;}), datasets: [{label:'Total Top-20 Trades',data:snapshots.map(function(s){return s.totalTrades;}),borderColor:c.accent,backgroundColor:isDark?'rgba(0,229,255,0.08)':'rgba(8,145,178,0.08)',fill:true,tension:0.3,pointRadius:2,pointHoverRadius:6,pointBackgroundColor:c.accent}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var s=snapshots[ctx.dataIndex];return s.day+' '+s.label+': '+ctx.raw.toLocaleString()+' trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:8},maxRotation:0,maxTicksLimit:16},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+        });
+      }
+
+      chartsBuilt = true;
+    }
+
+    function onThemeChange() {
+      chartsBuilt = false;
+      buildHeatmap();
+      buildCharts();
+    }
+
+    // === INIT ===
+    document.addEventListener('DOMContentLoaded', function() {
+      fetch('./data/snapshots.json?_=' + Date.now())
+        .then(function(r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function(raw) {
+          if (!raw || raw.length === 0) throw new Error('No snapshot data found');
+          processData(raw);
+
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('dashboardContent').style.display = '';
+
+          buildKPIs();
+          buildHeatmap();
+          buildCharts();
+          setupReveal();
+        })
+        .catch(function(err) {
+          document.getElementById('loadingState').style.display = 'none';
+          var el = document.getElementById('errorState');
+          el.style.display = '';
+          el.innerHTML = '<p>Failed to load snapshot data</p><code>' + err.message + '</code><p style="margin-top:16px;color:var(--text-secondary);font-size:0.9rem;">Make sure serve.py is running:<br><code>python serve.py</code></p>';
+        });
+    });
+  </script>
+</body>
+</html>
