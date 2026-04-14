@@ -1,9 +1,9 @@
 name: Crypto Momentum Snapshot
 
 on:
-  schedule:
-    - cron: '17 * * * *'  # 17 minutes past every hour
-  workflow_dispatch:        # also allows manual runs from the GitHub UI
+  # Scheduled runs moved to Render Cron Jobs (cron/snapshot.py).
+  # This workflow is kept as a manual fallback only.
+  workflow_dispatch:
 
 jobs:
   snapshot:
