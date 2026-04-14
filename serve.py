@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SNAPSHOTS_DIR = ROOT / "snapshots"
-DASHBOARD_DIR = ROOT / "dashboard"
+DASHBOARD_DIR = ROOT / "docs"
 
 
 def aggregate_snapshots():

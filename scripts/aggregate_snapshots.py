@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOTS_DIR = ROOT / "snapshots"
-OUT_FILE = ROOT / "dashboard" / "data" / "snapshots.json"
+OUT_FILE = ROOT / "docs" / "data" / "snapshots.json"
 
 
 def aggregate():
