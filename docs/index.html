@@ -401,17 +401,25 @@
       snapshots.forEach(function(s) { seen[s.day] = true; });
       dayOrder = weekOrder.filter(function(d) { return seen[d]; });
 
-      // Build heatmap with per-cell sample list (for std dev)
+      // Build heatmap with per-cell sample lists (for std dev + median + IQR)
       heatmap = {};
-      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0, tradeSamples: [] }; });
+      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0, tradeSamples: [], volSamples: [] }; });
       snapshots.forEach(function(s) {
         var cell = heatmap[s.day] && heatmap[s.day][s.hour];
-        if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; cell.tradeSamples.push(s.totalTrades); }
+        if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; cell.tradeSamples.push(s.totalTrades); cell.volSamples.push(s.totalVol); }
       });
-      // Compute per-cell std dev on trade counts
+      // Compute per-cell std (trades), medians (trades + volume), and IQR (trades)
       dayOrder.forEach(function(d) {
         for (var h=0; h<24; h++) {
           var c = heatmap[d][h];
+          if (c.count > 0) {
+            var sortedT = c.tradeSamples.slice().sort(function(a,b){return a-b;});
+            var sortedV = c.volSamples.slice().sort(function(a,b){return a-b;});
+            c.tradeMedian = quantile(sortedT, 0.5);
+            c.volMedian = quantile(sortedV, 0.5);
+            c.p25 = quantile(sortedT, 0.25);
+            c.p75 = quantile(sortedT, 0.75);
+          }
           if (c.count > 1) {
             var mean = c.trades / c.count;
             var sq = 0;
@@ -545,8 +553,13 @@
       if (!table || dayOrder.length === 0) return;
       var isDark = document.documentElement.classList.contains('theme-dark');
 
+      var useMedian = currentStat === 'median';
+      function cellVal(c) {
+        if (currentMetric === 'trades') return useMedian ? c.tradeMedian : c.trades / c.count;
+        return useMedian ? c.volMedian : c.vol / c.count;
+      }
       var allVals = [];
-      dayOrder.forEach(function(d) { for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) allVals.push(currentMetric === 'trades' ? c.trades / c.count : c.vol / c.count); } });
+      dayOrder.forEach(function(d) { for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) allVals.push(cellVal(c)); } });
       // Clip color scale to 5th/95th percentile so a single outlier cell
       // doesn't flatten contrast across the rest of the grid. Falls back to
       // raw min/max when there are fewer than 20 populated cells.
@@ -572,14 +585,24 @@
           if (c.count === 0) {
             html += '<td class="heatmap-cell empty"><div class="cell-val">-</div></td>';
           } else {
-            var val = currentMetric === 'trades' ? c.trades / c.count : c.vol / c.count;
+            var val = cellVal(c);
             var intensity = Math.max(0, Math.min(1, (val - minVal) / range));
             var bg = getHeatColor(intensity);
             var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
             var display = currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
             // Confidence: dim cells with low sample counts
             var opacity = c.count >= 4 ? 1 : (c.count === 3 ? 0.9 : (c.count === 2 ? 0.75 : 0.55));
-            var tip = d + ' ' + h + ':00 \u2014 ' + (currentMetric === 'trades' ? 'avg ' + Math.round(val).toLocaleString() + ' trades' : 'avg $' + Math.round(val).toLocaleString()) + '  (n=' + c.count + (c.std ? ', \u03C3 ' + Math.round(c.std).toLocaleString() : '') + ')';
+            var statWord = useMedian ? 'median' : 'avg';
+            var valStr = currentMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString();
+            var spread;
+            if (useMedian && currentMetric === 'trades' && c.count > 1) {
+              spread = ', IQR ' + Math.round(c.p75 - c.p25).toLocaleString();
+            } else if (!useMedian && currentMetric === 'trades' && c.std) {
+              spread = ', \u03C3 ' + Math.round(c.std).toLocaleString();
+            } else {
+              spread = '';
+            }
+            var tip = d + ' ' + h + ':00 \u2014 ' + statWord + ' ' + valStr + '  (n=' + c.count + spread + ')';
             html += '<td class="heatmap-cell" style="background:' + bg + ';color:' + textColor + ';opacity:' + opacity + '" title="' + tip + '">' +
               '<div class="cell-val">' + display + '</div></td>';
           }
