@@ -507,6 +507,18 @@
       var spreadLabel = currentStat === 'median'
         ? 'IQR ' + (hourlyP75[bestHour] - hourlyP25[bestHour]).toLocaleString()
         : '\u03C3 ' + bestHourStd.toLocaleString();
+
+      // Best 2-consecutive-hour window (wraps midnight)
+      var hourlyForWindow = currentStat === 'median' ? hourlyMedian : hourlyAvg;
+      var bestStart = 0, bestSum = -1;
+      for (var hi = 0; hi < 24; hi++) {
+        var nxt = (hi + 1) % 24;
+        var sum = (hourlyForWindow[hi] || 0) + (hourlyForWindow[nxt] || 0);
+        if (sum > bestSum) { bestSum = sum; bestStart = hi; }
+      }
+      var winEnd = (bestStart + 2) % 24;
+      var winLabel = (bestStart < 10 ? '0' : '') + bestStart + ':00 \u2013 ' + (winEnd < 10 ? '0' : '') + winEnd + ':00';
+
       sec.innerHTML =
         '<div class="kpi-card kpi-cyan animate delay-1">' +
           '<div class="kpi-label">Best Hour (CEST)</div>' +
@@ -519,17 +531,10 @@
           '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
         '</div>' +
         '<div class="kpi-card kpi-green animate delay-3">' +
-          '<div class="kpi-label">Peak Snapshot</div>' +
-          '<div class="kpi-value" data-count="' + peakSnap.totalTrades + '">0</div>' +
-          '<div class="kpi-detail">' + peakSnap.day + ' ' + peakSnap.label + ' CEST</div>' +
-        '</div>' +
-        '<div class="kpi-card kpi-amber animate delay-4">' +
-          '<div class="kpi-label">Quietest Snapshot</div>' +
-          '<div class="kpi-value">' + quietSnap.totalTrades.toLocaleString() + '</div>' +
-          '<div class="kpi-detail">' + quietSnap.day + ' ' + quietSnap.label + ' CEST</div>' +
+          '<div class="kpi-label">Best 2h Window (CEST)</div>' +
+          '<div class="kpi-value" style="font-size:1.7rem;letter-spacing:-0.02em;">' + winLabel + '</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + bestSum.toLocaleString() + ' trades over the 2h block</div>' +
         '</div>';
-      var ce = sec.querySelector('[data-count]');
-      if (ce) { var co = new IntersectionObserver(function(es) { es.forEach(function(e) { if (e.isIntersecting) { animateCounters(); co.disconnect(); } }); }, {threshold:0.3}); co.observe(ce); }
     }
 
     // === HEATMAP ===
