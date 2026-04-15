@@ -479,15 +479,14 @@
       peakSnap = snapshots.reduce(function(a,b) { return a.totalTrades > b.totalTrades ? a : b; });
       quietSnap = snapshots.reduce(function(a,b) { return a.totalTrades < b.totalTrades ? a : b; });
 
-      // Derive date range for subtitle
-      var first = snapshots[0].date;
+      // Subtitle uses the most recent snapshot timestamp
       var last = snapshots[snapshots.length - 1].date;
       var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      var dateRange = months[first.getMonth()] + ' ' + first.getDate() + '\u2013' + last.getDate() + ', ' + first.getFullYear();
-      var dayRange = dayOrder[0] + '\u2013' + dayOrder[dayOrder.length - 1];
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var lastLabel = months[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear() + ' ' + pad(last.getHours()) + ':' + pad(last.getMinutes());
 
       var sub = document.getElementById('subtitleText');
-      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; ' + dateRange + ' (' + dayRange + ') &nbsp;|&nbsp; CEST (UTC+2) &nbsp;|&nbsp; Top ' + topN;
+      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; Last: ' + lastLabel + ' &nbsp;|&nbsp; CEST (UTC+2) &nbsp;|&nbsp; Top ' + topN;
 
       dataReady = true;
     }
