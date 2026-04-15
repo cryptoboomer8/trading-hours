@@ -502,8 +502,24 @@
 
       var allVals = [];
       dayOrder.forEach(function(d) { for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) allVals.push(currentMetric === 'trades' ? c.trades / c.count : c.vol / c.count); } });
-      var minVal = Math.min.apply(null, allVals);
-      var maxVal = Math.max.apply(null, allVals);
+      // Clip color scale to 5th/95th percentile so a single outlier cell
+      // doesn't flatten contrast across the rest of the grid. Falls back to
+      // raw min/max when there are fewer than 20 populated cells.
+      function pct(arr, p) {
+        var sorted = arr.slice().sort(function(a,b){return a-b;});
+        var idx = (sorted.length - 1) * p;
+        var lo = Math.floor(idx), hi = Math.ceil(idx);
+        if (lo === hi) return sorted[lo];
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+      }
+      var minVal, maxVal;
+      if (allVals.length >= 20) {
+        minVal = pct(allVals, 0.05);
+        maxVal = pct(allVals, 0.95);
+      } else {
+        minVal = Math.min.apply(null, allVals);
+        maxVal = Math.max.apply(null, allVals);
+      }
       var range = maxVal - minVal || 1;
 
       var html = '<thead><tr><th class="day-label"></th>';
@@ -518,7 +534,7 @@
             html += '<td class="heatmap-cell empty"><div class="cell-val">-</div></td>';
           } else {
             var val = currentMetric === 'trades' ? c.trades / c.count : c.vol / c.count;
-            var intensity = (val - minVal) / range;
+            var intensity = Math.max(0, Math.min(1, (val - minVal) / range));
             var bg = getHeatColor(intensity);
             var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
             var display = currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
