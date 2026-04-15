@@ -380,12 +380,11 @@
 
       if (snapshots.length === 0) return;
 
-      // Determine day order from actual data (chronological, unique)
+      // Day order: fixed Mon-first weekday order, but only include days that appear in data
+      var weekOrder = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
       var seen = {};
-      dayOrder = [];
-      snapshots.forEach(function(s) {
-        if (!seen[s.day]) { seen[s.day] = true; dayOrder.push(s.day); }
-      });
+      snapshots.forEach(function(s) { seen[s.day] = true; });
+      dayOrder = weekOrder.filter(function(d) { return seen[d]; });
 
       // Build heatmap with per-cell sample list (for std dev)
       heatmap = {};
