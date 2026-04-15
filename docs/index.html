@@ -121,6 +121,9 @@
     .sl-eu { background: rgba(0,229,255,0.22); }
     .sl-us { background: rgba(0,230,118,0.22); }
     .sl-overlap { background: rgba(255,171,0,0.30); }
+    .stat-toggle { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; }
+    .stat-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
+    .stat-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
 
     /* KPI Grid */
     .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
@@ -219,6 +222,14 @@
             <label for="topNSlider" class="topn-label">Top&nbsp;<span id="topNValue">20</span>&nbsp;coins</label>
             <input type="range" id="topNSlider" min="1" max="20" step="1" value="20" aria-label="Select how many top coins to include (1 to 20)">
             <span class="topn-hint text-secondary">Drag to narrow focus &mdash; all metrics update live</span>
+          </div>
+          <div class="topn-row">
+            <span class="topn-label">Aggregation</span>
+            <div class="stat-toggle" id="statToggle" role="group" aria-label="Choose mean or median aggregation">
+              <button class="active" data-stat="mean" type="button">Mean</button>
+              <button data-stat="median" type="button">Median</button>
+            </div>
+            <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; spread shown as IQR</span>
           </div>
           <div class="session-legend" aria-label="Trading sessions (CEST)">
             <span class="sl-swatch sl-asia"></span><span>Asia 00&ndash;08</span>
@@ -346,12 +357,27 @@
     var hourlyAvg = [];
     var hourlyVolAvg = [];
     var hourlyStd = [];       // std dev of trade totals per hour (across all samples of that hour)
+    var hourlyMedian = [];    // median trades per hour
+    var hourlyVolMedian = []; // median volume per hour
+    var hourlyP25 = [];       // 25th percentile of trades per hour (lower IQR)
+    var hourlyP75 = [];       // 75th percentile of trades per hour (upper IQR)
     var hourlySamples = [];   // sample count per hour
     var dayAvg = {};
+    var dayMedian = {};
     var bestHour = 0, bestHourVal = 0, bestHourStd = 0, bestHourSamples = 0;
     var bestDay = '', bestDayVal = 0;
     var peakSnap = null, quietSnap = null;
     var currentMetric = 'trades';
+    var currentStat = 'mean';
+
+    // === Statistics helpers ===
+    function quantile(sorted, p) {
+      if (sorted.length === 0) return 0;
+      var idx = (sorted.length - 1) * p;
+      var lo = Math.floor(idx), hi = Math.ceil(idx);
+      if (lo === hi) return sorted[lo];
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+    }
 
     // === FETCH + PROCESS ===
     function sumTopN(arr, n) { var s = 0; var lim = Math.min(n, arr.length); for (var i = 0; i < lim; i++) s += arr[i] || 0; return s; }
@@ -397,13 +423,20 @@
         }
       });
 
-      // Hourly stats: pool samples across days for hour h to get hourlyAvg, hourlyStd, hourlySamples
-      hourlyAvg = []; hourlyVolAvg = []; hourlyStd = []; hourlySamples = [];
+      // Hourly stats: pool samples across days for hour h to get mean/median/IQR/std/samples
+      hourlyAvg = []; hourlyVolAvg = []; hourlyStd = []; hourlyMedian = []; hourlyVolMedian = []; hourlyP25 = []; hourlyP75 = []; hourlySamples = [];
       for (var h=0; h<24; h++) {
         var tradeSamples = [];
         var volSamples = [];
         snapshots.forEach(function(s) { if (s.hour === h) { tradeSamples.push(s.totalTrades); volSamples.push(s.totalVol); } });
-        if (tradeSamples.length === 0) { hourlyAvg.push(0); hourlyVolAvg.push(0); hourlyStd.push(0); hourlySamples.push(0); continue; }
+        if (tradeSamples.length === 0) {
+          hourlyAvg.push(0); hourlyVolAvg.push(0); hourlyStd.push(0);
+          hourlyMedian.push(0); hourlyVolMedian.push(0); hourlyP25.push(0); hourlyP75.push(0);
+          hourlySamples.push(0);
+          continue;
+        }
+        var sortedT = tradeSamples.slice().sort(function(a,b){return a-b;});
+        var sortedV = volSamples.slice().sort(function(a,b){return a-b;});
         var meanT = tradeSamples.reduce(function(a,b){return a+b;}, 0) / tradeSamples.length;
         var meanV = volSamples.reduce(function(a,b){return a+b;}, 0) / volSamples.length;
         var sqT = 0;
@@ -412,21 +445,29 @@
         hourlyAvg.push(Math.round(meanT));
         hourlyVolAvg.push(Math.round(meanV));
         hourlyStd.push(Math.round(std));
+        hourlyMedian.push(Math.round(quantile(sortedT, 0.5)));
+        hourlyVolMedian.push(Math.round(quantile(sortedV, 0.5)));
+        hourlyP25.push(Math.round(quantile(sortedT, 0.25)));
+        hourlyP75.push(Math.round(quantile(sortedT, 0.75)));
         hourlySamples.push(tradeSamples.length);
       }
 
-      // Day averages (mean of per-snapshot totals on that weekday)
-      dayAvg = {};
+      // Day stats
+      dayAvg = {}; dayMedian = {};
       dayOrder.forEach(function(d) {
         var vals = snapshots.filter(function(s){return s.day===d;}).map(function(s){return s.totalTrades;});
-        dayAvg[d] = vals.length ? Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length) : 0;
+        if (!vals.length) { dayAvg[d] = 0; dayMedian[d] = 0; return; }
+        dayAvg[d] = Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length);
+        dayMedian[d] = Math.round(quantile(vals.slice().sort(function(a,b){return a-b;}), 0.5));
       });
 
-      // Best hour / day / peak / quiet
+      // Best hour / day / peak / quiet — driven by current stat selection
+      var hourlyForBest = currentStat === 'median' ? hourlyMedian : hourlyAvg;
+      var dayForBest = currentStat === 'median' ? dayMedian : dayAvg;
       bestHour = 0; bestHourVal = 0; bestHourStd = 0; bestHourSamples = 0;
-      hourlyAvg.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; bestHourStd = hourlyStd[i]; bestHourSamples = hourlySamples[i]; } });
+      hourlyForBest.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; bestHourStd = hourlyStd[i]; bestHourSamples = hourlySamples[i]; } });
       bestDay = dayOrder[0]; bestDayVal = 0;
-      dayOrder.forEach(function(d) { if (dayAvg[d] > bestDayVal) { bestDayVal = dayAvg[d]; bestDay = d; } });
+      dayOrder.forEach(function(d) { if (dayForBest[d] > bestDayVal) { bestDayVal = dayForBest[d]; bestDay = d; } });
       peakSnap = snapshots.reduce(function(a,b) { return a.totalTrades > b.totalTrades ? a : b; });
       quietSnap = snapshots.reduce(function(a,b) { return a.totalTrades < b.totalTrades ? a : b; });
 
@@ -454,16 +495,20 @@
     function buildKPIs() {
       var sec = document.getElementById('kpiSection');
       if (!sec || !peakSnap) return;
+      var statName = currentStat === 'median' ? 'Median' : 'Avg';
+      var spreadLabel = currentStat === 'median'
+        ? 'IQR ' + (hourlyP75[bestHour] - hourlyP25[bestHour]).toLocaleString()
+        : '\u03C3 ' + bestHourStd.toLocaleString();
       sec.innerHTML =
         '<div class="kpi-card kpi-cyan animate delay-1">' +
           '<div class="kpi-label">Best Hour (CEST)</div>' +
           '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
-          '<div class="kpi-detail">Avg ' + bestHourVal.toLocaleString() + ' trades &middot; &sigma; ' + bestHourStd.toLocaleString() + ' &middot; n=' + bestHourSamples + '</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + bestHourVal.toLocaleString() + ' trades &middot; ' + spreadLabel + ' &middot; n=' + bestHourSamples + '</div>' +
         '</div>' +
         '<div class="kpi-card kpi-magenta animate delay-2">' +
           '<div class="kpi-label">Best Day</div>' +
           '<div class="kpi-value">' + bestDay + '</div>' +
-          '<div class="kpi-detail">Avg ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
         '</div>' +
         '<div class="kpi-card kpi-green animate delay-3">' +
           '<div class="kpi-label">Peak Snapshot</div>' +
@@ -505,17 +550,11 @@
       // Clip color scale to 5th/95th percentile so a single outlier cell
       // doesn't flatten contrast across the rest of the grid. Falls back to
       // raw min/max when there are fewer than 20 populated cells.
-      function pct(arr, p) {
-        var sorted = arr.slice().sort(function(a,b){return a-b;});
-        var idx = (sorted.length - 1) * p;
-        var lo = Math.floor(idx), hi = Math.ceil(idx);
-        if (lo === hi) return sorted[lo];
-        return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-      }
       var minVal, maxVal;
       if (allVals.length >= 20) {
-        minVal = pct(allVals, 0.05);
-        maxVal = pct(allVals, 0.95);
+        var sortedVals = allVals.slice().sort(function(a,b){return a-b;});
+        minVal = quantile(sortedVals, 0.05);
+        maxVal = quantile(sortedVals, 0.95);
       } else {
         minVal = Math.min.apply(null, allVals);
         maxVal = Math.max.apply(null, allVals);
@@ -563,6 +602,15 @@
       buildHeatmap();
     });
 
+    document.getElementById('statToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || btn.dataset.stat === currentStat) return;
+      currentStat = btn.dataset.stat;
+      document.querySelectorAll('#statToggle button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      if (dataReady) rebuildAll();
+    });
+
     // === CHARTS ===
     var chartsBuilt = false;
 
@@ -604,11 +652,15 @@
       }
     };
 
-    // Chart.js plugin: draw vertical error bars (±1σ) on each bar
+    // Chart.js plugin: draw vertical error bars on each bar.
+    // Accepts either { data: [...std] } for symmetric ±std, or
+    // { upper: [...absUpper], lower: [...absLower] } for asymmetric whiskers.
     var errorBarsPlugin = {
       id: 'errorBars',
       afterDatasetsDraw: function(chart, args, opts) {
-        if (!opts || !opts.data) return;
+        if (!opts) return;
+        var hasAsym = opts.upper && opts.lower;
+        if (!hasAsym && !opts.data) return;
         var meta = chart.getDatasetMeta(0);
         var scale = chart.scales.y;
         var ctx = chart.ctx;
@@ -616,12 +668,19 @@
         ctx.strokeStyle = opts.color || 'rgba(255,255,255,0.55)';
         ctx.lineWidth = 1.5;
         meta.data.forEach(function(bar, i) {
-          var std = opts.data[i];
-          if (!std || std <= 0) return;
           var val = chart.data.datasets[0].data[i];
           if (!val) return;
-          var top = scale.getPixelForValue(val + std);
-          var bottom = scale.getPixelForValue(Math.max(0, val - std));
+          var topVal, botVal;
+          if (hasAsym) {
+            topVal = opts.upper[i]; botVal = opts.lower[i];
+            if (topVal == null || botVal == null) return;
+          } else {
+            var std = opts.data[i];
+            if (!std || std <= 0) return;
+            topVal = val + std; botVal = Math.max(0, val - std);
+          }
+          var top = scale.getPixelForValue(topVal);
+          var bottom = scale.getPixelForValue(Math.max(0, botVal));
           var x = bar.x;
           ctx.beginPath();
           ctx.moveTo(x, top); ctx.lineTo(x, bottom);
@@ -638,22 +697,32 @@
       var c = getChartColors();
       var isDark = document.documentElement.classList.contains('theme-dark');
 
-      var hourColors = hourlyAvg.map(function(v) {
-        var sorted = hourlyAvg.slice().sort(function(a,b){return b-a;});
+      var isMedian = currentStat === 'median';
+      var hourlyData = isMedian ? hourlyMedian : hourlyAvg;
+      var hourlyVolData = isMedian ? hourlyVolMedian : hourlyVolAvg;
+      var statLabel = isMedian ? 'median' : 'avg';
+
+      var hourColors = hourlyData.map(function(v) {
+        var sorted = hourlyData.slice().sort(function(a,b){return b-a;});
         if (v >= sorted[0]) return 'rgba(0,229,255,1)';
         if (v >= sorted[1]) return 'rgba(0,229,255,0.75)';
         if (v >= sorted[2]) return 'rgba(0,229,255,0.55)';
         return isDark ? 'rgba(0,229,255,0.2)' : 'rgba(8,145,178,0.2)';
       });
 
+      // Error bar config: ±std around mean, or [p25, p75] around median
+      var ebOpts = isMedian
+        ? { upper: hourlyP75, lower: hourlyP25, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' }
+        : { data: hourlyStd, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' };
+
       var ctx1 = resetCanvas('hourlyChart');
       if (ctx1) {
-        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Average trades by hour');
+        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trade activity by hour');
         new Chart(ctx1, {
           type: 'bar',
           plugins: [sessionBandsPlugin, errorBarsPlugin],
-          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:'Avg Trades',data:hourlyAvg,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex;return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:{data:hourlyStd,color:isDark?'rgba(255,255,255,0.55)':'rgba(0,0,0,0.45)'}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Trades',data:hourlyData,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex; if (isMedian) { return ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')'; } return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:ebOpts}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
         });
       }
 
@@ -666,24 +735,25 @@
       });
       var ctx2 = resetCanvas('volumeHourChart');
       if (ctx2) {
-        ctx2.setAttribute('role','img'); ctx2.setAttribute('aria-label','Average volume by hour');
+        ctx2.setAttribute('role','img'); ctx2.setAttribute('aria-label','Volume by hour');
         new Chart(ctx2, {
           type: 'bar',
-          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:'Avg Volume',data:hourlyVolAvg,backgroundColor:volColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K');}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
+          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Volume',data:hourlyVolData,backgroundColor:volColors,borderRadius:4,borderSkipped:false}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K') + '  ' + statLabel;}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
         });
       }
 
       var dayColors = dayOrder.map(function(d) {
         return d === bestDay ? (isDark ? 'rgba(0,229,255,1)' : 'rgba(8,145,178,1)') : (isDark ? 'rgba(0,229,255,0.3)' : 'rgba(8,145,178,0.3)');
       });
+      var dayValues = dayOrder.map(function(d){return isMedian ? dayMedian[d] : dayAvg[d];});
       var ctx3 = resetCanvas('dayChart');
       if (ctx3) {
-        ctx3.setAttribute('role','img'); ctx3.setAttribute('aria-label','Average trades by day');
+        ctx3.setAttribute('role','img'); ctx3.setAttribute('aria-label','Trades by day');
         new Chart(ctx3, {
           type: 'bar',
-          data: { labels: dayOrder, datasets: [{label:'Avg Trades/Snapshot',data:dayOrder.map(function(d){return dayAvg[d];}),backgroundColor:dayColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' avg trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:12,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+          data: { labels: dayOrder, datasets: [{label:statLabel + ' Trades/Snapshot',data:dayValues,backgroundColor:dayColors,borderRadius:4,borderSkipped:false}] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' ' + statLabel + ' trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:12,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
         });
       }
 
