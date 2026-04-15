@@ -28,7 +28,6 @@ def required_env(name: str) -> str:
         sys.exit(1)
     return val
 
-
 def fetch_screener() -> dict:
     headers = {
         "Accept": "application/json",
