@@ -282,17 +282,6 @@
           </div>
         </section>
 
-        <!-- TIMELINE -->
-        <section class="chart-section" data-reveal>
-          <h2>Full Timeline</h2>
-          <p class="section-sub">Total top-20 trade count over every snapshot &mdash; spot the surges</p>
-          <div class="chart-card">
-            <div class="chart-container" style="height:320px;" role="img" aria-label="Line chart showing total top-20 trade count across all snapshots over time">
-              <canvas id="timelineChart"></canvas>
-            </div>
-          </div>
-        </section>
-
       </div>
     </div>
   </main>
@@ -679,16 +668,6 @@
           type: 'bar',
           data: { labels: dayOrder, datasets: [{label:'Avg Trades/Snapshot',data:dayOrder.map(function(d){return dayAvg[d];}),backgroundColor:dayColors,borderRadius:4,borderSkipped:false}] },
           options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' avg trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:12,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
-        });
-      }
-
-      var ctx4 = resetCanvas('timelineChart');
-      if (ctx4) {
-        ctx4.setAttribute('role','img'); ctx4.setAttribute('aria-label','Full timeline of trades');
-        new Chart(ctx4, {
-          type: 'line',
-          data: { labels: snapshots.map(function(s){return s.label;}), datasets: [{label:'Total Top-20 Trades',data:snapshots.map(function(s){return s.totalTrades;}),borderColor:c.accent,backgroundColor:isDark?'rgba(0,229,255,0.08)':'rgba(8,145,178,0.08)',fill:true,tension:0.3,pointRadius:2,pointHoverRadius:6,pointBackgroundColor:c.accent}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var s=snapshots[ctx.dataIndex];return s.day+' '+s.label+': '+ctx.raw.toLocaleString()+' trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:8},maxRotation:0,maxTicksLimit:16},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
         });
       }
 
