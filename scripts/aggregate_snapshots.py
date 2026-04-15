@@ -13,6 +13,7 @@ whichever format the file uses.
 
 import gzip
 import json
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,7 +35,10 @@ def row_from_snapshot(data: dict):
         tR = [int(x.get("trade_count") or 0) for x in top20]
         vR = [round(x.get("volume") or 0) for x in top20]
     elif "screener" in data:
-        coins = data["screener"]
+        screener = data["screener"]
+        # The /api/screener payload is { tickers: [...], lastUpdate, symbolCount, ... }.
+        # Tolerate a bare-list shape too in case the upstream format changes.
+        coins = screener.get("tickers", screener) if isinstance(screener, dict) else screener
 
         def trades_5m(c):
             tf = c.get("tf5m") or {}
@@ -54,7 +58,6 @@ def row_from_snapshot(data: dict):
 
 def aggregate():
     files = list(SNAPSHOTS_DIR.glob("snapshot_*.json")) + list(SNAPSHOTS_DIR.glob("snapshot_*.json.gz"))
-    files.sort(key=lambda p: p.name)
     rows = []
     skipped = 0
     for fp in files:
@@ -68,6 +71,8 @@ def aggregate():
         except Exception as e:
             print(f"WARN: skipping {fp.name}: {e}")
             skipped += 1
+    # Sort by absolute (UTC) timestamp so legacy CEST and new UTC filenames interleave correctly.
+    rows.sort(key=lambda r: datetime.fromisoformat(r["ts"]))
     return rows, skipped
 
 
