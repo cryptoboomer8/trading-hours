@@ -5,7 +5,8 @@ Supports two on-disk formats:
   Legacy (uncompressed): { timestamp, top_20: [{symbol, trade_count, volume}, ...] }
   Current (gzipped):     { timestamp, screener: [<full screener entry>, ...] }
 
-For the current format we rank coins by 1h trade count and pull the top 20.
+For the current format we rank coins by 5m trade count and pull the top 20
+(matches the original agent's behaviour).
 The dashboard's per-rank trade/volume arrays (tR, vR) are produced from
 whichever format the file uses.
 """
@@ -35,17 +36,17 @@ def row_from_snapshot(data: dict):
     elif "screener" in data:
         coins = data["screener"]
 
-        def trades_1h(c):
-            tf = c.get("tf1h") or {}
+        def trades_5m(c):
+            tf = c.get("tf5m") or {}
             return tf.get("trades") or 0
 
-        def volume_1h(c):
-            tf = c.get("tf1h") or {}
+        def volume_5m(c):
+            tf = c.get("tf5m") or {}
             return tf.get("volume") or 0
 
-        ranked = sorted(coins, key=trades_1h, reverse=True)[:20]
-        tR = [int(trades_1h(c)) for c in ranked]
-        vR = [round(volume_1h(c)) for c in ranked]
+        ranked = sorted(coins, key=trades_5m, reverse=True)[:20]
+        tR = [int(trades_5m(c)) for c in ranked]
+        vR = [round(volume_5m(c)) for c in ranked]
     else:
         return None
     return {"ts": data.get("timestamp"), "tR": tR, "vR": vR}
