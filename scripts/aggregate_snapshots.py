@@ -1,13 +1,16 @@
-"""Produce docs/data/snapshots.json from snapshots/*.json.
+"""Produce docs/data/snapshots.json from snapshots/*.{json,json.gz}.
 
-Output schema (one object per snapshot):
-  ts: ISO timestamp
-  tR: list[int]   -- trade_count per rank (length up to 20)
-  vR: list[int]   -- rounded volume per rank (length up to 20)
+Supports two on-disk formats:
 
-The dashboard sums tR[0:N] and vR[0:N] live based on the top-N slider.
+  Legacy (uncompressed): { timestamp, top_20: [{symbol, trade_count, volume}, ...] }
+  Current (gzipped):     { timestamp, screener: [<full screener entry>, ...] }
+
+For the current format we rank coins by 1h trade count and pull the top 20.
+The dashboard's per-rank trade/volume arrays (tR, vR) are produced from
+whichever format the file uses.
 """
 
+import gzip
 import json
 from pathlib import Path
 
@@ -16,26 +19,63 @@ SNAPSHOTS_DIR = ROOT / "snapshots"
 OUT_FILE = ROOT / "docs" / "data" / "snapshots.json"
 
 
+def load_snapshot(fp: Path) -> dict:
+    if fp.suffix == ".gz":
+        with gzip.open(fp, "rb") as f:
+            return json.loads(f.read().decode("utf-8"))
+    with open(fp, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def row_from_snapshot(data: dict):
+    if "top_20" in data:
+        top20 = data["top_20"]
+        tR = [int(x.get("trade_count") or 0) for x in top20]
+        vR = [round(x.get("volume") or 0) for x in top20]
+    elif "screener" in data:
+        coins = data["screener"]
+
+        def trades_1h(c):
+            tf = c.get("tf1h") or {}
+            return tf.get("trades") or 0
+
+        def volume_1h(c):
+            tf = c.get("tf1h") or {}
+            return tf.get("volume") or 0
+
+        ranked = sorted(coins, key=trades_1h, reverse=True)[:20]
+        tR = [int(trades_1h(c)) for c in ranked]
+        vR = [round(volume_1h(c)) for c in ranked]
+    else:
+        return None
+    return {"ts": data.get("timestamp"), "tR": tR, "vR": vR}
+
+
 def aggregate():
+    files = list(SNAPSHOTS_DIR.glob("snapshot_*.json")) + list(SNAPSHOTS_DIR.glob("snapshot_*.json.gz"))
+    files.sort(key=lambda p: p.name)
     rows = []
-    for fp in sorted(SNAPSHOTS_DIR.glob("snapshot_*.json")):
-        with open(fp, encoding="utf-8") as f:
-            data = json.load(f)
-        top20 = data.get("top_20", [])
-        rows.append({
-            "ts": data["timestamp"],
-            "tR": [int(x["trade_count"]) for x in top20],
-            "vR": [round(x["volume"]) for x in top20],
-        })
-    return rows
+    skipped = 0
+    for fp in files:
+        try:
+            data = load_snapshot(fp)
+            row = row_from_snapshot(data)
+            if row and row["ts"]:
+                rows.append(row)
+            else:
+                skipped += 1
+        except Exception as e:
+            print(f"WARN: skipping {fp.name}: {e}")
+            skipped += 1
+    return rows, skipped
 
 
 def main():
-    rows = aggregate()
+    rows, skipped = aggregate()
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         json.dump(rows, f, separators=(",", ":"))
-    print(f"Wrote {len(rows)} rows to {OUT_FILE.relative_to(ROOT)}")
+    print(f"Wrote {len(rows)} rows to {OUT_FILE.relative_to(ROOT)} (skipped {skipped})")
 
 
 if __name__ == "__main__":
