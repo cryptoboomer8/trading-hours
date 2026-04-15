@@ -137,6 +137,17 @@
     .kpi-green .kpi-value { color: var(--positive); }
     .kpi-amber .kpi-value { color: var(--warning); }
 
+    /* Session brief */
+    .session-brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-bottom: 48px; position: relative; z-index: 1; }
+    .brief-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
+    .brief-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+    .brief-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+    .brief-headline { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
+    .brief-headline.pace-up { color: var(--positive); }
+    .brief-headline.pace-down { color: var(--negative); }
+    .brief-headline.pace-flat { color: var(--text); }
+    .brief-sub { font-size: 0.78rem; color: var(--text-secondary); text-align: right; max-width: 180px; line-height: 1.35; }
+
     /* Heatmap */
     .heatmap-section { margin-bottom: 48px; position: relative; z-index: 1; }
     .heatmap-section h2 { margin-bottom: 6px; }
@@ -241,6 +252,34 @@
 
         <!-- KPIs -->
         <section class="kpi-grid" aria-label="Key findings" id="kpiSection"></section>
+
+        <!-- SESSION BRIEF -->
+        <section class="session-brief animate delay-2" aria-label="Session brief">
+          <div class="brief-card brief-pace">
+            <div class="brief-head">
+              <div>
+                <div class="brief-label">Today&rsquo;s pace vs typical</div>
+                <div class="brief-headline" id="paceHeadline">&mdash;</div>
+              </div>
+              <div class="brief-sub" id="paceSub" aria-live="polite"></div>
+            </div>
+            <div class="chart-container" style="height:200px;">
+              <canvas id="paceChart"></canvas>
+            </div>
+          </div>
+          <div class="brief-card brief-next">
+            <div class="brief-head">
+              <div>
+                <div class="brief-label">Next 5 hours &mdash; <span id="nextDayName">today</span></div>
+                <div class="brief-headline" id="nextHeadline">&mdash;</div>
+              </div>
+              <div class="brief-sub" id="nextSub"></div>
+            </div>
+            <div class="chart-container" style="height:200px;">
+              <canvas id="nextHoursChart"></canvas>
+            </div>
+          </div>
+        </section>
 
         <!-- HEATMAP -->
         <section class="heatmap-section animate delay-3">
@@ -494,8 +533,131 @@
     function rebuildAll() {
       processData(rawData, currentTopN);
       buildKPIs();
+      buildSessionBrief();
       buildHeatmap();
       buildCharts();
+    }
+
+    // === SESSION BRIEF ===
+    function buildSessionBrief() {
+      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
+      var c = getChartColors();
+      var isDark = document.documentElement.classList.contains('theme-dark');
+      var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      var pad = function(n){return n<10?'0'+n:''+n;};
+
+      var now = new Date();
+      var todayKey = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
+      var currentHour = now.getHours();
+      var todayDayName = dayNames[now.getDay()];
+
+      // Today's snapshots and per-hour totals (sums duplicates within the hour)
+      var todayByHour = []; for (var h=0; h<24; h++) todayByHour.push(0);
+      var todayHasHour = []; for (var h=0; h<24; h++) todayHasHour.push(false);
+      var todaySnapsCount = 0;
+      snapshots.forEach(function(s) {
+        var d = s.date;
+        var key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayHasHour[s.hour] = true; todaySnapsCount++; }
+      });
+
+      // Cumulative trajectories: today (only up to current hour, null after) vs typical (median pooled across all days)
+      var todayCum = []; var typicalCum = [];
+      var tSum = 0, ySum = 0;
+      for (var h=0; h<24; h++) {
+        if (h <= currentHour && todaySnapsCount > 0) { tSum += todayByHour[h]; todayCum.push(tSum); }
+        else { todayCum.push(null); }
+        ySum += hourlyMedian[h] || 0;
+        typicalCum.push(ySum);
+      }
+
+      // Pace headline: today's cumulative through last hour with data, vs typical at same hour
+      var lastHourWithData = -1;
+      for (var h=currentHour; h>=0; h--) { if (todayHasHour[h]) { lastHourWithData = h; break; } }
+      var paceEl = document.getElementById('paceHeadline');
+      var paceSubEl = document.getElementById('paceSub');
+      if (lastHourWithData < 0) {
+        paceEl.textContent = 'No data yet for today';
+        paceEl.className = 'brief-headline pace-flat';
+        paceSubEl.textContent = 'Waiting for the first snapshot of ' + todayDayName + '.';
+      } else {
+        var todayAt = todayCum[lastHourWithData];
+        var typAt = typicalCum[lastHourWithData];
+        var pct = typAt > 0 ? Math.round((todayAt / typAt - 1) * 100) : 0;
+        var sign = pct > 0 ? '+' : '';
+        paceEl.textContent = sign + pct + '% vs typical ' + todayDayName;
+        paceEl.className = 'brief-headline ' + (pct >= 8 ? 'pace-up' : pct <= -8 ? 'pace-down' : 'pace-flat');
+        paceSubEl.innerHTML = todaySnapsCount + ' snapshots so far &middot; through ' + pad(lastHourWithData) + ':59 CEST';
+      }
+
+      // Render pace chart (cumulative today vs typical)
+      var ctxP = resetCanvas('paceChart');
+      if (ctxP) {
+        new Chart(ctxP, {
+          type: 'line',
+          data: {
+            labels: Array.from({length:24}, function(_,i){return pad(i)+':00';}),
+            datasets: [
+              { label: 'Typical (median)', data: typicalCum, borderColor: c.textSecondary, borderDash: [4,4], borderWidth: 2, fill: false, pointRadius: 0, tension: 0.25 },
+              { label: 'Today',            data: todayCum,   borderColor: c.accent,        borderWidth: 2.5, fill: true, backgroundColor: isDark ? 'rgba(0,229,255,0.10)' : 'rgba(8,145,178,0.10)', pointRadius: 2, pointBackgroundColor: c.accent, tension: 0.2, spanGaps: false }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString()); } } } },
+            layout: { padding: 6 },
+            scales: { x: { ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
+          }
+        });
+      }
+
+      // Next 5 hours: median trades for THIS weekday at next 5 wall-clock hours; fall back to pooled median when the weekday cell has no samples
+      var nextLabels = []; var nextValues = []; var nextSources = [];
+      for (var i=1; i<=5; i++) {
+        var h = (currentHour + i) % 24;
+        nextLabels.push(pad(h) + ':00');
+        var cell = heatmap[todayDayName] && heatmap[todayDayName][h];
+        if (cell && cell.count > 0) {
+          nextValues.push(Math.round(cell.tradeMedian));
+          nextSources.push('day n=' + cell.count);
+        } else {
+          nextValues.push(Math.round(hourlyMedian[h] || 0));
+          nextSources.push('all-day median');
+        }
+      }
+      var maxNext = Math.max.apply(null, nextValues);
+      var nextColors = nextValues.map(function(v){
+        if (v === maxNext && v > 0) return c.accent;
+        return isDark ? 'rgba(0,229,255,0.35)' : 'rgba(8,145,178,0.35)';
+      });
+
+      document.getElementById('nextDayName').textContent = todayDayName;
+      var nextHeadlineEl = document.getElementById('nextHeadline');
+      var nextSubEl = document.getElementById('nextSub');
+      if (maxNext > 0) {
+        var peakIdx = nextValues.indexOf(maxNext);
+        nextHeadlineEl.textContent = 'Peak at ' + nextLabels[peakIdx] + '  (~' + maxNext.toLocaleString() + ')';
+        nextHeadlineEl.className = 'brief-headline pace-up';
+        nextSubEl.innerHTML = 'Median across past ' + todayDayName + 's at the same hour';
+      } else {
+        nextHeadlineEl.textContent = 'No baseline yet';
+        nextHeadlineEl.className = 'brief-headline pace-flat';
+        nextSubEl.textContent = 'Need more data for ' + todayDayName + '.';
+      }
+
+      var ctxN = resetCanvas('nextHoursChart');
+      if (ctxN) {
+        new Chart(ctxN, {
+          type: 'bar',
+          data: { labels: nextLabels, datasets: [{ label: 'Median trades', data: nextValues, backgroundColor: nextColors, borderRadius: 4, borderSkipped: false }] },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.raw.toLocaleString() + ' median trades  (' + nextSources[ctx.dataIndex] + ')'; } } } },
+            layout: { padding: 6 },
+            scales: { x: { ticks: { color: c.textSecondary, font: { size: 11, weight: '600' } }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
+          }
+        });
+      }
     }
 
     // === BUILD KPIs ===
@@ -790,6 +952,7 @@
     function onThemeChange() {
       chartsBuilt = false;
       buildHeatmap();
+      buildSessionBrief();
       buildCharts();
     }
 
