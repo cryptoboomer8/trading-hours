@@ -30,7 +30,17 @@ def required_env(name: str) -> str:
 
 
 def fetch_screener() -> dict:
-    r = requests.get(SCREENER_URL, timeout=HTTP_TIMEOUT, headers={"Accept": "application/json"})
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://screener.orionterminal.com/",
+        "Origin": "https://screener.orionterminal.com",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    r = requests.get(SCREENER_URL, timeout=HTTP_TIMEOUT, headers=headers)
     r.raise_for_status()
     return r.json()
 
