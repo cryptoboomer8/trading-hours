@@ -525,15 +525,15 @@
           '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
           '<div class="kpi-detail">' + statName + ' ' + bestHourVal.toLocaleString() + ' trades &middot; ' + spreadLabel + ' &middot; n=' + bestHourSamples + '</div>' +
         '</div>' +
-        '<div class="kpi-card kpi-magenta animate delay-2">' +
-          '<div class="kpi-label">Best Day</div>' +
-          '<div class="kpi-value">' + bestDay + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
-        '</div>' +
-        '<div class="kpi-card kpi-green animate delay-3">' +
+        '<div class="kpi-card kpi-green animate delay-2">' +
           '<div class="kpi-label">Best 2h Window (CEST)</div>' +
           '<div class="kpi-value" style="font-size:1.7rem;letter-spacing:-0.02em;">' + winLabel + '</div>' +
           '<div class="kpi-detail">' + statName + ' ' + bestSum.toLocaleString() + ' trades over the 2h block</div>' +
+        '</div>' +
+        '<div class="kpi-card kpi-magenta animate delay-3">' +
+          '<div class="kpi-label">Best Day</div>' +
+          '<div class="kpi-value">' + bestDay + '</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
         '</div>';
     }
 
