@@ -226,8 +226,8 @@
           <div class="topn-row">
             <span class="topn-label">Aggregation</span>
             <div class="stat-toggle" id="statToggle" role="group" aria-label="Choose mean or median aggregation">
-              <button class="active" data-stat="mean" type="button">Mean</button>
-              <button data-stat="median" type="button">Median</button>
+              <button data-stat="mean" type="button">Mean</button>
+              <button class="active" data-stat="median" type="button">Median</button>
             </div>
             <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; spread shown as IQR</span>
           </div>
@@ -368,7 +368,7 @@
     var bestDay = '', bestDayVal = 0;
     var peakSnap = null, quietSnap = null;
     var currentMetric = 'trades';
-    var currentStat = 'mean';
+    var currentStat = 'median';
 
     // === Statistics helpers ===
     function quantile(sorted, p) {
