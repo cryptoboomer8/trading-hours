@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orion Screener — Pipeline Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { interpolate-size: allow-keywords; }
+
+    /* ===== THEMES (matches the existing dashboard's palette) ===== */
+    html.theme-dark {
+      --bg: #060b12;
+      --surface: #0d1520;
+      --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1;
+      --text-secondary: #6b7f99;
+      --accent: #00e5ff;
+      --accent-secondary: #e040fb;
+      --positive: #00e676;
+      --negative: #ff1744;
+      --warning: #ffab00;
+      --grid: rgba(0,229,255,0.05);
+    }
+    html.theme-light {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface-hover: #e8edf3;
+      --border: rgba(0,0,0,0.10);
+      --text: #0f172a;
+      --text-secondary: #4b5b6e;
+      --accent: #0891b2;
+      --accent-secondary: #9333ea;
+      --positive: #059669;
+      --negative: #e11d48;
+      --warning: #d97706;
+      --grid: rgba(8,145,178,0.06);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(0,229,255,0.05), transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(224,64,251,0.05), transparent 50%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.55; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+      transition: background 0.3s, color 0.3s;
+      scrollbar-gutter: stable;
+      min-height: 100vh;
+    }
+    h1,h2,h3,h4,h5,h6 { color: var(--text); letter-spacing: -0.025em; line-height: 1.1; text-wrap: balance; }
+    h1 { font-weight: 800; font-size: clamp(2.2rem, 4vw, 3.2rem); }
+    h2 { font-weight: 700; font-size: clamp(1.5rem, 2.5vw, 2.1rem); }
+    h3 { font-weight: 600; font-size: 1.5rem; }
+    body, p, li, td, th, span, label { font-weight: 400; }
+    p,li,td,th,span,label { color: var(--text); }
+    .text-secondary { color: var(--text-secondary); }
+    code, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+
+    /* ===== CARD ===== */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+    .card:hover {
+      border-color: rgba(0,229,255,0.18);
+      box-shadow: 0 0 0 1px rgba(0,229,255,0.10), 0 12px 32px rgba(0,0,0,0.35);
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.5; }
+    }
+    @keyframes flow {
+      0% { stroke-dashoffset: 60; }
+      100% { stroke-dashoffset: 0; }
+    }
+    .animate { animation: fadeInUp 0.6s ease-out both; }
+    .animate.delay-1 { animation-delay: 0.08s; }
+    .animate.delay-2 { animation-delay: 0.16s; }
+    .animate.delay-3 { animation-delay: 0.24s; }
+    .animate.delay-4 { animation-delay: 0.32s; }
+    .animate.delay-5 { animation-delay: 0.40s; }
+    .animate.delay-6 { animation-delay: 0.48s; }
+    .animate.delay-7 { animation-delay: 0.56s; }
+    .animate.delay-8 { animation-delay: 0.64s; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+
+    /* ===== PRINT ===== */
+    @media print {
+      body { background: white !important; color: black !important; }
+      .viz-menu { display: none; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .card, .stage, .node { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; }
+      .stage-band { background: white !important; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+    @page { margin: 0.5in; }
+
+    /* ===== MENU ===== */
+    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
+    .viz-menu-toggle {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(12px); transition: all 0.2s;
+    }
+    .viz-menu-toggle:hover { background: var(--surface-hover); border-color: rgba(0,229,255,0.25); }
+    .viz-menu-dropdown {
+      position: absolute; top: 52px; right: 0; min-width: 200px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px;
+      opacity: 0; visibility: hidden; transform: translateY(-8px);
+      transition: all 0.2s; backdrop-filter: blur(16px);
+    }
+    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .viz-menu-dropdown button {
+      width: 100%; padding: 10px 14px; border: none; border-radius: 8px;
+      background: transparent; color: var(--text); font-size: 14px;
+      font-family: inherit; cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 10px; transition: background 0.15s;
+    }
+    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+
+    /* ===== POPOVER ===== */
+    [popover] {
+      background: var(--surface); border: 1px solid rgba(0,229,255,0.18);
+      border-radius: 12px; padding: 20px; max-width: 420px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+      color: var(--text);
+    }
+    [popover]::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+    [popover] h4 { font-size: 1rem; margin-bottom: 8px; color: var(--accent); font-weight: 600; }
+    [popover] p { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5; }
+    [popover] code { display: block; padding: 8px 10px; background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 6px; color: var(--accent); margin-bottom: 8px; word-break: break-all; }
+
+    /* ===== LAYOUT ===== */
+    .container { max-width: 1280px; margin: 0 auto; padding: 56px 24px 80px; }
+
+    .doc-header { text-align: center; margin-bottom: 56px; }
+    .eyebrow {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+      padding: 6px 14px;
+      background: rgba(0,229,255,0.06);
+      border: 1px solid rgba(0,229,255,0.18);
+      border-radius: 999px;
+    }
+    .doc-header h1 { margin-bottom: 14px; }
+    .doc-header h1 .accent-text { color: var(--accent); }
+    .doc-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 720px; margin: 0 auto; }
+
+    /* Stage band: a horizontal block that contains a labeled column of nodes */
+    .stage-band {
+      position: relative;
+      background: linear-gradient(180deg, rgba(0,229,255,0.025), rgba(0,229,255,0));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 28px 32px;
+      margin-bottom: 0;
+    }
+    .stage-band + .stage-band { margin-top: 16px; }
+
+    .stage-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 22px; flex-wrap: wrap; gap: 12px;
+    }
+    .stage-head-left { display: flex; align-items: center; gap: 14px; }
+    .stage-num {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(0,229,255,0.08);
+      border: 1px solid rgba(0,229,255,0.20);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1rem; font-family: 'JetBrains Mono', monospace;
+    }
+    .stage-label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.18em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+    .stage-name { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .stage-meta { font-size: 0.78rem; color: var(--text-secondary); }
+
+    /* Node grid inside a stage */
+    .node-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    .node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      cursor: pointer;
+      transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+      position: relative;
+      text-align: left;
+      width: 100%;
+      font-family: inherit;
+      color: inherit;
+    }
+    .node:hover {
+      border-color: rgba(0,229,255,0.30);
+      box-shadow: 0 0 0 1px rgba(0,229,255,0.10), 0 12px 28px rgba(0,0,0,0.35);
+      transform: translateY(-2px);
+    }
+    .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .node-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .node-icon {
+      width: 32px; height: 32px; flex: 0 0 32px;
+      border-radius: 8px;
+      background: rgba(0,229,255,0.08);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .node-icon svg { width: 18px; height: 18px; }
+    .node-title-block { flex: 1; min-width: 0; }
+    .node-kind {
+      font-size: 0.65rem; font-weight: 700; color: var(--text-secondary);
+      letter-spacing: 0.16em; text-transform: uppercase; display: block; margin-bottom: 2px;
+    }
+    .node-title { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+    .node-desc { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 4px 8px;
+      background: rgba(0,229,255,0.06);
+      border: 1px solid rgba(0,229,255,0.14);
+      color: var(--accent);
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .chip.muted {
+      background: rgba(255,255,255,0.03);
+      border-color: var(--border);
+      color: var(--text-secondary);
+    }
+    .chip.warm {
+      background: rgba(255,171,0,0.06);
+      border-color: rgba(255,171,0,0.20);
+      color: var(--warning);
+    }
+    .chip.cool {
+      background: rgba(224,64,251,0.06);
+      border-color: rgba(224,64,251,0.20);
+      color: var(--accent-secondary);
+    }
+    .chip.green {
+      background: rgba(0,230,118,0.06);
+      border-color: rgba(0,230,118,0.20);
+      color: var(--positive);
+    }
+
+    /* The connector between stages */
+    .connector {
+      display: flex; align-items: center; justify-content: center;
+      padding: 14px 0;
+      gap: 14px;
+    }
+    .connector .line {
+      width: 2px; height: 28px;
+      background: linear-gradient(180deg, rgba(0,229,255,0.0), rgba(0,229,255,0.50));
+      border-radius: 1px;
+    }
+    .connector .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border: 1px dashed rgba(0,229,255,0.25);
+      border-radius: 999px;
+      background: var(--bg);
+    }
+    .connector .arrow {
+      width: 14px; height: 14px;
+      color: var(--accent);
+    }
+
+    /* Heads-up footer */
+    .summary-grid {
+      display: grid; gap: 16px; margin-top: 56px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .summary-tile {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 22px;
+    }
+    .summary-tile .label { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 8px; }
+    .summary-tile .value { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+    .summary-tile .value.accent { color: var(--accent); }
+    .summary-tile .sub { font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px; }
+
+    .layer-legend {
+      margin-top: 32px;
+      padding: 18px 22px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .layer-legend strong { color: var(--text); font-weight: 600; }
+
+    .live-dot {
+      display: inline-block; width: 8px; height: 8px;
+      background: var(--positive); border-radius: 50%;
+      margin-right: 8px;
+      box-shadow: 0 0 0 0 rgba(0,230,118,0.6);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 40px 16px 60px; }
+      .stage-band { padding: 20px 18px 22px; }
+      .stage-head { margin-bottom: 18px; }
+      .stage-name { font-size: 1.15rem; }
+      .node-grid { gap: 12px; }
+      .node { padding: 16px; }
+    }
+    @media (max-width: 375px) {
+      body { overflow-x: hidden; }
+      .container { padding: 32px 12px 48px; }
+      .doc-header { margin-bottom: 36px; }
+      .eyebrow { font-size: 0.68rem; padding: 5px 10px; }
+      .stage-band { padding: 16px 14px 18px; border-radius: 12px; }
+      .node { padding: 14px; }
+      .summary-tile { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-to-content" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:10000;padding:8px 16px;background:var(--accent);color:#000;text-decoration:none;border-radius:4px;font-weight:600;" onfocus="this.style.cssText='position:fixed;left:16px;top:16px;z-index:10000;padding:8px 16px;background:var(--accent);color:#000;text-decoration:none;border-radius:4px;font-weight:600;'" onblur="this.style.cssText='position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;'">Skip to content</a>
+
+  <!-- MENU -->
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+      </svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon">M</span><span id="themeLabel">Dark</span></button>
+      <button onclick="downloadImage()"><span>PNG</span><span>Download PNG</span></button>
+      <button onclick="window.print()"><span>PDF</span><span>Print / PDF</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <div class="container">
+
+      <!-- HEADER -->
+      <header class="doc-header animate">
+        <span class="eyebrow"><span class="live-dot"></span>Live Pipeline</span>
+        <h1>Orion Screener &mdash; <span class="accent-text">Pipeline Architecture</span></h1>
+        <p>Every 15 minutes, a Cloudflare Worker fetches the full screener payload, gzips it, and lands it in GitHub. From there a workflow re-aggregates the lean dashboard data, GitHub Pages redeploys, and the static site picks it up on the next page load. Click any node for the underlying file, command, or schedule.</p>
+      </header>
+
+      <!-- STAGE 1 — CAPTURE -->
+      <section class="stage-band animate delay-1" aria-labelledby="stage-capture">
+        <div class="stage-head">
+          <div class="stage-head-left">
+            <div class="stage-num">01</div>
+            <div>
+              <span class="stage-label">Layer</span>
+              <h2 class="stage-name" id="stage-capture">Capture &mdash; Cloudflare</h2>
+            </div>
+          </div>
+          <span class="stage-meta">Runs inside Cloudflare's network; sidesteps CF bot blocks on the upstream API.</span>
+        </div>
+
+        <div class="node-grid">
+          <button class="node" type="button" popovertarget="pop-cron">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Trigger</span>
+                <span class="node-title">Workers Cron</span>
+              </div>
+            </div>
+            <p class="node-desc">Fires four times per hour, on the quarter, with sub-minute precision.</p>
+            <div class="chips">
+              <span class="chip">*/15 * * * *</span>
+              <span class="chip muted">UTC</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-worker">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Compute</span>
+                <span class="node-title">orion-snapshot Worker</span>
+              </div>
+            </div>
+            <p class="node-desc">Single TypeScript file. Fetches the screener, wraps with timestamp, gzips, commits.</p>
+            <div class="chips">
+              <span class="chip">worker/src/index.ts</span>
+              <span class="chip muted">Workers free</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-api">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/><circle cx="19" cy="17" r="2"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">External API</span>
+                <span class="node-title">Orion Screener</span>
+              </div>
+            </div>
+            <p class="node-desc">Public JSON endpoint on screener.orionterminal.com. Returns ~5 MB per fetch.</p>
+            <div class="chips">
+              <span class="chip">GET /api/screener</span>
+              <span class="chip warm">~5 MB JSON</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <div class="connector" aria-hidden="true">
+        <span class="line"></span>
+        <span class="label">gzip &middot; CompressionStream &middot; ~500&nbsp;KB</span>
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg>
+        <span class="line"></span>
+      </div>
+
+      <!-- STAGE 2 — STORAGE -->
+      <section class="stage-band animate delay-2" aria-labelledby="stage-storage">
+        <div class="stage-head">
+          <div class="stage-head-left">
+            <div class="stage-num">02</div>
+            <div>
+              <span class="stage-label">Layer</span>
+              <h2 class="stage-name" id="stage-storage">Storage &mdash; GitHub Repo</h2>
+            </div>
+          </div>
+          <span class="stage-meta">cryptoboomer8/orion-screener &middot; one commit per snapshot &middot; full history is replayable.</span>
+        </div>
+
+        <div class="node-grid">
+          <button class="node" type="button" popovertarget="pop-put">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><polyline points="6 10 12 16 18 10"/><path d="M4 22h16"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Write</span>
+                <span class="node-title">GitHub Contents API</span>
+              </div>
+            </div>
+            <p class="node-desc">PUT request commits the gzipped blob with a fine-grained PAT held as a Worker secret.</p>
+            <div class="chips">
+              <span class="chip">PUT /repos/&hellip;/contents/&hellip;</span>
+              <span class="chip muted">GITHUB_TOKEN</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-snapshot">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Object</span>
+                <span class="node-title">snapshot_*.json.gz</span>
+              </div>
+            </div>
+            <p class="node-desc">Each file is { timestamp, screener: { tickers, lastUpdate, &hellip; } }. Full payload preserved.</p>
+            <div class="chips">
+              <span class="chip">snapshots/</span>
+              <span class="chip warm">~500 KB &middot; gzipped</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-repo">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l3-4h14l3 4"/><path d="M2 7v14h20V7"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Repo</span>
+                <span class="node-title">cryptoboomer8/orion-screener</span>
+              </div>
+            </div>
+            <p class="node-desc">Public repo. ~50 MB/day growth at 96 snapshots/day &mdash; ~12 months runway before R2.</p>
+            <div class="chips">
+              <span class="chip green">public</span>
+              <span class="chip muted">main branch</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <div class="connector" aria-hidden="true">
+        <span class="line"></span>
+        <span class="label">push event &middot; paths: snapshots/**</span>
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg>
+        <span class="line"></span>
+      </div>
+
+      <!-- STAGE 3 — AGGREGATION -->
+      <section class="stage-band animate delay-3" aria-labelledby="stage-aggregation">
+        <div class="stage-head">
+          <div class="stage-head-left">
+            <div class="stage-num">03</div>
+            <div>
+              <span class="stage-label">Layer</span>
+              <h2 class="stage-name" id="stage-aggregation">Aggregation &mdash; GitHub Actions</h2>
+            </div>
+          </div>
+          <span class="stage-meta">Free unlimited minutes on public repos. Runs only when snapshots/** changes.</span>
+        </div>
+
+        <div class="node-grid">
+          <button class="node" type="button" popovertarget="pop-workflow">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6a3 3 0 0 0 3 3h9"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Workflow</span>
+                <span class="node-title">aggregate-dashboard.yml</span>
+              </div>
+            </div>
+            <p class="node-desc">Path-filtered trigger, checkout, run python, commit if anything changed.</p>
+            <div class="chips">
+              <span class="chip">.github/workflows/</span>
+              <span class="chip muted">on: push</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-script">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Script</span>
+                <span class="node-title">aggregate_snapshots.py</span>
+              </div>
+            </div>
+            <p class="node-desc">Reads every .json.gz (and legacy .json), ranks coins by tf5m.trades, keeps top 20 per snapshot.</p>
+            <div class="chips">
+              <span class="chip">scripts/</span>
+              <span class="chip cool">tf5m.trades &middot; top 20</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-aggregate">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Output</span>
+                <span class="node-title">snapshots.json (lean)</span>
+              </div>
+            </div>
+            <p class="node-desc">One row per snapshot: { ts, tR[20], vR[20] }. Tiny, sorted by absolute time.</p>
+            <div class="chips">
+              <span class="chip">docs/data/snapshots.json</span>
+              <span class="chip green">&lt; 50&nbsp;KB</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <div class="connector" aria-hidden="true">
+        <span class="line"></span>
+        <span class="label">commit &middot; push to /docs &middot; Pages rebuilds</span>
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg>
+        <span class="line"></span>
+      </div>
+
+      <!-- STAGE 4 — PRESENTATION -->
+      <section class="stage-band animate delay-4" aria-labelledby="stage-presentation">
+        <div class="stage-head">
+          <div class="stage-head-left">
+            <div class="stage-num">04</div>
+            <div>
+              <span class="stage-label">Layer</span>
+              <h2 class="stage-name" id="stage-presentation">Presentation &mdash; Pages &amp; Browser</h2>
+            </div>
+          </div>
+          <span class="stage-meta">Pure static site. No server, no API at runtime &mdash; just a JSON fetch.</span>
+        </div>
+
+        <div class="node-grid">
+          <button class="node" type="button" popovertarget="pop-pages">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">CDN</span>
+                <span class="node-title">GitHub Pages</span>
+              </div>
+            </div>
+            <p class="node-desc">Source = main branch, /docs folder. Redeploys on every push to docs/**.</p>
+            <div class="chips">
+              <span class="chip">main &middot; /docs</span>
+              <span class="chip muted">~30s rebuild</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-html">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><polyline points="8 8 12 12 8 16"/><line x1="14" y1="16" x2="18" y2="16"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">App</span>
+                <span class="node-title">Static dashboard</span>
+              </div>
+            </div>
+            <p class="node-desc">Single index.html with Chart.js. Fetches snapshots.json on load, derives everything client-side.</p>
+            <div class="chips">
+              <span class="chip">docs/index.html</span>
+              <span class="chip">fetch('./data/snapshots.json')</span>
+            </div>
+          </button>
+
+          <button class="node" type="button" popovertarget="pop-browser">
+            <div class="node-head">
+              <span class="node-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>
+              </span>
+              <div class="node-title-block">
+                <span class="node-kind">Output</span>
+                <span class="node-title">User Browser</span>
+              </div>
+            </div>
+            <p class="node-desc">Heatmap, hourly chart with session bands and IQR error bars, Session Brief, KPIs &mdash; all client-side.</p>
+            <div class="chips">
+              <span class="chip">Top-N slider</span>
+              <span class="chip">Mean / Median</span>
+              <span class="chip cool">Session bands</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <!-- SUMMARY -->
+      <section aria-label="Summary metrics">
+        <div class="summary-grid">
+          <div class="summary-tile animate delay-5">
+            <div class="label">Cadence</div>
+            <div class="value accent">96<span style="font-size:1rem;color:var(--text-secondary);font-weight:500;">/day</span></div>
+            <div class="sub">every 15 min, on the quarter (UTC)</div>
+          </div>
+          <div class="summary-tile animate delay-6">
+            <div class="label">Per snapshot</div>
+            <div class="value">~500&nbsp;KB</div>
+            <div class="sub">gzipped from ~5&nbsp;MB raw JSON</div>
+          </div>
+          <div class="summary-tile animate delay-7">
+            <div class="label">End-to-end latency</div>
+            <div class="value">~60s</div>
+            <div class="sub">cron fire &rarr; visible on dashboard</div>
+          </div>
+          <div class="summary-tile animate delay-8">
+            <div class="label">Monthly cost</div>
+            <div class="value">$0</div>
+            <div class="sub">CF Workers free + GitHub free</div>
+          </div>
+        </div>
+
+        <div class="layer-legend animate delay-8">
+          <strong>Why each layer is separable.</strong> Each block speaks to the next through a stable contract &mdash; the gzipped file in the repo. Swap the Worker for Lambda or Render, swap the aggregator for a Worker, swap Pages for Cloudflare Pages: as long as the file format and path stay the same, nothing else has to change.
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- POPOVERS — click any node to see the underlying file/command -->
+  <div id="pop-cron" popover>
+    <h4>Cron schedule</h4>
+    <p>Set in <span class="mono">worker/wrangler.toml</span>. Workers cron has sub-minute precision and is free at this volume.</p>
+    <code>[triggers]
+crons = ["*/15 * * * *"]</code>
+  </div>
+
+  <div id="pop-worker" popover>
+    <h4>Worker code</h4>
+    <p>One TypeScript file, ~120 lines. Exposes both a scheduled handler and a fetch handler so you can curl it for a manual snapshot.</p>
+    <code>worker/src/index.ts</code>
+    <p><strong>Manual run:</strong></p>
+    <code>https://orion-snapshot.&lt;subdomain&gt;.workers.dev/</code>
+  </div>
+
+  <div id="pop-api" popover>
+    <h4>Upstream API</h4>
+    <p>Public, no auth required. Cloudflare-fronted, which is why the Worker had to live inside Cloudflare &mdash; data-center IPs (Render, AWS) get 403'd by bot protection.</p>
+    <code>GET https://screener.orionterminal.com/api/screener</code>
+    <p>Returns <span class="mono">{ tickers: [&hellip;], lastUpdate, symbolCount, version, type }</span>.</p>
+  </div>
+
+  <div id="pop-put" popover>
+    <h4>GitHub commit</h4>
+    <p>The Worker writes via the Contents API using a fine-grained PAT scoped to this repo with <span class="mono">contents:write</span> only.</p>
+    <code>PUT /repos/cryptoboomer8/orion-screener/contents/snapshots/&lt;file&gt;</code>
+    <p>Token is stored as a Worker secret &mdash; never in the repo.</p>
+  </div>
+
+  <div id="pop-snapshot" popover>
+    <h4>Snapshot file</h4>
+    <p>Wrapped payload, gzipped. Filename uses UTC for new files (legacy ones use CEST &mdash; the dashboard sorts by parsed timestamp so ordering is correct either way).</p>
+    <code>{
+  "timestamp": "2026-04-15T20:30:00+00:00",
+  "screener": { "tickers": [&hellip;], "lastUpdate": &hellip; }
+}</code>
+  </div>
+
+  <div id="pop-repo" popover>
+    <h4>Repo growth</h4>
+    <p>~5&nbsp;MB/day at the new cadence. Comfortable for ~3 months, then migration to Cloudflare R2 starts to make sense.</p>
+    <code>github.com/cryptoboomer8/orion-screener</code>
+  </div>
+
+  <div id="pop-workflow" popover>
+    <h4>Workflow</h4>
+    <p>Path-filtered to <span class="mono">snapshots/**</span> so it only fires when the Worker pushes. Skips the commit if nothing changed.</p>
+    <code>.github/workflows/aggregate-dashboard.yml</code>
+  </div>
+
+  <div id="pop-script" popover>
+    <h4>Aggregator</h4>
+    <p>Handles both file formats, ranks by 5-minute trade count to match the original agent, sorts by parsed ISO timestamp so legacy CEST and new UTC files interleave correctly.</p>
+    <code>scripts/aggregate_snapshots.py</code>
+    <p>Output row shape: <span class="mono">{ ts, tR: [20 ints], vR: [20 ints] }</span>.</p>
+  </div>
+
+  <div id="pop-aggregate" popover>
+    <h4>Lean dashboard data</h4>
+    <p>The dashboard sums <span class="mono">tR[0:N]</span> and <span class="mono">vR[0:N]</span> live based on the Top-N slider, so per-rank arrays are kept rather than pre-aggregated totals.</p>
+    <code>docs/data/snapshots.json</code>
+  </div>
+
+  <div id="pop-pages" popover>
+    <h4>Hosting</h4>
+    <p>GitHub Pages, branch + folder source. Automatic redeploy on push, no build step. Free, ample bandwidth.</p>
+    <code>https://cryptoboomer8.github.io/orion-screener/</code>
+  </div>
+
+  <div id="pop-html" popover>
+    <h4>Dashboard frontend</h4>
+    <p>Single self-contained HTML with inline CSS/JS plus Chart.js from CDN. No build pipeline. Cache-busted fetch on every load.</p>
+    <code>fetch('./data/snapshots.json?_=' + Date.now())</code>
+  </div>
+
+  <div id="pop-browser" popover>
+    <h4>What you see</h4>
+    <p>Top-N slider (1&ndash;20), Mean/Median toggle, heatmap with percentile-clipped color scale, hourly chart with session bands and IQR error bars, Session Brief (today vs typical pace + next 5 hours), and three KPIs: Best Hour, Best 2h Window, Best Day.</p>
+  </div>
+
+  <script>
+    // === Menu ===
+    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
+    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+
+    // === Theme ===
+    var savedTheme = localStorage.getItem('viz-theme');
+    var currentTheme = savedTheme || 'dark';
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      var icon = document.getElementById('themeIcon');
+      var label = document.getElementById('themeLabel');
+      if (icon) icon.textContent = t === 'dark' ? 'M' : 'L';
+      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+      if (typeof onThemeChange === 'function') onThemeChange();
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+    applyTheme(currentTheme);
+
+    // === Scroll Reveal ===
+    document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); });
+    var revealObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+
+    // === Number Counter ===
+    function animateCounters() {
+      document.querySelectorAll('[data-count]').forEach(function(el) {
+        if (el.dataset.counted) return;
+        el.dataset.counted = '1';
+        var target = parseFloat(el.dataset.count), prefix = el.dataset.prefix || '', suffix = el.dataset.suffix || '';
+        var start = performance.now(), duration = 1200;
+        (function tick(now) {
+          var p = Math.min((now - start) / duration, 1), eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = prefix + Math.round(target * eased).toLocaleString() + suffix;
+          if (p < 1) requestAnimationFrame(tick);
+        })(start);
+      });
+    }
+    var counterEl = document.querySelector('[data-count]');
+    if (counterEl) {
+      var cObs = new IntersectionObserver(function(entries) {
+        entries.forEach(function(e) { if (e.isIntersecting) { animateCounters(); cObs.disconnect(); } });
+      }, { threshold: 0.3 });
+      cObs.observe(counterEl);
+    }
+
+    // === Download PNG ===
+    async function downloadImage() {
+      var menu = document.querySelector('.viz-menu');
+      menu.style.display = 'none';
+      try {
+        var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2, filter: function(n) { return !n.classList || !n.classList.contains('viz-menu'); } });
+        var a = document.createElement('a'); a.href = url;
+        a.download = 'orion-pipeline-architecture.png'; a.click();
+      } catch(e) { console.error('Download failed:', e); }
+      menu.style.display = '';
+    }
+  </script>
+</body>
+</html>
