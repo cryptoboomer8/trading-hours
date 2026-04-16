@@ -148,6 +148,84 @@
     .brief-headline.pace-flat { color: var(--text); }
     .brief-sub { font-size: 0.78rem; color: var(--text-secondary); text-align: right; max-width: 180px; line-height: 1.35; }
 
+    /* Sustainable Momentum */
+    .momentum-section { margin-bottom: 48px; position: relative; z-index: 1; }
+    .momentum-head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+    .momentum-head-row h2 { margin-bottom: 6px; }
+    .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
+
+    .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
+
+    .momentum-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
+    .momentum-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .momentum-table thead th { text-align: left; font-weight: 600; font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; padding: 12px 10px; background: var(--bg); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; }
+    .momentum-table thead th.num, .momentum-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .momentum-table thead th.center, .momentum-table tbody td.center { text-align: center; }
+    .momentum-table tbody td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .momentum-table tbody tr:last-child td { border-bottom: none; }
+    .momentum-table tbody tr:hover { background: var(--surface-hover); }
+
+    .mt-rank { width: 36px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+    .mt-symbol { font-weight: 600; color: var(--text); letter-spacing: -0.01em; min-width: 90px; }
+    .mt-symbol .ticker-pair { font-size: 0.65rem; color: var(--text-secondary); font-weight: 500; margin-left: 2px; }
+    .mt-sms { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1rem; }
+    .mt-sms.pos { color: var(--positive); }
+    .mt-sms.strong { color: var(--accent); }
+    .mt-sms.weak { color: var(--text); }
+    .mt-sms.neg { color: var(--negative); }
+
+    .mt-cascade { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; }
+    .mt-cascade .pct { color: var(--text); font-weight: 500; }
+    .mt-cascade .pct.up { color: var(--positive); }
+    .mt-cascade .pct.down { color: var(--negative); }
+
+    /* Factor bars — thin horizontal bars showing z-score */
+    .fbars { display: flex; gap: 3px; align-items: center; min-width: 120px; }
+    .fbar { position: relative; flex: 1; height: 18px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
+    html.theme-light .fbar { background: rgba(0,0,0,0.04); }
+    .fbar-fill { position: absolute; top: 0; bottom: 0; background: currentColor; opacity: 0.75; border-radius: 2px; transition: width 0.3s ease; }
+    .fbar.fbar-c { color: var(--accent); }
+    .fbar.fbar-v { color: var(--accent-secondary); }
+    .fbar.fbar-o { color: var(--positive); }
+    .fbar.fbar-f { color: var(--warning); }
+    .fbar.neg .fbar-fill { background: var(--negative); opacity: 0.65; }
+
+    /* Warning chips for overheated/pumpy */
+    .mt-warns { display: flex; gap: 4px; flex-wrap: wrap; }
+    .mt-warn { font-size: 0.62rem; font-weight: 600; padding: 2px 6px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+    .mt-warn.crowd { background: rgba(255,171,0,0.10); color: var(--warning); border: 1px solid rgba(255,171,0,0.25); }
+    .mt-warn.pump { background: rgba(255,23,68,0.08); color: var(--negative); border: 1px solid rgba(255,23,68,0.25); }
+
+    /* Range position mini-bar (0 = at 24h low, 1 = at 24h high) */
+    .mt-range { display: flex; align-items: center; gap: 6px; min-width: 90px; }
+    .mt-range-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; position: relative; overflow: visible; }
+    html.theme-light .mt-range-bar { background: rgba(0,0,0,0.06); }
+    .mt-range-dot { position: absolute; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--surface); }
+    .mt-range-dot.hot { background: var(--warning); }
+    .mt-range-pct { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); width: 32px; text-align: right; }
+
+    .mt-fund { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; }
+    .mt-fund.hot { color: var(--warning); font-weight: 600; }
+
+    .momentum-legend { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 14px; font-size: 0.74rem; color: var(--text-secondary); }
+    .fbar-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+    .fbar-swatch.fbar-c { background: var(--accent); }
+    .fbar-swatch.fbar-v { background: var(--accent-secondary); }
+    .fbar-swatch.fbar-o { background: var(--positive); }
+    .fbar-swatch.fbar-f { background: var(--warning); }
+    .fbar-sep { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
+
+    /* Mobile: collapse table into cards */
+    @media (max-width: 720px) {
+      .momentum-table thead { display: none; }
+      .momentum-table, .momentum-table tbody, .momentum-table tr, .momentum-table td { display: block; }
+      .momentum-table tr { padding: 14px; border-bottom: 1px solid var(--border); }
+      .momentum-table td { padding: 4px 0; border: none; }
+      .momentum-table td.row-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+      .momentum-table td.hide-mobile { display: none; }
+      .fbars { margin-top: 6px; }
+    }
+
     /* Heatmap */
     .heatmap-section { margin-bottom: 48px; position: relative; z-index: 1; }
     .heatmap-section h2 { margin-bottom: 6px; }
@@ -278,6 +356,29 @@
             <div class="chart-container" style="height:200px;">
               <canvas id="nextHoursChart"></canvas>
             </div>
+          </div>
+        </section>
+
+        <!-- SUSTAINABLE MOMENTUM LEADERBOARD -->
+        <section class="momentum-section animate delay-3" aria-labelledby="momentum-head">
+          <div class="momentum-head-row">
+            <div>
+              <h2 id="momentum-head">Sustainable Momentum</h2>
+              <p class="section-sub">Top 30 coins scored cross-sectionally on cascading price, volume buildup, OI growth, and aggressor flow &mdash; penalised for overheated funding and front-loaded 5-minute pumps.</p>
+            </div>
+            <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+          </div>
+          <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
+          <div class="momentum-table-wrap">
+            <table class="momentum-table" id="momentumTable" aria-label="Sustainable momentum leaderboard"></table>
+          </div>
+          <div class="momentum-legend">
+            <span><span class="fbar-swatch fbar-c"></span>Cascade</span>
+            <span><span class="fbar-swatch fbar-v"></span>Volume&nbsp;rise</span>
+            <span><span class="fbar-swatch fbar-o"></span>OI&nbsp;rise</span>
+            <span><span class="fbar-swatch fbar-f"></span>Aggressor&nbsp;flow</span>
+            <span class="fbar-sep"></span>
+            <span>Bars show z-score vs the whole universe &middot; empty=near median, full=+2&sigma;, red=&minus;2&sigma;</span>
           </div>
         </section>
 
@@ -973,6 +1074,12 @@
         });
       }
 
+      // Kick off momentum fetch in parallel — it's independent of the main dashboard data.
+      fetch('./data/momentum.json?_=' + Date.now())
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(m) { if (m) buildMomentum(m); else showMomentumEmpty(); })
+        .catch(function() { showMomentumEmpty(); });
+
       fetch('./data/snapshots.json?_=' + Date.now())
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
@@ -994,6 +1101,110 @@
           el.innerHTML = '<p>Failed to load snapshot data</p><code>' + err.message + '</code><p style="margin-top:16px;color:var(--text-secondary);font-size:0.9rem;">Make sure serve.py is running:<br><code>python serve.py</code></p>';
         });
     });
+
+    // === MOMENTUM LEADERBOARD ===
+    function showMomentumEmpty() {
+      var e = document.getElementById('momentumEmpty');
+      var t = document.getElementById('momentumTable');
+      if (e) e.style.display = '';
+      if (t) t.style.display = 'none';
+    }
+
+    function fbarHTML(z, cls) {
+      // z is cross-sectional z-score. Map +/-2sigma onto a full-width bar.
+      var cap = Math.max(-3, Math.min(3, z || 0));
+      var pct = Math.min(100, Math.abs(cap) / 2 * 100);
+      var neg = cap < 0 ? ' neg' : '';
+      return '<div class="fbar ' + cls + neg + '" title="z=' + (z || 0).toFixed(2) + '"><div class="fbar-fill" style="width:' + pct.toFixed(0) + '%"></div></div>';
+    }
+
+    function pctClass(v) { return v > 0.3 ? 'up' : v < -0.3 ? 'down' : ''; }
+
+    function buildMomentum(data) {
+      var tbl = document.getElementById('momentumTable');
+      var meta = document.getElementById('momentumMeta');
+      var empty = document.getElementById('momentumEmpty');
+      if (!tbl || !data || !data.leaderboard || data.leaderboard.length === 0) {
+        showMomentumEmpty();
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+      tbl.style.display = '';
+
+      if (meta) {
+        var d = new Date(data.ts);
+        var pad2 = function(n) { return n < 10 ? '0' + n : '' + n; };
+        var tsLabel = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ' CEST';
+        meta.innerHTML = 'Latest: ' + tsLabel + ' &middot; Universe: ' + (data.universe || '?') + ' coins';
+      }
+
+      // Find the max absolute SMS for relative coloring
+      var maxAbs = 0;
+      data.leaderboard.forEach(function(r) { var a = Math.abs(r.sms || 0); if (a > maxAbs) maxAbs = a; });
+
+      var header = '<thead><tr>' +
+        '<th class="num">#</th>' +
+        '<th>Symbol</th>' +
+        '<th class="num">SMS</th>' +
+        '<th>Cascade 1h / 4h / 12h</th>' +
+        '<th>Factor z-scores</th>' +
+        '<th>Flags</th>' +
+        '<th>24h range</th>' +
+        '<th class="num">Fund&nbsp;%</th>' +
+        '</tr></thead>';
+
+      var rows = data.leaderboard.map(function(r, idx) {
+        var sym = (r.s || '').replace(/USDT$/, '');
+        var pair = (r.s || '').endsWith('USDT') ? '<span class="ticker-pair">/USDT</span>' : '';
+        var smsCls = 'mt-sms ';
+        var sms = r.sms || 0;
+        if (sms > 4) smsCls += 'strong';
+        else if (sms > 1.5) smsCls += 'pos';
+        else if (sms < -1) smsCls += 'neg';
+        else smsCls += 'weak';
+
+        var cascade = '<span class="mt-cascade">' +
+          '<span class="pct ' + pctClass(r.c1h) + '">' + (r.c1h > 0 ? '+' : '') + r.c1h.toFixed(1) + '%</span> &middot; ' +
+          '<span class="pct ' + pctClass(r.c4h) + '">' + (r.c4h > 0 ? '+' : '') + r.c4h.toFixed(1) + '%</span> &middot; ' +
+          '<span class="pct ' + pctClass(r.c12h) + '">' + (r.c12h > 0 ? '+' : '') + r.c12h.toFixed(1) + '%</span>' +
+          '</span>';
+
+        var bars = '<div class="fbars">' +
+          fbarHTML(r.zc, 'fbar-c') +
+          fbarHTML(r.zv, 'fbar-v') +
+          fbarHTML(r.zo, 'fbar-o') +
+          fbarHTML(r.zf, 'fbar-f') +
+          '</div>';
+
+        var warns = '<div class="mt-warns">';
+        if (r.zx > 1) warns += '<span class="mt-warn crowd" title="Funding is elevated vs the universe (crowded longs)">crowded</span>';
+        if (r.zp > 1) warns += '<span class="mt-warn pump" title="5-minute move disproportionate to 1h trend (front-loaded)">pumpy</span>';
+        warns += '</div>';
+
+        var rngPct = Math.round((r.rng || 0) * 100);
+        var rngDotCls = r.rng > 0.85 ? 'hot' : '';
+        var rangeBar = '<div class="mt-range">' +
+          '<div class="mt-range-bar"><div class="mt-range-dot ' + rngDotCls + '" style="left:' + rngPct + '%"></div></div>' +
+          '<span class="mt-range-pct">' + rngPct + '%</span>' +
+          '</div>';
+
+        var fundCls = Math.abs(r.fund) > 0.02 ? 'hot' : '';
+        var fundTxt = (r.fund > 0 ? '+' : '') + (r.fund || 0).toFixed(3);
+
+        return '<tr>' +
+          '<td class="num mt-rank">' + (idx + 1) + '</td>' +
+          '<td class="mt-symbol row-header"><span>' + sym + pair + '</span><span class="' + smsCls + '" style="display:none;">' + sms.toFixed(1) + '</span></td>' +
+          '<td class="num"><span class="' + smsCls + '">' + sms.toFixed(1) + '</span></td>' +
+          '<td>' + cascade + '</td>' +
+          '<td>' + bars + '</td>' +
+          '<td>' + warns + '</td>' +
+          '<td class="hide-mobile">' + rangeBar + '</td>' +
+          '<td class="num mt-fund ' + fundCls + ' hide-mobile">' + fundTxt + '</td>' +
+          '</tr>';
+      }).join('');
+
+      tbl.innerHTML = header + '<tbody>' + rows + '</tbody>';
+    }
   </script>
 </body>
 </html>
