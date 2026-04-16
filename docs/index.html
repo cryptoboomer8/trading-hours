@@ -1125,7 +1125,8 @@
     }
 
     // Classify a coin into one verdict label. Order of checks matters.
-    // Thresholds favor "Building" (the user's sweet spot) when any ambiguity.
+    // Thresholds tuned for the liquid-cohort scoring: z-scores are now
+    // computed against other liquid names, so they're naturally smaller.
     function classify(r) {
       var c1h = r.c1h || 0, c4h = r.c4h || 0, c12h = r.c12h || 0;
       var zc = r.zc || 0, zv = r.zv || 0, zo = r.zo || 0, zf = r.zf || 0;
@@ -1137,27 +1138,37 @@
       if (zx > 1.2 || fund > 0.03) return { v: 'late', why: 'Funding is elevated &mdash; longs are crowded and paying to hold.' };
       if (rng > 0.95 && c1h < 1) return { v: 'late', why: 'Already at the 24h high with no fresh push &mdash; late to enter.' };
 
-      // Breakout: fresh, strong 1h push with both volume and OI confirming
-      if (c1h > 3 && zv > 0.8 && zo > 0.3 && c4h > 0) {
-        return { v: 'breakout', why: 'Fresh push backed by both rising volume and OI &mdash; real participation.' };
+      // Shared conditions.
+      var cascading = c1h > 0.5 && c4h > c1h * 0.5 && c12h > 0;
+      var notCrowded = zx < 0.8 && fund < 0.025;
+      var oiNotDumping = zo > -0.3; // OI not actively bleeding vs cohort
+      var freshPush = c1h > 1;       // currently breaking higher — overrides the "top of range" check
+      var rangeOk = rng < 0.92 || freshPush;
+
+      // Breakout: strong fresh 1h push with above-average volume confirmation.
+      if (c1h > 2.5 && zv > 0.4 && c4h > 0 && oiNotDumping) {
+        return { v: 'breakout', why: 'Fresh push backed by rising volume &mdash; real participation.' };
       }
 
-      // Building: cascading positive move + OI still climbing + funding not stretched + room in the range
-      if (c1h > 0 && c4h > 0 && c12h > 0 && zo > 0.3 && zx < 0.5 && rng < 0.9) {
+      // Building: cascading move, funding calm, OI not falling apart, either mid-range or actively breaking higher.
+      if (cascading && notCrowded && oiNotDumping && rangeOk) {
         var pieces = [];
-        pieces.push('OI climbing');
+        if (zo > 0.4) pieces.push('OI climbing strongly');
+        else if (zo > 0) pieces.push('OI holding up');
+        else pieces.push('OI flat');
         if (fund < 0) pieces.push('funding negative (shorts paying)');
         else if (fund < 0.01) pieces.push('funding calm');
-        if (rng < 0.75) pieces.push('room left in the 24h range');
+        if (rng > 0.9) pieces.push('making new 24h highs');
+        else if (rng < 0.75) pieces.push('room left in the 24h range');
         return { v: 'building', why: pieces.join(', ') + '.' };
       }
 
       // Igniting: positive 1h with strong z-score but 4h/12h not caught up yet — the move just started
-      if (c1h > 1.5 && zc > 0.5 && c4h < c1h * 3) {
+      if (c1h > 1 && zc > 0.3 && c4h < c1h * 3) {
         return { v: 'igniting', why: 'Move looks freshly started &mdash; 1h leading, longer frames still catching up.' };
       }
 
-      // Default: still technically in the top 30 by SMS, but doesn't fit cleanly
+      // Default: still in the top 60 by SMS, but doesn't fit cleanly
       return { v: 'igniting', why: 'Positive composite score but mixed signals &mdash; watch, don\u2019t chase.' };
     }
 

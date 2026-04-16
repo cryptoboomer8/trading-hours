@@ -85,18 +85,32 @@ def _zscore(values):
     return [(v - mean) / std for v in values]
 
 
-def compute_sms_leaderboard(tickers, top_n: int = 30):
+def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0):
     """Return top_n coins ranked by Sustainable Momentum Score.
 
     Each ticker is scored on six components that are then z-scored
     cross-sectionally across all tickers in this snapshot, so the
     composite is self-calibrating regardless of broader market regime.
+
+    min_v1m: filter to the liquid cohort BEFORE scoring — so liquid
+    mid-caps aren't penalised in the z-scores by comparison to
+    thinly-traded memecoins doing 50% pumps. The dashboard further
+    filters by a user-selected threshold on top of this.
     """
     if not tickers:
         return []
 
-    feats = []
+    # Liquid-cohort gate — tf15m volume / 15 ≈ per-minute USD volume.
+    eligible = []
     for t in tickers:
+        tf15m = t.get("tf15m") or {}
+        if (tf15m.get("volume") or 0) / 15.0 >= min_v1m:
+            eligible.append(t)
+    if not eligible:
+        return []
+
+    feats = []
+    for t in eligible:
         tf1h = t.get("tf1h") or {}
         tf4h = t.get("tf4h") or {}
         tf12h = t.get("tf12h") or {}
@@ -247,10 +261,18 @@ def main():
 
     if latest_gz:
         tickers = tickers_from(latest_gz) or []
-        leaderboard = compute_sms_leaderboard(tickers, top_n=60)
+        LIQUID_COHORT_MIN_V1M = 50_000.0
+        leaderboard = compute_sms_leaderboard(tickers, top_n=60, min_v1m=LIQUID_COHORT_MIN_V1M)
+        # Count the cohort size for dashboard context.
+        cohort_size = sum(
+            1 for t in tickers
+            if ((t.get("tf15m") or {}).get("volume") or 0) / 15.0 >= LIQUID_COHORT_MIN_V1M
+        )
         momentum = {
             "ts": latest_gz.get("timestamp"),
             "universe": len(tickers),
+            "cohort": cohort_size,
+            "cohort_min_v1m": LIQUID_COHORT_MIN_V1M,
             "weights": SMS_WEIGHTS,
             "leaderboard": leaderboard,
         }
