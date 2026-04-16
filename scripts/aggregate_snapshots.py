@@ -100,6 +100,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30):
         tf1h = t.get("tf1h") or {}
         tf4h = t.get("tf4h") or {}
         tf12h = t.get("tf12h") or {}
+        tf15m = t.get("tf15m") or {}
         tf5m = t.get("tf5m") or {}
 
         c1h = tf1h.get("changePercent") or 0.0
@@ -132,12 +133,17 @@ def compute_sms_leaderboard(tickers, top_n: int = 30):
         pump_ratio = abs(c5m) / max(abs(c1h), 0.1)
         pumpiness = max(0.0, pump_ratio - 0.5)
 
+        # Approx 20-MA of 1-minute volume: tf15m's total USD volume / 15 minutes.
+        # Proxy since the screener doesn't expose 1-minute candles directly.
+        vol_per_min = (tf15m.get("volume") or 0.0) / 15.0
+
         feats.append({
             "symbol": t.get("symbol", ""),
             "price": t.get("price") or 0.0,
             "high24h": t.get("high24h") or 0.0,
             "low24h": t.get("low24h") or 0.0,
             "funding": fund,
+            "v1m": vol_per_min,
             "c1h": c1h,
             "c4h": c4h,
             "c12h": c12h,
@@ -197,6 +203,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30):
             "price": f["price"],
             "fund": round(f["funding"] * 100, 4),  # % per funding period
             "rng": round(rng_pct(f), 2),
+            "v1m": round(f["v1m"]),  # approx 1-minute MA volume (USD)
         }
         for f in top
     ]
@@ -240,7 +247,7 @@ def main():
 
     if latest_gz:
         tickers = tickers_from(latest_gz) or []
-        leaderboard = compute_sms_leaderboard(tickers, top_n=30)
+        leaderboard = compute_sms_leaderboard(tickers, top_n=60)
         momentum = {
             "ts": latest_gz.get("timestamp"),
             "universe": len(tickers),

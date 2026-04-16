@@ -154,6 +154,14 @@
     .momentum-head-row h2 { margin-bottom: 6px; }
     .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
 
+    .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+    .momentum-control-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .momentum-control-value { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
+    #minVolInput { width: 100%; accent-color: var(--accent); }
+    .mcard-vol { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; }
+    .mcard-vol .v { color: var(--text); font-weight: 500; }
+    .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
+
     .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
 
     .momentum-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
@@ -344,6 +352,13 @@
           <div class="momentum-head-row">
             <div>
               <h2 id="momentum-head">Sustainable Momentum</h2>
+            </div>
+            <div class="momentum-controls">
+              <label for="minVolInput" class="momentum-control-label">
+                Min 1m volume
+                <span class="momentum-control-value"><span id="minVolValue">80</span>k$</span>
+              </label>
+              <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
             </div>
             <div class="momentum-meta" id="momentumMeta">&mdash;</div>
           </div>
@@ -1043,6 +1058,26 @@
         });
       }
 
+      // Min-volume slider persists across reloads.
+      var savedMinVol = parseInt(localStorage.getItem('orion-min-vol-k') || '', 10);
+      if (!isNaN(savedMinVol)) currentMinVolK = savedMinVol;
+      var minVolInput = document.getElementById('minVolInput');
+      var minVolValue = document.getElementById('minVolValue');
+      if (minVolInput) {
+        minVolInput.value = currentMinVolK;
+        if (minVolValue) minVolValue.textContent = currentMinVolK;
+        var mvPending = false;
+        minVolInput.addEventListener('input', function() {
+          var v = parseInt(minVolInput.value, 10) || 0;
+          currentMinVolK = v;
+          if (minVolValue) minVolValue.textContent = v;
+          localStorage.setItem('orion-min-vol-k', String(v));
+          if (mvPending) return;
+          mvPending = true;
+          requestAnimationFrame(function() { mvPending = false; renderMomentum(); });
+        });
+      }
+
       // Kick off momentum fetch in parallel — it's independent of the main dashboard data.
       fetch('./data/momentum.json?_=' + Date.now())
         .then(function(r) { return r.ok ? r.json() : null; })
@@ -1072,11 +1107,21 @@
     });
 
     // === MOMENTUM LEADERBOARD ===
+    var momentumData = null;          // cached last-fetched payload
+    var currentMinVolK = 80;          // min 1-min volume in thousands USD
+
     function showMomentumEmpty() {
       var e = document.getElementById('momentumEmpty');
       var c = document.getElementById('momentumCards');
       if (e) e.style.display = '';
       if (c) c.style.display = 'none';
+    }
+
+    function fmtVolume(v) {
+      if (v == null) return '—';
+      if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'k';
+      return '$' + Math.round(v);
     }
 
     // Classify a coin into one verdict label. Order of checks matters.
@@ -1131,6 +1176,12 @@
     }
 
     function buildMomentum(data) {
+      momentumData = data;
+      renderMomentum();
+    }
+
+    function renderMomentum() {
+      var data = momentumData;
       var wrap = document.getElementById('momentumCards');
       var meta = document.getElementById('momentumMeta');
       var empty = document.getElementById('momentumEmpty');
@@ -1148,16 +1199,24 @@
         meta.innerHTML = 'Latest snapshot: ' + tsLabel;
       }
 
-      // Classify all, then prioritise: Building first, Breakout, Igniting, Late last.
+      var minVolUsd = currentMinVolK * 1000;
+      var totalCount = data.leaderboard.length;
+
+      // Classify, filter by 1-minute volume, prioritise Building → Breakout → Igniting → Late
       var order = { building: 0, breakout: 1, igniting: 2, late: 3 };
-      var classified = data.leaderboard.map(function(r) {
-        return { row: r, klass: classify(r) };
-      });
+      var classified = data.leaderboard
+        .filter(function(r) { return (r.v1m || 0) >= minVolUsd; })
+        .map(function(r) { return { row: r, klass: classify(r) }; });
       classified.sort(function(a, b) {
         var oa = order[a.klass.v], ob = order[b.klass.v];
         if (oa !== ob) return oa - ob;
         return (b.row.sms || 0) - (a.row.sms || 0);
       });
+
+      if (classified.length === 0) {
+        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' meet the ' + currentMinVolK + 'k minimum 1m volume. Lower the threshold to see more candidates.</div>';
+        return;
+      }
 
       // Show up to 12 cards — focus on actionable, not exhaustive.
       var visible = classified.slice(0, 12);
@@ -1170,6 +1229,8 @@
           k.v === 'building' ? 'Building' :
           k.v === 'breakout' ? 'Breakout' :
           k.v === 'late' ? 'Late / avoid' : 'Igniting';
+
+        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span></div>';
 
         return '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +
@@ -1184,6 +1245,7 @@
             '</span>' +
           '</div>' +
           '<div class="mcard-why">' + k.why + '</div>' +
+          volLine +
         '</article>';
       }).join('');
     }
