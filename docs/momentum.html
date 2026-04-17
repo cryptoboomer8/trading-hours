@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orion Screener — Momentum Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { interpolate-size: allow-keywords; }
+
+    html.theme-dark {
+      --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1; --text-secondary: #6b7f99;
+      --accent: #00e5ff; --accent-secondary: #e040fb;
+      --positive: #00e676; --negative: #ff1744; --warning: #ffab00;
+      --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
+    }
+    html.theme-light {
+      --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
+      --border: rgba(0,0,0,0.08);
+      --text: #0f172a; --text-secondary: #64748b;
+      --accent: #0891b2; --accent-secondary: #9333ea;
+      --positive: #059669; --negative: #e11d48; --warning: #d97706;
+      --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+      transition: background 0.3s, color 0.3s; scrollbar-gutter: stable;
+      min-height: 100vh;
+    }
+    h1,h2,h3 { color: var(--text); letter-spacing: -0.03em; line-height: 1.08; text-wrap: balance; }
+    h1 { font-weight: 700; font-size: clamp(2rem, 5vw, 3.2rem); }
+    h2 { font-weight: 600; font-size: 2rem; }
+    body, p, li, span, label { font-weight: 400; }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .animate { animation: fadeInUp 0.6s ease-out both; }
+    .animate.delay-1 { animation-delay: 0.1s; }
+    .animate.delay-2 { animation-delay: 0.2s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
+    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); transition: all 0.2s; }
+    .viz-menu-toggle:hover { background: var(--surface-hover); }
+    .viz-menu-dropdown { position: absolute; top: 52px; right: 0; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.2s; backdrop-filter: blur(16px); }
+    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .viz-menu-dropdown button { width: 100%; padding: 10px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
+    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+    .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
+
+    .dashboard-header { text-align: center; margin-bottom: 48px; position: relative; z-index: 1; }
+    .dashboard-header h1 { margin-bottom: 8px; }
+    .accent-text { color: var(--accent); }
+    .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
+    .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.04em; }
+    .back-link:hover { color: var(--accent); }
+
+    /* Sustainable Momentum */
+    .momentum-section { margin-bottom: 48px; position: relative; z-index: 1; }
+    .momentum-head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+    .momentum-head-row h2 { margin-bottom: 6px; }
+    .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
+
+    .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+    .momentum-control-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .momentum-control-value { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
+    #minVolInput { width: 100%; accent-color: var(--accent); }
+    .mcard-vol { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; }
+    .mcard-vol .v { color: var(--text); font-weight: 500; }
+    .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
+
+    .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
+
+    .momentum-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+
+    .mcard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .mcard:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+
+    .mcard-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .mcard-symbol { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+    .mcard-symbol .pair { font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; margin-left: 3px; }
+    .mcard-price { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
+
+    .mcard-verdict-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+    .mcard-verdict {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .mcard-pcts { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text); font-variant-numeric: tabular-nums; }
+    .mcard-pcts .sep { color: var(--text-secondary); margin: 0 4px; }
+    .mcard-pcts .up { color: var(--positive); }
+    .mcard-pcts .down { color: var(--negative); }
+
+    .mcard-why { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45; }
+
+    .v-building      { background: rgba(0,229,255,0.10);   color: var(--accent);           border: 1px solid rgba(0,229,255,0.30); }
+    .v-breakout      { background: rgba(0,230,118,0.10);   color: var(--positive);         border: 1px solid rgba(0,230,118,0.30); }
+    .v-igniting      { background: rgba(224,64,251,0.10);  color: var(--accent-secondary); border: 1px solid rgba(224,64,251,0.30); }
+    .v-late          { background: rgba(255,171,0,0.10);   color: var(--warning);          border: 1px solid rgba(255,171,0,0.30); }
+
+    .mcard[data-v="building"]  { border-left-color: var(--accent); }
+    .mcard[data-v="breakout"]  { border-left-color: var(--positive); }
+    .mcard[data-v="igniting"]  { border-left-color: var(--accent-secondary); }
+    .mcard[data-v="late"]      { border-left-color: var(--warning); opacity: 0.88; }
+
+    .error-state { text-align: center; padding: 60px 24px; position: relative; z-index: 1; }
+    .error-state p { color: var(--negative); font-size: 1.05rem; }
+    .error-state code { display: block; margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem; }
+
+    @media (max-width: 768px) {
+      .container { padding: 20px 16px; }
+    }
+    @media (max-width: 480px) {
+      .momentum-cards { grid-template-columns: 1fr; }
+      .mcard { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-atmosphere"></div>
+
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon"></span><span id="themeLabel">Dark</span></button>
+    </div>
+  </div>
+
+  <main role="main">
+    <div class="container">
+
+      <section class="dashboard-header animate">
+        <p style="margin-bottom:12px;"><a href="./" class="back-link">&larr; Back to index</a></p>
+        <h1><span class="accent-text">Momentum Tracker</span></h1>
+        <p class="subtitle"><span class="status-dot"></span>Sustainable momentum leaderboard</p>
+      </section>
+
+      <section class="momentum-section animate delay-1" aria-labelledby="momentum-head">
+        <div class="momentum-head-row">
+          <div>
+            <h2 id="momentum-head">Sustainable Momentum</h2>
+          </div>
+          <div class="momentum-controls">
+            <label for="minVolInput" class="momentum-control-label">
+              Min 1m volume
+              <span class="momentum-control-value"><span id="minVolValue">80</span>k$</span>
+            </label>
+            <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
+          </div>
+          <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+        </div>
+        <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
+        <div class="momentum-cards" id="momentumCards"></div>
+      </section>
+
+      <div id="errorState" class="error-state" style="display:none;"></div>
+
+    </div>
+  </main>
+
+  <script>
+    // === Menu ===
+    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
+    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+
+    // === Theme (shared localStorage key with the trading-hours page) ===
+    var savedTheme = localStorage.getItem('viz-theme');
+    var currentTheme = savedTheme || 'dark';
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      var icon = document.getElementById('themeIcon');
+      var label = document.getElementById('themeLabel');
+      if (icon) icon.textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
+      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+    applyTheme(currentTheme);
+
+    // === Momentum state ===
+    var momentumData = null;
+    var currentMinVolK = 80;
+
+    function showMomentumEmpty() {
+      var e = document.getElementById('momentumEmpty');
+      var c = document.getElementById('momentumCards');
+      if (e) e.style.display = '';
+      if (c) c.style.display = 'none';
+    }
+
+    function fmtVolume(v) {
+      if (v == null) return '—';
+      if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'k';
+      return '$' + Math.round(v);
+    }
+
+    function classify(r) {
+      var c1h = r.c1h || 0, c4h = r.c4h || 0, c12h = r.c12h || 0;
+      var zc = r.zc || 0, zv = r.zv || 0, zo = r.zo || 0;
+      var zx = r.zx || 0, zp = r.zp || 0;
+      var rng = r.rng || 0, fund = r.fund || 0;
+
+      if (zp > 1.2) return { v: 'late', why: '5m move is running way ahead of the 1h trend &mdash; likely a quick pump.' };
+      if (zx > 1.2 || fund > 0.03) return { v: 'late', why: 'Funding is elevated &mdash; longs are crowded and paying to hold.' };
+      if (rng > 0.95 && c1h < 1) return { v: 'late', why: 'Already at the 24h high with no fresh push &mdash; late to enter.' };
+
+      var cascading = c1h > 0.5 && c4h > c1h * 0.5 && c12h > 0;
+      var notCrowded = zx < 0.8 && fund < 0.025;
+      var oiNotDumping = zo > -0.3;
+      var freshPush = c1h > 1;
+      var rangeOk = rng < 0.92 || freshPush;
+
+      if (c1h > 2.5 && zv > 0.4 && c4h > 0 && oiNotDumping) {
+        return { v: 'breakout', why: 'Fresh push backed by rising volume &mdash; real participation.' };
+      }
+
+      if (cascading && notCrowded && oiNotDumping && rangeOk) {
+        var pieces = [];
+        if (zo > 0.4) pieces.push('OI climbing strongly');
+        else if (zo > 0) pieces.push('OI holding up');
+        else pieces.push('OI flat');
+        if (fund < 0) pieces.push('funding negative (shorts paying)');
+        else if (fund < 0.01) pieces.push('funding calm');
+        if (rng > 0.9) pieces.push('making new 24h highs');
+        else if (rng < 0.75) pieces.push('room left in the 24h range');
+        return { v: 'building', why: pieces.join(', ') + '.' };
+      }
+
+      if (c1h > 1 && zc > 0.3 && c4h < c1h * 3) {
+        return { v: 'igniting', why: 'Move looks freshly started &mdash; 1h leading, longer frames still catching up.' };
+      }
+
+      return { v: 'igniting', why: 'Positive composite score but mixed signals &mdash; watch, don\u2019t chase.' };
+    }
+
+    function formatPrice(p) {
+      if (p == null) return '';
+      if (p >= 100) return p.toFixed(2);
+      if (p >= 1) return p.toFixed(3);
+      if (p >= 0.01) return p.toFixed(4);
+      return p.toFixed(6);
+    }
+
+    function pctSpan(v) {
+      var cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
+      var sign = v > 0 ? '+' : '';
+      return '<span class="' + cls + '">' + sign + (v || 0).toFixed(1) + '%</span>';
+    }
+
+    function buildMomentum(data) {
+      momentumData = data;
+      renderMomentum();
+    }
+
+    function renderMomentum() {
+      var data = momentumData;
+      var wrap = document.getElementById('momentumCards');
+      var meta = document.getElementById('momentumMeta');
+      var empty = document.getElementById('momentumEmpty');
+      if (!wrap || !data || !data.leaderboard || data.leaderboard.length === 0) {
+        showMomentumEmpty();
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+      wrap.style.display = '';
+
+      if (meta) {
+        var d = new Date(data.ts);
+        var pad2 = function(n) { return n < 10 ? '0' + n : '' + n; };
+        var tsLabel = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ' CEST';
+        meta.innerHTML = 'Latest snapshot: ' + tsLabel;
+      }
+
+      var minVolUsd = currentMinVolK * 1000;
+      var totalCount = data.leaderboard.length;
+
+      var order = { building: 0, breakout: 1, igniting: 2, late: 3 };
+      var classified = data.leaderboard
+        .filter(function(r) { return (r.v1m || 0) >= minVolUsd; })
+        .map(function(r) { return { row: r, klass: classify(r) }; });
+      classified.sort(function(a, b) {
+        var oa = order[a.klass.v], ob = order[b.klass.v];
+        if (oa !== ob) return oa - ob;
+        return (b.row.sms || 0) - (a.row.sms || 0);
+      });
+
+      if (classified.length === 0) {
+        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' meet the ' + currentMinVolK + 'k minimum 1m volume. Lower the threshold to see more candidates.</div>';
+        return;
+      }
+
+      var visible = classified.slice(0, 12);
+
+      wrap.innerHTML = visible.map(function(item) {
+        var r = item.row, k = item.klass;
+        var sym = (r.s || '').replace(/USDT$/, '');
+        var pair = (r.s || '').endsWith('USDT') ? '<span class="pair">/USDT</span>' : '';
+        var verdictLabel =
+          k.v === 'building' ? 'Building' :
+          k.v === 'breakout' ? 'Breakout' :
+          k.v === 'late' ? 'Late / avoid' : 'Igniting';
+
+        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span></div>';
+
+        return '<article class="mcard" data-v="' + k.v + '">' +
+          '<div class="mcard-top">' +
+            '<div class="mcard-symbol">' + sym + pair + '</div>' +
+            '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
+          '</div>' +
+          '<div class="mcard-verdict-row">' +
+            '<span class="mcard-verdict v-' + k.v + '">' + verdictLabel + '</span>' +
+            '<span class="mcard-pcts">' +
+              pctSpan(r.c1h) + '<span class="sep">1h</span>' +
+              pctSpan(r.c4h) + '<span class="sep">4h</span>' +
+            '</span>' +
+          '</div>' +
+          '<div class="mcard-why">' + k.why + '</div>' +
+          volLine +
+        '</article>';
+      }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var savedMinVol = parseInt(localStorage.getItem('orion-min-vol-k') || '', 10);
+      if (!isNaN(savedMinVol)) currentMinVolK = savedMinVol;
+      var minVolInput = document.getElementById('minVolInput');
+      var minVolValue = document.getElementById('minVolValue');
+      if (minVolInput) {
+        minVolInput.value = currentMinVolK;
+        if (minVolValue) minVolValue.textContent = currentMinVolK;
+        var mvPending = false;
+        minVolInput.addEventListener('input', function() {
+          var v = parseInt(minVolInput.value, 10) || 0;
+          currentMinVolK = v;
+          if (minVolValue) minVolValue.textContent = v;
+          localStorage.setItem('orion-min-vol-k', String(v));
+          if (mvPending) return;
+          mvPending = true;
+          requestAnimationFrame(function() { mvPending = false; renderMomentum(); });
+        });
+      }
+
+      function loadMomentum() {
+        return fetch('./data/momentum.json?_=' + Date.now())
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(m) {
+            if (m) buildMomentum(m); else showMomentumEmpty();
+            var el = document.getElementById('errorState');
+            if (el) el.style.display = 'none';
+          })
+          .catch(function(err) {
+            var el = document.getElementById('errorState');
+            if (el) {
+              el.style.display = '';
+              el.innerHTML = '<p>Failed to load momentum data</p><code>' + err.message + '</code>';
+            }
+          });
+      }
+
+      loadMomentum();
+      // Poll every 60s; pause while the tab is hidden to avoid piling up requests.
+      var refreshMs = 60 * 1000;
+      setInterval(function() {
+        if (document.visibilityState === 'visible') loadMomentum();
+      }, refreshMs);
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') loadMomentum();
+      });
+    });
+  </script>
+</body>
+</html>

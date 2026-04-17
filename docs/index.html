@@ -3,1263 +3,192 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Orion Screener - Best Trading Hours</title>
+  <title>Orion Screener</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script>Chart.defaults.animation = false;</script>
-  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { interpolate-size: allow-keywords; }
 
     html.theme-dark {
       --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
       --border: rgba(0,255,255,0.08);
       --text: #e8ecf1; --text-secondary: #6b7f99;
       --accent: #00e5ff; --accent-secondary: #e040fb;
-      --positive: #00e676; --negative: #ff1744; --warning: #ffab00;
+      --positive: #00e676;
       --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
-      --glow-green: rgba(0,230,118,0.12);
-      --grid-line: rgba(0,229,255,0.04);
     }
     html.theme-light {
       --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
       --border: rgba(0,0,0,0.08);
       --text: #0f172a; --text-secondary: #64748b;
       --accent: #0891b2; --accent-secondary: #9333ea;
-      --positive: #059669; --negative: #e11d48; --warning: #d97706;
+      --positive: #059669;
       --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
-      --glow-green: rgba(5,150,105,0.06);
-      --grid-line: rgba(0,0,0,0.06);
     }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg); color: var(--text);
       line-height: 1.6; -webkit-font-smoothing: antialiased;
-      letter-spacing: -0.01em; font-feature-settings: 'cv11', 'ss01';
-      transition: background 0.3s, color 0.3s; scrollbar-gutter: stable;
+      letter-spacing: -0.01em;
+      transition: background 0.3s, color 0.3s;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
     }
-    h1,h2,h3,h4,h5,h6 { color: var(--text); letter-spacing: -0.03em; line-height: 1.08; text-wrap: balance; }
-    h1 { font-weight: 700; font-size: 3rem; }
-    h2 { font-weight: 600; font-size: 2rem; }
-    h3 { font-weight: 500; font-size: 1.5rem; }
-    body, p, li, td, th, span, label { font-weight: 400; }
-    p,li,td,th,span,label { color: var(--text); }
-    .text-secondary { color: var(--text-secondary); }
-
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
-    .card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.15); }
+    h1 { font-weight: 700; font-size: clamp(2.4rem, 6vw, 3.6rem); letter-spacing: -0.03em; line-height: 1.08; text-wrap: balance; }
+    h2 { font-weight: 600; font-size: 1.4rem; letter-spacing: -0.02em; }
 
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .animate { animation: fadeInUp 0.6s ease-out both; }
     .animate.delay-1 { animation-delay: 0.1s; }
     .animate.delay-2 { animation-delay: 0.2s; }
     .animate.delay-3 { animation-delay: 0.3s; }
-    .animate.delay-4 { animation-delay: 0.4s; }
-    .animate.delay-5 { animation-delay: 0.5s; }
-    .animate.delay-6 { animation-delay: 0.6s; }
-
-    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
-    .reveal.visible { opacity: 1; transform: translateY(0); }
-
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
-      .reveal { opacity: 1; transform: none; }
     }
-    @media print {
-      body { background: white !important; color: black !important; }
-      .viz-menu { display: none; }
-      .reveal { opacity: 1 !important; transform: none !important; }
-      .card { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
-      .bg-atmosphere { display: none; }
-      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    }
-    @page { margin: 0.75in; }
 
     .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
-    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); transition: all 0.2s; }
+    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
     .viz-menu-toggle:hover { background: var(--surface-hover); }
-    .viz-menu-dropdown { position: absolute; top: 52px; right: 0; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.2s; backdrop-filter: blur(16px); }
-    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
-    .viz-menu-dropdown button { width: 100%; padding: 10px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
-    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
 
-    /* === LAYOUT === */
-    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
-    .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
+    .bg-atmosphere { position: fixed; inset: 0; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
 
-    .dashboard-header { text-align: center; margin-bottom: 48px; position: relative; z-index: 1; }
-    .dashboard-header h1 { font-size: clamp(2rem, 5vw, 3.2rem); margin-bottom: 8px; }
+    .container { max-width: 960px; margin: 0 auto; padding: 72px 24px; position: relative; z-index: 1; flex: 1; width: 100%; }
+
+    .hero { text-align: center; margin-bottom: 56px; }
+    .hero .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; color: var(--text-secondary);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); animation: pulse 2s infinite; }
     .accent-text { color: var(--accent); }
-    .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; }
-    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
+    .hero p { font-size: 1.05rem; color: var(--text-secondary); max-width: 560px; margin: 16px auto 0; }
 
-    /* Loading state */
-    .loading-state { text-align: center; padding: 80px 24px; position: relative; z-index: 1; }
-    .loading-state p { color: var(--text-secondary); font-size: 1.1rem; }
-    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .error-state { text-align: center; padding: 80px 24px; position: relative; z-index: 1; }
-    .error-state p { color: var(--negative); font-size: 1.1rem; }
-    .error-state code { display: block; margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem; }
+    .page-grid {
+      display: grid; gap: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
 
-    /* Top-N controls */
-    .topn-controls { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 24px; margin-bottom: 28px; position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
-    .topn-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .topn-label { font-weight: 600; font-size: 0.95rem; color: var(--text); white-space: nowrap; min-width: 130px; }
-    .topn-label span { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
-    .topn-hint { font-size: 0.8rem; }
-    #topNSlider { flex: 1; min-width: 220px; accent-color: var(--accent); height: 4px; }
-    .session-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); }
-    .sl-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
-    .sl-asia { background: rgba(147,51,234,0.22); }
-    .sl-eu { background: rgba(0,229,255,0.22); }
-    .sl-us { background: rgba(0,230,118,0.22); }
-    .sl-overlap { background: rgba(255,171,0,0.30); }
-    .stat-toggle { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; }
-    .stat-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
-    .stat-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
-
-    /* KPI Grid */
-    .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
-    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
-    .kpi-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 20px rgba(0,0,0,0.15); }
-    .kpi-label { font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-    .kpi-value { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; }
-    .kpi-detail { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; }
-    .kpi-cyan .kpi-value { color: var(--accent); }
-    .kpi-magenta .kpi-value { color: var(--accent-secondary); }
-    .kpi-green .kpi-value { color: var(--positive); }
-    .kpi-amber .kpi-value { color: var(--warning); }
-
-    /* Session brief */
-    .session-brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-bottom: 48px; position: relative; z-index: 1; }
-    .brief-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
-    .brief-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
-    .brief-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
-    .brief-headline { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
-    .brief-headline.pace-up { color: var(--positive); }
-    .brief-headline.pace-down { color: var(--negative); }
-    .brief-headline.pace-flat { color: var(--text); }
-    .brief-sub { font-size: 0.78rem; color: var(--text-secondary); text-align: right; max-width: 180px; line-height: 1.35; }
-
-    /* Sustainable Momentum */
-    .momentum-section { margin-bottom: 48px; position: relative; z-index: 1; }
-    .momentum-head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
-    .momentum-head-row h2 { margin-bottom: 6px; }
-    .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
-
-    .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
-    .momentum-control-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-    .momentum-control-value { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
-    #minVolInput { width: 100%; accent-color: var(--accent); }
-    .mcard-vol { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; }
-    .mcard-vol .v { color: var(--text); font-weight: 500; }
-    .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
-
-    .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
-
-    .momentum-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-
-    .mcard {
+    .page-card {
+      display: flex; flex-direction: column; gap: 14px;
+      padding: 28px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-left: 3px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 18px;
-      transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+      border-radius: 14px;
+      color: var(--text);
+      text-decoration: none;
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      position: relative;
+      overflow: hidden;
     }
-    .mcard:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
-
-    .mcard-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
-    .mcard-symbol { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-    .mcard-symbol .pair { font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; margin-left: 3px; }
-    .mcard-price { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
-
-    .mcard-verdict-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-    .mcard-verdict {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 4px 10px;
-      border-radius: 999px;
-      white-space: nowrap;
+    .page-card:hover {
+      transform: translateY(-3px);
+      background: var(--surface-hover);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.28);
     }
-    .mcard-pcts { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text); font-variant-numeric: tabular-nums; }
-    .mcard-pcts .sep { color: var(--text-secondary); margin: 0 4px; }
-    .mcard-pcts .up { color: var(--positive); }
-    .mcard-pcts .down { color: var(--negative); }
+    .page-card[data-accent="cyan"]    { border-left-color: var(--accent); }
+    .page-card[data-accent="cyan"]:hover    { border-color: rgba(0,229,255,0.30); }
+    .page-card[data-accent="magenta"] { border-left-color: var(--accent-secondary); }
+    .page-card[data-accent="magenta"]:hover { border-color: rgba(224,64,251,0.30); }
 
-    .mcard-why { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45; }
-
-    /* Verdict palette */
-    .v-building      { background: rgba(0,229,255,0.10);   color: var(--accent);           border: 1px solid rgba(0,229,255,0.30); }
-    .v-breakout      { background: rgba(0,230,118,0.10);   color: var(--positive);         border: 1px solid rgba(0,230,118,0.30); }
-    .v-igniting      { background: rgba(224,64,251,0.10);  color: var(--accent-secondary); border: 1px solid rgba(224,64,251,0.30); }
-    .v-late          { background: rgba(255,171,0,0.10);   color: var(--warning);          border: 1px solid rgba(255,171,0,0.30); }
-
-    .mcard[data-v="building"]  { border-left-color: var(--accent); }
-    .mcard[data-v="breakout"]  { border-left-color: var(--positive); }
-    .mcard[data-v="igniting"]  { border-left-color: var(--accent-secondary); }
-    .mcard[data-v="late"]      { border-left-color: var(--warning); opacity: 0.88; }
-
-    @media (max-width: 480px) {
-      .momentum-cards { grid-template-columns: 1fr; }
-      .mcard { padding: 14px; }
+    .page-card .card-label {
+      font-size: 0.72rem; color: var(--text-secondary);
+      letter-spacing: 0.12em; text-transform: uppercase;
     }
-
-    /* Heatmap */
-    .heatmap-section { margin-bottom: 48px; position: relative; z-index: 1; }
-    .heatmap-section h2 { margin-bottom: 6px; }
-    .section-sub { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px; }
-
-    .heatmap-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; overflow-x: auto; }
-    .heatmap-table { width: 100%; border-collapse: separate; border-spacing: 4px; }
-    .heatmap-table th { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 4px; text-align: center; white-space: nowrap; }
-    .heatmap-table .day-label { text-align: right; padding-right: 12px; min-width: 50px; }
-    .heatmap-cell { border-radius: 4px; padding: 8px 4px; text-align: center; cursor: default; transition: transform 0.15s, box-shadow 0.15s; position: relative; min-width: 44px; }
-    .heatmap-cell:hover { transform: scale(1.15); z-index: 2; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
-    .heatmap-cell .cell-val { font-size: 0.7rem; font-weight: 700; }
-    .heatmap-cell.empty { background: var(--surface-hover); opacity: 0.3; }
-
-    .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: center; }
-    .heatmap-legend span { font-size: 0.75rem; color: var(--text-secondary); }
-    .legend-bar { width: 200px; height: 12px; border-radius: 6px; }
-
-    /* Toggle */
-    .metric-toggle { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; margin-bottom: 16px; }
-    .metric-toggle button { padding: 6px 16px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
-    .metric-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
-
-    /* Chart sections */
-    .chart-section { margin-bottom: 48px; position: relative; z-index: 1; }
-    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; transition: box-shadow 0.2s ease; }
-    .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
-    .chart-container { position: relative; height: 380px; }
-
-    .dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px; position: relative; z-index: 1; }
-
-    @media (max-width: 768px) {
-      .dual-grid { grid-template-columns: 1fr; }
-      .container { padding: 20px 16px; }
-      .kpi-grid { grid-template-columns: 1fr; }
-      .heatmap-wrap { padding: 16px; }
-      h1 { font-size: 2rem; }
+    .page-card h2 { color: var(--text); }
+    .page-card[data-accent="cyan"] h2 .t   { color: var(--accent); }
+    .page-card[data-accent="magenta"] h2 .t { color: var(--accent-secondary); }
+    .page-card p {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      line-height: 1.5;
     }
-    @media (max-width: 375px) {
-      body { overflow-x: hidden; }
-      .chart-container { height: 280px; }
-      .kpi-card .kpi-value { font-size: 1.8rem; }
+    .page-card .cta {
+      margin-top: auto;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .page-card[data-accent="cyan"] .cta    { color: var(--accent); }
+    .page-card[data-accent="magenta"] .cta { color: var(--accent-secondary); }
+    .page-card .cta::after {
+      content: '→';
+      transition: transform 0.18s ease;
+    }
+    .page-card:hover .cta::after { transform: translateX(4px); }
+
+    footer {
+      position: relative; z-index: 1;
+      text-align: center;
+      padding: 24px 16px 32px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.06em;
+    }
+    footer a { color: var(--text-secondary); text-decoration: none; border-bottom: 1px dotted var(--border); }
+    footer a:hover { color: var(--accent); }
+
+    @media (max-width: 560px) {
+      .container { padding: 48px 20px; }
+      .page-card { padding: 22px; }
     }
   </style>
 </head>
 <body>
   <div class="bg-atmosphere"></div>
 
-  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:10000;padding:8px 16px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;" onfocus="this.style.cssText='position:fixed;left:16px;top:16px;z-index:10000;padding:8px 16px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;'" onblur="this.style.cssText='position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;'">Skip to content</a>
-
   <div class="viz-menu">
-    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+    <button class="viz-menu-toggle" onclick="cycleTheme()" aria-label="Toggle theme">
+      <span id="themeIcon">🌙</span>
     </button>
-    <div class="viz-menu-dropdown" id="vizMenuDropdown">
-      <button onclick="cycleTheme()"><span id="themeIcon"></span><span id="themeLabel">Dark</span></button>
-      <button onclick="downloadImage()"><span>PNG</span><span>Download PNG</span></button>
-      <button onclick="window.print()"><span>PDF</span><span>Print / PDF</span></button>
-    </div>
   </div>
 
-  <main id="main-content" role="main">
-    <div class="container">
+  <main class="container">
+    <section class="hero animate">
+      <div class="eyebrow"><span class="status-dot"></span>Orion Screener</div>
+      <h1><span class="accent-text">Crypto</span> intelligence dashboards</h1>
+      <p>Pick a view. Trading Hours tracks when the top-20 pairs actually trade; the Momentum Tracker surfaces coins breaking higher in real time.</p>
+    </section>
 
-      <section class="dashboard-header animate">
-        <h1><span class="accent-text">Best Trading Hours</span></h1>
-        <p class="subtitle" id="subtitleText"><span class="status-dot"></span>Loading snapshots&hellip;</p>
-      </section>
+    <section class="page-grid">
+      <a class="page-card animate delay-1" href="./trading-hours.html" data-accent="cyan">
+        <span class="card-label">Dashboard</span>
+        <h2><span class="t">Trading Hours</span></h2>
+        <p>Hourly and weekday activity heatmap, session brief, best 2h window, and volume-by-hour charts across all captured snapshots.</p>
+        <span class="cta">Open dashboard</span>
+      </a>
 
-      <!-- Loading / Error states -->
-      <div id="loadingState" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>Fetching snapshot data&hellip;</p>
-      </div>
-      <div id="errorState" class="error-state" style="display:none;"></div>
-
-      <!-- Dashboard content (hidden until data loads) -->
-      <div id="dashboardContent" style="display:none;">
-
-        <!-- Top-N slider -->
-        <section class="topn-controls animate delay-0" aria-label="Top-N selector">
-          <div class="topn-row">
-            <label for="topNSlider" class="topn-label">Top&nbsp;<span id="topNValue">20</span>&nbsp;coins</label>
-            <input type="range" id="topNSlider" min="1" max="20" step="1" value="20" aria-label="Select how many top coins to include (1 to 20)">
-            <span class="topn-hint text-secondary">Drag to narrow focus &mdash; all metrics update live</span>
-          </div>
-          <div class="topn-row">
-            <span class="topn-label">Aggregation</span>
-            <div class="stat-toggle" id="statToggle" role="group" aria-label="Choose mean or median aggregation">
-              <button data-stat="mean" type="button">Mean</button>
-              <button class="active" data-stat="median" type="button">Median</button>
-            </div>
-            <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; spread shown as IQR</span>
-          </div>
-          <div class="session-legend" aria-label="Trading sessions (CEST)">
-            <span class="sl-swatch sl-asia"></span><span>Asia 00&ndash;08</span>
-            <span class="sl-swatch sl-eu"></span><span>Europe 08&ndash;16</span>
-            <span class="sl-swatch sl-us"></span><span>US 14&ndash;22</span>
-            <span class="sl-swatch sl-overlap"></span><span>EU&thinsp;&times;&thinsp;US 14&ndash;16</span>
-          </div>
-        </section>
-
-        <!-- KPIs -->
-        <section class="kpi-grid" aria-label="Key findings" id="kpiSection"></section>
-
-        <!-- SESSION BRIEF -->
-        <section class="session-brief animate delay-2" aria-label="Session brief">
-          <div class="brief-card brief-pace">
-            <div class="brief-head">
-              <div>
-                <div class="brief-label">Today&rsquo;s pace vs typical</div>
-                <div class="brief-headline" id="paceHeadline">&mdash;</div>
-              </div>
-              <div class="brief-sub" id="paceSub" aria-live="polite"></div>
-            </div>
-            <div class="chart-container" style="height:200px;">
-              <canvas id="paceChart"></canvas>
-            </div>
-          </div>
-          <div class="brief-card brief-next">
-            <div class="brief-head">
-              <div>
-                <div class="brief-label">Next 5 hours &mdash; <span id="nextDayName">today</span></div>
-                <div class="brief-headline" id="nextHeadline">&mdash;</div>
-              </div>
-              <div class="brief-sub" id="nextSub"></div>
-            </div>
-            <div class="chart-container" style="height:200px;">
-              <canvas id="nextHoursChart"></canvas>
-            </div>
-          </div>
-        </section>
-
-        <!-- SUSTAINABLE MOMENTUM LEADERBOARD -->
-        <section class="momentum-section animate delay-3" aria-labelledby="momentum-head">
-          <div class="momentum-head-row">
-            <div>
-              <h2 id="momentum-head">Sustainable Momentum</h2>
-            </div>
-            <div class="momentum-controls">
-              <label for="minVolInput" class="momentum-control-label">
-                Min 1m volume
-                <span class="momentum-control-value"><span id="minVolValue">80</span>k$</span>
-              </label>
-              <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
-            </div>
-            <div class="momentum-meta" id="momentumMeta">&mdash;</div>
-          </div>
-          <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
-          <div class="momentum-cards" id="momentumCards"></div>
-        </section>
-
-        <!-- HEATMAP -->
-        <section class="heatmap-section animate delay-3">
-          <h2>Activity Heatmap</h2>
-          <p class="section-sub">Total top-20 trade count by day and hour &mdash; hover for details</p>
-          <div class="metric-toggle" id="metricToggle">
-            <button class="active" data-metric="trades">Trades</button>
-            <button data-metric="volume">Volume</button>
-          </div>
-          <div class="heatmap-wrap">
-            <table class="heatmap-table" id="heatmapTable" aria-label="Heatmap of trading activity by day and hour"></table>
-            <div class="heatmap-legend">
-              <span>Low</span>
-              <div class="legend-bar" id="legendBar"></div>
-              <span>High</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- HOURLY AVERAGE CHART -->
-        <section class="chart-section" data-reveal>
-          <h2>Average Activity by Hour</h2>
-          <p class="section-sub">Aggregated across all days &mdash; which hours consistently produce the most activity</p>
-          <div class="chart-card">
-            <div class="chart-container" role="img" aria-label="Bar chart showing average total trades by hour of day across all snapshots">
-              <canvas id="hourlyChart"></canvas>
-            </div>
-          </div>
-        </section>
-
-        <!-- DUAL: Volume by hour + Day comparison -->
-        <section class="dual-grid" data-reveal>
-          <div class="chart-section" style="margin-bottom:0;">
-            <h2>Volume by Hour</h2>
-            <p class="section-sub">Average top-20 volume ($) by hour of day</p>
-            <div class="chart-card">
-              <div class="chart-container" role="img" aria-label="Bar chart showing average volume in dollars by hour of day">
-                <canvas id="volumeHourChart"></canvas>
-              </div>
-            </div>
-          </div>
-          <div class="chart-section" style="margin-bottom:0;">
-            <h2>Day-over-Day</h2>
-            <p class="section-sub">Average trades per snapshot by day of week</p>
-            <div class="chart-card">
-              <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
-                <canvas id="dayChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </section>
-
-      </div>
-    </div>
+      <a class="page-card animate delay-2" href="./momentum.html" data-accent="magenta">
+        <span class="card-label">Live leaderboard</span>
+        <h2><span class="t">Momentum Tracker</span></h2>
+        <p>Sustainable-momentum leaderboard that classifies coins as Building, Breakout, Igniting, or Late based on cascading price action, OI, and funding.</p>
+        <span class="cta">Open tracker</span>
+      </a>
+    </section>
   </main>
 
-  <script>
-    // === Menu ===
-    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
-    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+  <footer class="animate delay-3">
+    <a href="./architecture.html">Pipeline architecture</a>
+  </footer>
 
-    // === Theme ===
+  <script>
     var savedTheme = localStorage.getItem('viz-theme');
     var currentTheme = savedTheme || 'dark';
     function applyTheme(t) {
       document.documentElement.className = 'theme-' + t;
       var icon = document.getElementById('themeIcon');
-      var label = document.getElementById('themeLabel');
-      if (icon) icon.textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
-      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      if (icon) icon.textContent = t === 'dark' ? '🌙' : '☀️';
       localStorage.setItem('viz-theme', t);
       currentTheme = t;
-      if (typeof onThemeChange === 'function' && dataReady) onThemeChange();
     }
     function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
     applyTheme(currentTheme);
-
-    // === Scroll Reveal ===
-    var revealObserver = new IntersectionObserver(function(entries) { entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } }); }, { threshold: 0.15 });
-
-    function setupReveal() {
-      document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); revealObserver.observe(el); });
-    }
-
-    // === Counter ===
-    function animateCounters() {
-      document.querySelectorAll('[data-count]').forEach(function(el) {
-        if (el.dataset.counted) return; el.dataset.counted = '1';
-        var target = parseFloat(el.dataset.count), prefix = el.dataset.prefix || '', suffix = el.dataset.suffix || '';
-        var start = performance.now(), duration = 1200;
-        (function tick(now) {
-          var p = Math.min((now - start) / duration, 1), eased = 1 - Math.pow(1 - p, 3);
-          el.textContent = prefix + Math.round(target * eased).toLocaleString() + suffix;
-          if (p < 1) requestAnimationFrame(tick);
-        })(start);
-      });
-    }
-
-    // === Download PNG ===
-    async function downloadImage() {
-      var menu = document.querySelector('.viz-menu'); menu.style.display = 'none';
-      try { var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2 }); var a = document.createElement('a'); a.href = url; a.download = 'best-trading-hours.png'; a.click(); } catch(e) { console.error(e); }
-      menu.style.display = '';
-    }
-
-    // === STATE ===
-    var dataReady = false;
-    var rawData = [];
-    var currentTopN = 20;
-    var snapshots = [];
-    var heatmap = {};
-    var dayOrder = [];
-    var hourlyAvg = [];
-    var hourlyVolAvg = [];
-    var hourlyStd = [];       // std dev of trade totals per hour (across all samples of that hour)
-    var hourlyMedian = [];    // median trades per hour
-    var hourlyVolMedian = []; // median volume per hour
-    var hourlyP25 = [];       // 25th percentile of trades per hour (lower IQR)
-    var hourlyP75 = [];       // 75th percentile of trades per hour (upper IQR)
-    var hourlySamples = [];   // sample count per hour
-    var dayAvg = {};
-    var dayMedian = {};
-    var bestHour = 0, bestHourVal = 0, bestHourStd = 0, bestHourSamples = 0;
-    var bestDay = '', bestDayVal = 0;
-    var peakSnap = null, quietSnap = null;
-    var currentMetric = 'trades';
-    var currentStat = 'median';
-
-    // === Statistics helpers ===
-    function quantile(sorted, p) {
-      if (sorted.length === 0) return 0;
-      var idx = (sorted.length - 1) * p;
-      var lo = Math.floor(idx), hi = Math.ceil(idx);
-      if (lo === hi) return sorted[lo];
-      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-    }
-
-    // === FETCH + PROCESS ===
-    function sumTopN(arr, n) { var s = 0; var lim = Math.min(n, arr.length); for (var i = 0; i < lim; i++) s += arr[i] || 0; return s; }
-
-    function processData(raw, topN) {
-      var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-      snapshots = raw.map(function(r) {
-        var d = new Date(r.ts);
-        var tT = sumTopN(r.tR || [], topN);
-        var tV = sumTopN(r.vR || [], topN);
-        var tt = (r.tR && r.tR.length) ? r.tR[0] : 0;
-        return { date: d, hour: d.getHours(), day: dayNames[d.getDay()], dayIdx: d.getDay(), totalTrades: tT, totalVol: tV, topTrades: tt, label: r.ts.substring(5,10) + ' ' + r.ts.substring(11,16) };
-      });
-
-      if (snapshots.length === 0) return;
-
-      // Day order: fixed Mon-first weekday order, but only include days that appear in data
-      var weekOrder = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-      var seen = {};
-      snapshots.forEach(function(s) { seen[s.day] = true; });
-      dayOrder = weekOrder.filter(function(d) { return seen[d]; });
-
-      // Build heatmap with per-cell sample lists (for std dev + median + IQR)
-      heatmap = {};
-      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0, tradeSamples: [], volSamples: [] }; });
-      snapshots.forEach(function(s) {
-        var cell = heatmap[s.day] && heatmap[s.day][s.hour];
-        if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; cell.tradeSamples.push(s.totalTrades); cell.volSamples.push(s.totalVol); }
-      });
-      // Compute per-cell std (trades), medians (trades + volume), and IQR (trades)
-      dayOrder.forEach(function(d) {
-        for (var h=0; h<24; h++) {
-          var c = heatmap[d][h];
-          if (c.count > 0) {
-            var sortedT = c.tradeSamples.slice().sort(function(a,b){return a-b;});
-            var sortedV = c.volSamples.slice().sort(function(a,b){return a-b;});
-            c.tradeMedian = quantile(sortedT, 0.5);
-            c.volMedian = quantile(sortedV, 0.5);
-            c.p25 = quantile(sortedT, 0.25);
-            c.p75 = quantile(sortedT, 0.75);
-          }
-          if (c.count > 1) {
-            var mean = c.trades / c.count;
-            var sq = 0;
-            for (var i=0; i<c.tradeSamples.length; i++) { var dv = c.tradeSamples[i] - mean; sq += dv*dv; }
-            c.std = Math.sqrt(sq / c.count);
-          } else {
-            c.std = 0;
-          }
-        }
-      });
-
-      // Hourly stats: pool samples across days for hour h to get mean/median/IQR/std/samples
-      hourlyAvg = []; hourlyVolAvg = []; hourlyStd = []; hourlyMedian = []; hourlyVolMedian = []; hourlyP25 = []; hourlyP75 = []; hourlySamples = [];
-      for (var h=0; h<24; h++) {
-        var tradeSamples = [];
-        var volSamples = [];
-        snapshots.forEach(function(s) { if (s.hour === h) { tradeSamples.push(s.totalTrades); volSamples.push(s.totalVol); } });
-        if (tradeSamples.length === 0) {
-          hourlyAvg.push(0); hourlyVolAvg.push(0); hourlyStd.push(0);
-          hourlyMedian.push(0); hourlyVolMedian.push(0); hourlyP25.push(0); hourlyP75.push(0);
-          hourlySamples.push(0);
-          continue;
-        }
-        var sortedT = tradeSamples.slice().sort(function(a,b){return a-b;});
-        var sortedV = volSamples.slice().sort(function(a,b){return a-b;});
-        var meanT = tradeSamples.reduce(function(a,b){return a+b;}, 0) / tradeSamples.length;
-        var meanV = volSamples.reduce(function(a,b){return a+b;}, 0) / volSamples.length;
-        var sqT = 0;
-        for (var i=0; i<tradeSamples.length; i++) { var d = tradeSamples[i] - meanT; sqT += d*d; }
-        var std = tradeSamples.length > 1 ? Math.sqrt(sqT / tradeSamples.length) : 0;
-        hourlyAvg.push(Math.round(meanT));
-        hourlyVolAvg.push(Math.round(meanV));
-        hourlyStd.push(Math.round(std));
-        hourlyMedian.push(Math.round(quantile(sortedT, 0.5)));
-        hourlyVolMedian.push(Math.round(quantile(sortedV, 0.5)));
-        hourlyP25.push(Math.round(quantile(sortedT, 0.25)));
-        hourlyP75.push(Math.round(quantile(sortedT, 0.75)));
-        hourlySamples.push(tradeSamples.length);
-      }
-
-      // Day stats
-      dayAvg = {}; dayMedian = {};
-      dayOrder.forEach(function(d) {
-        var vals = snapshots.filter(function(s){return s.day===d;}).map(function(s){return s.totalTrades;});
-        if (!vals.length) { dayAvg[d] = 0; dayMedian[d] = 0; return; }
-        dayAvg[d] = Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length);
-        dayMedian[d] = Math.round(quantile(vals.slice().sort(function(a,b){return a-b;}), 0.5));
-      });
-
-      // Best hour / day / peak / quiet — driven by current stat selection
-      var hourlyForBest = currentStat === 'median' ? hourlyMedian : hourlyAvg;
-      var dayForBest = currentStat === 'median' ? dayMedian : dayAvg;
-      bestHour = 0; bestHourVal = 0; bestHourStd = 0; bestHourSamples = 0;
-      hourlyForBest.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; bestHourStd = hourlyStd[i]; bestHourSamples = hourlySamples[i]; } });
-      bestDay = dayOrder[0]; bestDayVal = 0;
-      dayOrder.forEach(function(d) { if (dayForBest[d] > bestDayVal) { bestDayVal = dayForBest[d]; bestDay = d; } });
-      peakSnap = snapshots.reduce(function(a,b) { return a.totalTrades > b.totalTrades ? a : b; });
-      quietSnap = snapshots.reduce(function(a,b) { return a.totalTrades < b.totalTrades ? a : b; });
-
-      // Subtitle uses the most recent snapshot timestamp
-      var last = snapshots[snapshots.length - 1].date;
-      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
-      var lastLabel = months[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear() + ' ' + pad(last.getHours()) + ':' + pad(last.getMinutes());
-
-      var sub = document.getElementById('subtitleText');
-      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; Last: ' + lastLabel + ' &nbsp;|&nbsp; CEST (UTC+2) &nbsp;|&nbsp; Top ' + topN;
-
-      dataReady = true;
-    }
-
-    function rebuildAll() {
-      processData(rawData, currentTopN);
-      buildKPIs();
-      buildSessionBrief();
-      buildHeatmap();
-      buildCharts();
-    }
-
-    // === SESSION BRIEF ===
-    function buildSessionBrief() {
-      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
-      var c = getChartColors();
-      var isDark = document.documentElement.classList.contains('theme-dark');
-      var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-      var pad = function(n){return n<10?'0'+n:''+n;};
-
-      var now = new Date();
-      var todayKey = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
-      var currentHour = now.getHours();
-      var todayDayName = dayNames[now.getDay()];
-
-      // Today's snapshots and per-hour totals (sums duplicates within the hour)
-      var todayByHour = []; for (var h=0; h<24; h++) todayByHour.push(0);
-      var todayHasHour = []; for (var h=0; h<24; h++) todayHasHour.push(false);
-      var todaySnapsCount = 0;
-      snapshots.forEach(function(s) {
-        var d = s.date;
-        var key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayHasHour[s.hour] = true; todaySnapsCount++; }
-      });
-
-      // Cumulative trajectories: today (only up to current hour, null after) vs typical (median pooled across all days)
-      var todayCum = []; var typicalCum = [];
-      var tSum = 0, ySum = 0;
-      for (var h=0; h<24; h++) {
-        if (h <= currentHour && todaySnapsCount > 0) { tSum += todayByHour[h]; todayCum.push(tSum); }
-        else { todayCum.push(null); }
-        ySum += hourlyMedian[h] || 0;
-        typicalCum.push(ySum);
-      }
-
-      // Pace headline: today's cumulative through last hour with data, vs typical at same hour
-      var lastHourWithData = -1;
-      for (var h=currentHour; h>=0; h--) { if (todayHasHour[h]) { lastHourWithData = h; break; } }
-      var paceEl = document.getElementById('paceHeadline');
-      var paceSubEl = document.getElementById('paceSub');
-      if (lastHourWithData < 0) {
-        paceEl.textContent = 'No data yet for today';
-        paceEl.className = 'brief-headline pace-flat';
-        paceSubEl.textContent = 'Waiting for the first snapshot of ' + todayDayName + '.';
-      } else {
-        var todayAt = todayCum[lastHourWithData];
-        var typAt = typicalCum[lastHourWithData];
-        var pct = typAt > 0 ? Math.round((todayAt / typAt - 1) * 100) : 0;
-        var sign = pct > 0 ? '+' : '';
-        paceEl.textContent = sign + pct + '% vs typical ' + todayDayName;
-        paceEl.className = 'brief-headline ' + (pct >= 8 ? 'pace-up' : pct <= -8 ? 'pace-down' : 'pace-flat');
-        paceSubEl.innerHTML = todaySnapsCount + ' snapshots so far &middot; through ' + pad(lastHourWithData) + ':59 CEST';
-      }
-
-      // Render pace chart (cumulative today vs typical)
-      var ctxP = resetCanvas('paceChart');
-      if (ctxP) {
-        new Chart(ctxP, {
-          type: 'line',
-          data: {
-            labels: Array.from({length:24}, function(_,i){return pad(i)+':00';}),
-            datasets: [
-              { label: 'Typical (median)', data: typicalCum, borderColor: c.textSecondary, borderDash: [4,4], borderWidth: 2, fill: false, pointRadius: 0, tension: 0.25 },
-              { label: 'Today',            data: todayCum,   borderColor: c.accent,        borderWidth: 2.5, fill: true, backgroundColor: isDark ? 'rgba(0,229,255,0.10)' : 'rgba(8,145,178,0.10)', pointRadius: 2, pointBackgroundColor: c.accent, tension: 0.2, spanGaps: false }
-            ]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString()); } } } },
-            layout: { padding: 6 },
-            scales: { x: { ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
-          }
-        });
-      }
-
-      // Next 5 hours: median trades for THIS weekday at next 5 wall-clock hours; fall back to pooled median when the weekday cell has no samples
-      var nextLabels = []; var nextValues = []; var nextSources = [];
-      for (var i=1; i<=5; i++) {
-        var h = (currentHour + i) % 24;
-        nextLabels.push(pad(h) + ':00');
-        var cell = heatmap[todayDayName] && heatmap[todayDayName][h];
-        if (cell && cell.count > 0) {
-          nextValues.push(Math.round(cell.tradeMedian));
-          nextSources.push('day n=' + cell.count);
-        } else {
-          nextValues.push(Math.round(hourlyMedian[h] || 0));
-          nextSources.push('all-day median');
-        }
-      }
-      var maxNext = Math.max.apply(null, nextValues);
-      var nextColors = nextValues.map(function(v){
-        if (v === maxNext && v > 0) return c.accent;
-        return isDark ? 'rgba(0,229,255,0.35)' : 'rgba(8,145,178,0.35)';
-      });
-
-      document.getElementById('nextDayName').textContent = todayDayName;
-      var nextHeadlineEl = document.getElementById('nextHeadline');
-      var nextSubEl = document.getElementById('nextSub');
-      if (maxNext > 0) {
-        var peakIdx = nextValues.indexOf(maxNext);
-        nextHeadlineEl.textContent = 'Peak at ' + nextLabels[peakIdx] + '  (~' + maxNext.toLocaleString() + ')';
-        nextHeadlineEl.className = 'brief-headline pace-up';
-        nextSubEl.innerHTML = 'Median across past ' + todayDayName + 's at the same hour';
-      } else {
-        nextHeadlineEl.textContent = 'No baseline yet';
-        nextHeadlineEl.className = 'brief-headline pace-flat';
-        nextSubEl.textContent = 'Need more data for ' + todayDayName + '.';
-      }
-
-      var ctxN = resetCanvas('nextHoursChart');
-      if (ctxN) {
-        new Chart(ctxN, {
-          type: 'bar',
-          data: { labels: nextLabels, datasets: [{ label: 'Median trades', data: nextValues, backgroundColor: nextColors, borderRadius: 4, borderSkipped: false }] },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.raw.toLocaleString() + ' median trades  (' + nextSources[ctx.dataIndex] + ')'; } } } },
-            layout: { padding: 6 },
-            scales: { x: { ticks: { color: c.textSecondary, font: { size: 11, weight: '600' } }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
-          }
-        });
-      }
-    }
-
-    // === BUILD KPIs ===
-    function buildKPIs() {
-      var sec = document.getElementById('kpiSection');
-      if (!sec || !peakSnap) return;
-      var statName = currentStat === 'median' ? 'Median' : 'Avg';
-      var spreadLabel = currentStat === 'median'
-        ? 'IQR ' + (hourlyP75[bestHour] - hourlyP25[bestHour]).toLocaleString()
-        : '\u03C3 ' + bestHourStd.toLocaleString();
-
-      // Best 2-consecutive-hour window (wraps midnight)
-      var hourlyForWindow = currentStat === 'median' ? hourlyMedian : hourlyAvg;
-      var bestStart = 0, bestSum = -1;
-      for (var hi = 0; hi < 24; hi++) {
-        var nxt = (hi + 1) % 24;
-        var sum = (hourlyForWindow[hi] || 0) + (hourlyForWindow[nxt] || 0);
-        if (sum > bestSum) { bestSum = sum; bestStart = hi; }
-      }
-      var winEnd = (bestStart + 2) % 24;
-      var winLabel = (bestStart < 10 ? '0' : '') + bestStart + ':00 \u2013 ' + (winEnd < 10 ? '0' : '') + winEnd + ':00';
-
-      sec.innerHTML =
-        '<div class="kpi-card kpi-cyan animate delay-1">' +
-          '<div class="kpi-label">Best Hour (CEST)</div>' +
-          '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestHourVal.toLocaleString() + ' trades &middot; ' + spreadLabel + ' &middot; n=' + bestHourSamples + '</div>' +
-        '</div>' +
-        '<div class="kpi-card kpi-green animate delay-2">' +
-          '<div class="kpi-label">Best 2h Window (CEST)</div>' +
-          '<div class="kpi-value" style="font-size:1.7rem;letter-spacing:-0.02em;">' + winLabel + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestSum.toLocaleString() + ' trades over the 2h block</div>' +
-        '</div>' +
-        '<div class="kpi-card kpi-magenta animate delay-3">' +
-          '<div class="kpi-label">Best Day</div>' +
-          '<div class="kpi-value">' + bestDay + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
-        '</div>';
-    }
-
-    // === HEATMAP ===
-    function getHeatColor(intensity) {
-      var isDark = document.documentElement.classList.contains('theme-dark');
-      if (isDark) {
-        var r = Math.round(13 + intensity * (0 - 13));
-        var g = Math.round(21 + intensity * (229 - 21));
-        var b = Math.round(32 + intensity * (255 - 32));
-        return 'rgb(' + r + ',' + g + ',' + b + ')';
-      } else {
-        var r = Math.round(240 - intensity * (240 - 8));
-        var g = Math.round(244 - intensity * (244 - 145));
-        var b = Math.round(248 - intensity * (248 - 178));
-        return 'rgb(' + r + ',' + g + ',' + b + ')';
-      }
-    }
-
-    function buildHeatmap() {
-      var table = document.getElementById('heatmapTable');
-      if (!table || dayOrder.length === 0) return;
-      var isDark = document.documentElement.classList.contains('theme-dark');
-
-      var useMedian = currentStat === 'median';
-      function cellVal(c) {
-        if (currentMetric === 'trades') return useMedian ? c.tradeMedian : c.trades / c.count;
-        return useMedian ? c.volMedian : c.vol / c.count;
-      }
-      var allVals = [];
-      dayOrder.forEach(function(d) { for (var h=0; h<24; h++) { var c = heatmap[d][h]; if (c.count > 0) allVals.push(cellVal(c)); } });
-      // Clip color scale to 5th/95th percentile so a single outlier cell
-      // doesn't flatten contrast across the rest of the grid. Falls back to
-      // raw min/max when there are fewer than 20 populated cells.
-      var minVal, maxVal;
-      if (allVals.length >= 20) {
-        var sortedVals = allVals.slice().sort(function(a,b){return a-b;});
-        minVal = quantile(sortedVals, 0.05);
-        maxVal = quantile(sortedVals, 0.95);
-      } else {
-        minVal = Math.min.apply(null, allVals);
-        maxVal = Math.max.apply(null, allVals);
-      }
-      var range = maxVal - minVal || 1;
-
-      var html = '<thead><tr><th class="day-label"></th>';
-      for (var h=0; h<24; h++) html += '<th>' + (h < 10 ? '0' : '') + h + '</th>';
-      html += '</tr></thead><tbody>';
-
-      dayOrder.forEach(function(d) {
-        html += '<tr><th class="day-label">' + d + '</th>';
-        for (var h=0; h<24; h++) {
-          var c = heatmap[d][h];
-          if (c.count === 0) {
-            html += '<td class="heatmap-cell empty"><div class="cell-val">-</div></td>';
-          } else {
-            var val = cellVal(c);
-            var intensity = Math.max(0, Math.min(1, (val - minVal) / range));
-            var bg = getHeatColor(intensity);
-            var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
-            var display = currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
-            // Confidence: dim cells with low sample counts
-            var opacity = c.count >= 4 ? 1 : (c.count === 3 ? 0.9 : (c.count === 2 ? 0.75 : 0.55));
-            var statWord = useMedian ? 'median' : 'avg';
-            var valStr = currentMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString();
-            var spread;
-            if (useMedian && currentMetric === 'trades' && c.count > 1) {
-              spread = ', IQR ' + Math.round(c.p75 - c.p25).toLocaleString();
-            } else if (!useMedian && currentMetric === 'trades' && c.std) {
-              spread = ', \u03C3 ' + Math.round(c.std).toLocaleString();
-            } else {
-              spread = '';
-            }
-            var tip = d + ' ' + h + ':00 \u2014 ' + statWord + ' ' + valStr + '  (n=' + c.count + spread + ')';
-            html += '<td class="heatmap-cell" style="background:' + bg + ';color:' + textColor + ';opacity:' + opacity + '" title="' + tip + '">' +
-              '<div class="cell-val">' + display + '</div></td>';
-          }
-        }
-        html += '</tr>';
-      });
-      html += '</tbody>';
-      table.innerHTML = html;
-
-      var bar = document.getElementById('legendBar');
-      if (bar) bar.style.background = 'linear-gradient(to right, ' + getHeatColor(0) + ', ' + getHeatColor(0.5) + ', ' + getHeatColor(1) + ')';
-    }
-
-    document.getElementById('metricToggle').addEventListener('click', function(e) {
-      var btn = e.target.closest('button');
-      if (!btn) return;
-      currentMetric = btn.dataset.metric;
-      document.querySelectorAll('#metricToggle button').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      buildHeatmap();
-    });
-
-    document.getElementById('statToggle').addEventListener('click', function(e) {
-      var btn = e.target.closest('button');
-      if (!btn || btn.dataset.stat === currentStat) return;
-      currentStat = btn.dataset.stat;
-      document.querySelectorAll('#statToggle button').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      if (dataReady) rebuildAll();
-    });
-
-    // === CHARTS ===
-    var chartsBuilt = false;
-
-    function getChartColors() {
-      var s = getComputedStyle(document.documentElement);
-      return { text: s.getPropertyValue('--text').trim(), textSecondary: s.getPropertyValue('--text-secondary').trim(), accent: s.getPropertyValue('--accent').trim(), accentSecondary: s.getPropertyValue('--accent-secondary').trim(), positive: s.getPropertyValue('--positive').trim(), warning: s.getPropertyValue('--warning').trim(), gridLine: s.getPropertyValue('--grid-line').trim(), surface: s.getPropertyValue('--surface').trim() };
-    }
-
-    function resetCanvas(id) {
-      var old = document.getElementById(id); if (!old) return null;
-      var parent = old.parentNode; var canvas = document.createElement('canvas'); canvas.id = id;
-      parent.replaceChild(canvas, old); return canvas;
-    }
-
-    // Chart.js plugin: draw trading-session bands behind bars (hourly chart)
-    var sessionBandsPlugin = {
-      id: 'sessionBands',
-      beforeDatasetsDraw: function(chart) {
-        var yScale = chart.scales.y;
-        var bars = chart.getDatasetMeta(0).data;
-        if (!yScale || bars.length < 2) return;
-        var halfWidth = (bars[1].x - bars[0].x) / 2;
-        var bands = [
-          { from: 0,  to: 8,  color: 'rgba(147,51,234,0.10)' },  // Asia 00-08
-          { from: 8,  to: 16, color: 'rgba(0,229,255,0.10)' },   // Europe 08-16
-          { from: 14, to: 22, color: 'rgba(0,230,118,0.10)' },   // US 14-22
-          { from: 14, to: 16, color: 'rgba(255,171,0,0.16)' }    // EU×US overlap
-        ];
-        var ctx = chart.ctx;
-        ctx.save();
-        bands.forEach(function(b) {
-          if (b.to - 1 >= bars.length || b.from >= bars.length) return;
-          var x1 = bars[b.from].x - halfWidth;
-          var x2 = bars[b.to - 1].x + halfWidth;
-          ctx.fillStyle = b.color;
-          ctx.fillRect(x1, yScale.top, x2 - x1, yScale.bottom - yScale.top);
-        });
-        ctx.restore();
-      }
-    };
-
-    // Chart.js plugin: draw vertical error bars on each bar.
-    // Accepts either { data: [...std] } for symmetric ±std, or
-    // { upper: [...absUpper], lower: [...absLower] } for asymmetric whiskers.
-    var errorBarsPlugin = {
-      id: 'errorBars',
-      afterDatasetsDraw: function(chart, args, opts) {
-        if (!opts) return;
-        var hasAsym = opts.upper && opts.lower;
-        if (!hasAsym && !opts.data) return;
-        var meta = chart.getDatasetMeta(0);
-        var scale = chart.scales.y;
-        var ctx = chart.ctx;
-        ctx.save();
-        ctx.strokeStyle = opts.color || 'rgba(255,255,255,0.55)';
-        ctx.lineWidth = 1.5;
-        meta.data.forEach(function(bar, i) {
-          var val = chart.data.datasets[0].data[i];
-          if (!val) return;
-          var topVal, botVal;
-          if (hasAsym) {
-            topVal = opts.upper[i]; botVal = opts.lower[i];
-            if (topVal == null || botVal == null) return;
-          } else {
-            var std = opts.data[i];
-            if (!std || std <= 0) return;
-            topVal = val + std; botVal = Math.max(0, val - std);
-          }
-          var top = scale.getPixelForValue(topVal);
-          var bottom = scale.getPixelForValue(Math.max(0, botVal));
-          var x = bar.x;
-          ctx.beginPath();
-          ctx.moveTo(x, top); ctx.lineTo(x, bottom);
-          ctx.moveTo(x - 4, top); ctx.lineTo(x + 4, top);
-          ctx.moveTo(x - 4, bottom); ctx.lineTo(x + 4, bottom);
-          ctx.stroke();
-        });
-        ctx.restore();
-      }
-    };
-
-    function buildCharts() {
-      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
-      var c = getChartColors();
-      var isDark = document.documentElement.classList.contains('theme-dark');
-
-      var isMedian = currentStat === 'median';
-      var hourlyData = isMedian ? hourlyMedian : hourlyAvg;
-      var hourlyVolData = isMedian ? hourlyVolMedian : hourlyVolAvg;
-      var statLabel = isMedian ? 'median' : 'avg';
-
-      var hourColors = hourlyData.map(function(v) {
-        var sorted = hourlyData.slice().sort(function(a,b){return b-a;});
-        if (v >= sorted[0]) return 'rgba(0,229,255,1)';
-        if (v >= sorted[1]) return 'rgba(0,229,255,0.75)';
-        if (v >= sorted[2]) return 'rgba(0,229,255,0.55)';
-        return isDark ? 'rgba(0,229,255,0.2)' : 'rgba(8,145,178,0.2)';
-      });
-
-      // Error bar config: ±std around mean, or [p25, p75] around median
-      var ebOpts = isMedian
-        ? { upper: hourlyP75, lower: hourlyP25, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' }
-        : { data: hourlyStd, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' };
-
-      var ctx1 = resetCanvas('hourlyChart');
-      if (ctx1) {
-        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trade activity by hour');
-        new Chart(ctx1, {
-          type: 'bar',
-          plugins: [sessionBandsPlugin, errorBarsPlugin],
-          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Trades',data:hourlyData,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex; if (isMedian) { return ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')'; } return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:ebOpts}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
-        });
-      }
-
-      var volColors = hourlyVolAvg.map(function(v) {
-        var sorted = hourlyVolAvg.slice().sort(function(a,b){return b-a;});
-        if (v >= sorted[0]) return 'rgba(224,64,251,1)';
-        if (v >= sorted[1]) return 'rgba(224,64,251,0.75)';
-        if (v >= sorted[2]) return 'rgba(224,64,251,0.55)';
-        return isDark ? 'rgba(224,64,251,0.2)' : 'rgba(147,51,234,0.2)';
-      });
-      var ctx2 = resetCanvas('volumeHourChart');
-      if (ctx2) {
-        ctx2.setAttribute('role','img'); ctx2.setAttribute('aria-label','Volume by hour');
-        new Chart(ctx2, {
-          type: 'bar',
-          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Volume',data:hourlyVolData,backgroundColor:volColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K') + '  ' + statLabel;}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
-        });
-      }
-
-      var dayColors = dayOrder.map(function(d) {
-        return d === bestDay ? (isDark ? 'rgba(0,229,255,1)' : 'rgba(8,145,178,1)') : (isDark ? 'rgba(0,229,255,0.3)' : 'rgba(8,145,178,0.3)');
-      });
-      var dayValues = dayOrder.map(function(d){return isMedian ? dayMedian[d] : dayAvg[d];});
-      var ctx3 = resetCanvas('dayChart');
-      if (ctx3) {
-        ctx3.setAttribute('role','img'); ctx3.setAttribute('aria-label','Trades by day');
-        new Chart(ctx3, {
-          type: 'bar',
-          data: { labels: dayOrder, datasets: [{label:statLabel + ' Trades/Snapshot',data:dayValues,backgroundColor:dayColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' ' + statLabel + ' trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:12,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
-        });
-      }
-
-      chartsBuilt = true;
-    }
-
-    function onThemeChange() {
-      chartsBuilt = false;
-      buildHeatmap();
-      buildSessionBrief();
-      buildCharts();
-    }
-
-    // === INIT ===
-    document.addEventListener('DOMContentLoaded', function() {
-      // Slider wiring — throttled via rAF to stay smooth while dragging
-      var slider = document.getElementById('topNSlider');
-      var valEl = document.getElementById('topNValue');
-      var pending = false;
-      if (slider) {
-        slider.addEventListener('input', function() {
-          var v = parseInt(slider.value, 10);
-          if (valEl) valEl.textContent = v;
-          currentTopN = v;
-          if (!dataReady || pending) return;
-          pending = true;
-          requestAnimationFrame(function() { pending = false; rebuildAll(); });
-        });
-      }
-
-      // Min-volume slider persists across reloads.
-      var savedMinVol = parseInt(localStorage.getItem('orion-min-vol-k') || '', 10);
-      if (!isNaN(savedMinVol)) currentMinVolK = savedMinVol;
-      var minVolInput = document.getElementById('minVolInput');
-      var minVolValue = document.getElementById('minVolValue');
-      if (minVolInput) {
-        minVolInput.value = currentMinVolK;
-        if (minVolValue) minVolValue.textContent = currentMinVolK;
-        var mvPending = false;
-        minVolInput.addEventListener('input', function() {
-          var v = parseInt(minVolInput.value, 10) || 0;
-          currentMinVolK = v;
-          if (minVolValue) minVolValue.textContent = v;
-          localStorage.setItem('orion-min-vol-k', String(v));
-          if (mvPending) return;
-          mvPending = true;
-          requestAnimationFrame(function() { mvPending = false; renderMomentum(); });
-        });
-      }
-
-      // Kick off momentum fetch in parallel — it's independent of the main dashboard data.
-      fetch('./data/momentum.json?_=' + Date.now())
-        .then(function(r) { return r.ok ? r.json() : null; })
-        .then(function(m) { if (m) buildMomentum(m); else showMomentumEmpty(); })
-        .catch(function() { showMomentumEmpty(); });
-
-      fetch('./data/snapshots.json?_=' + Date.now())
-        .then(function(r) {
-          if (!r.ok) throw new Error('Server returned ' + r.status);
-          return r.json();
-        })
-        .then(function(raw) {
-          if (!raw || raw.length === 0) throw new Error('No snapshot data found');
-          rawData = raw;
-          rebuildAll();
-
-          document.getElementById('loadingState').style.display = 'none';
-          document.getElementById('dashboardContent').style.display = '';
-          setupReveal();
-        })
-        .catch(function(err) {
-          document.getElementById('loadingState').style.display = 'none';
-          var el = document.getElementById('errorState');
-          el.style.display = '';
-          el.innerHTML = '<p>Failed to load snapshot data</p><code>' + err.message + '</code><p style="margin-top:16px;color:var(--text-secondary);font-size:0.9rem;">Make sure serve.py is running:<br><code>python serve.py</code></p>';
-        });
-    });
-
-    // === MOMENTUM LEADERBOARD ===
-    var momentumData = null;          // cached last-fetched payload
-    var currentMinVolK = 80;          // min 1-min volume in thousands USD
-
-    function showMomentumEmpty() {
-      var e = document.getElementById('momentumEmpty');
-      var c = document.getElementById('momentumCards');
-      if (e) e.style.display = '';
-      if (c) c.style.display = 'none';
-    }
-
-    function fmtVolume(v) {
-      if (v == null) return '—';
-      if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
-      if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'k';
-      return '$' + Math.round(v);
-    }
-
-    // Classify a coin into one verdict label. Order of checks matters.
-    // Thresholds tuned for the liquid-cohort scoring: z-scores are now
-    // computed against other liquid names, so they're naturally smaller.
-    function classify(r) {
-      var c1h = r.c1h || 0, c4h = r.c4h || 0, c12h = r.c12h || 0;
-      var zc = r.zc || 0, zv = r.zv || 0, zo = r.zo || 0, zf = r.zf || 0;
-      var zx = r.zx || 0, zp = r.zp || 0;
-      var rng = r.rng || 0, fund = r.fund || 0;
-
-      // Late / avoid: funding overheated, pumpy, or blown out at top of 24h range
-      if (zp > 1.2) return { v: 'late', why: '5m move is running way ahead of the 1h trend &mdash; likely a quick pump.' };
-      if (zx > 1.2 || fund > 0.03) return { v: 'late', why: 'Funding is elevated &mdash; longs are crowded and paying to hold.' };
-      if (rng > 0.95 && c1h < 1) return { v: 'late', why: 'Already at the 24h high with no fresh push &mdash; late to enter.' };
-
-      // Shared conditions.
-      var cascading = c1h > 0.5 && c4h > c1h * 0.5 && c12h > 0;
-      var notCrowded = zx < 0.8 && fund < 0.025;
-      var oiNotDumping = zo > -0.3; // OI not actively bleeding vs cohort
-      var freshPush = c1h > 1;       // currently breaking higher — overrides the "top of range" check
-      var rangeOk = rng < 0.92 || freshPush;
-
-      // Breakout: strong fresh 1h push with above-average volume confirmation.
-      if (c1h > 2.5 && zv > 0.4 && c4h > 0 && oiNotDumping) {
-        return { v: 'breakout', why: 'Fresh push backed by rising volume &mdash; real participation.' };
-      }
-
-      // Building: cascading move, funding calm, OI not falling apart, either mid-range or actively breaking higher.
-      if (cascading && notCrowded && oiNotDumping && rangeOk) {
-        var pieces = [];
-        if (zo > 0.4) pieces.push('OI climbing strongly');
-        else if (zo > 0) pieces.push('OI holding up');
-        else pieces.push('OI flat');
-        if (fund < 0) pieces.push('funding negative (shorts paying)');
-        else if (fund < 0.01) pieces.push('funding calm');
-        if (rng > 0.9) pieces.push('making new 24h highs');
-        else if (rng < 0.75) pieces.push('room left in the 24h range');
-        return { v: 'building', why: pieces.join(', ') + '.' };
-      }
-
-      // Igniting: positive 1h with strong z-score but 4h/12h not caught up yet — the move just started
-      if (c1h > 1 && zc > 0.3 && c4h < c1h * 3) {
-        return { v: 'igniting', why: 'Move looks freshly started &mdash; 1h leading, longer frames still catching up.' };
-      }
-
-      // Default: still in the top 60 by SMS, but doesn't fit cleanly
-      return { v: 'igniting', why: 'Positive composite score but mixed signals &mdash; watch, don\u2019t chase.' };
-    }
-
-    function formatPrice(p) {
-      if (p == null) return '';
-      if (p >= 100) return p.toFixed(2);
-      if (p >= 1) return p.toFixed(3);
-      if (p >= 0.01) return p.toFixed(4);
-      return p.toFixed(6);
-    }
-
-    function pctSpan(v) {
-      var cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
-      var sign = v > 0 ? '+' : '';
-      return '<span class="' + cls + '">' + sign + (v || 0).toFixed(1) + '%</span>';
-    }
-
-    function buildMomentum(data) {
-      momentumData = data;
-      renderMomentum();
-    }
-
-    function renderMomentum() {
-      var data = momentumData;
-      var wrap = document.getElementById('momentumCards');
-      var meta = document.getElementById('momentumMeta');
-      var empty = document.getElementById('momentumEmpty');
-      if (!wrap || !data || !data.leaderboard || data.leaderboard.length === 0) {
-        showMomentumEmpty();
-        return;
-      }
-      if (empty) empty.style.display = 'none';
-      wrap.style.display = '';
-
-      if (meta) {
-        var d = new Date(data.ts);
-        var pad2 = function(n) { return n < 10 ? '0' + n : '' + n; };
-        var tsLabel = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ' CEST';
-        meta.innerHTML = 'Latest snapshot: ' + tsLabel;
-      }
-
-      var minVolUsd = currentMinVolK * 1000;
-      var totalCount = data.leaderboard.length;
-
-      // Classify, filter by 1-minute volume, prioritise Building → Breakout → Igniting → Late
-      var order = { building: 0, breakout: 1, igniting: 2, late: 3 };
-      var classified = data.leaderboard
-        .filter(function(r) { return (r.v1m || 0) >= minVolUsd; })
-        .map(function(r) { return { row: r, klass: classify(r) }; });
-      classified.sort(function(a, b) {
-        var oa = order[a.klass.v], ob = order[b.klass.v];
-        if (oa !== ob) return oa - ob;
-        return (b.row.sms || 0) - (a.row.sms || 0);
-      });
-
-      if (classified.length === 0) {
-        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' meet the ' + currentMinVolK + 'k minimum 1m volume. Lower the threshold to see more candidates.</div>';
-        return;
-      }
-
-      // Show up to 12 cards — focus on actionable, not exhaustive.
-      var visible = classified.slice(0, 12);
-
-      wrap.innerHTML = visible.map(function(item) {
-        var r = item.row, k = item.klass;
-        var sym = (r.s || '').replace(/USDT$/, '');
-        var pair = (r.s || '').endsWith('USDT') ? '<span class="pair">/USDT</span>' : '';
-        var verdictLabel =
-          k.v === 'building' ? 'Building' :
-          k.v === 'breakout' ? 'Breakout' :
-          k.v === 'late' ? 'Late / avoid' : 'Igniting';
-
-        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span></div>';
-
-        return '<article class="mcard" data-v="' + k.v + '">' +
-          '<div class="mcard-top">' +
-            '<div class="mcard-symbol">' + sym + pair + '</div>' +
-            '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
-          '</div>' +
-          '<div class="mcard-verdict-row">' +
-            '<span class="mcard-verdict v-' + k.v + '">' + verdictLabel + '</span>' +
-            '<span class="mcard-pcts">' +
-              pctSpan(r.c1h) + '<span class="sep">1h</span>' +
-              pctSpan(r.c4h) + '<span class="sep">4h</span>' +
-            '</span>' +
-          '</div>' +
-          '<div class="mcard-why">' + k.why + '</div>' +
-          volLine +
-        '</article>';
-      }).join('');
-    }
   </script>
 </body>
 </html>
