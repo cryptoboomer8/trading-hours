@@ -76,6 +76,30 @@
     .momentum-head-row h2 { margin-bottom: 6px; }
     .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
 
+    .momentum-meta-row { display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; }
+    .refresh-ring {
+      position: relative; width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0; cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .refresh-ring:hover { transform: scale(1.08); }
+    .refresh-ring:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 50%; }
+    .refresh-ring svg { display: block; }
+    .refresh-ring-track  { stroke: var(--border); }
+    .refresh-ring-arc    { stroke: var(--accent); transition: stroke-dashoffset 1s linear, stroke 0.2s; }
+    .refresh-ring.refreshing .refresh-ring-arc { stroke: var(--positive); animation: spin-ring 1s linear infinite; transform-origin: 20px 20px; }
+    .refresh-ring-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.64rem; font-weight: 600; color: var(--text-secondary);
+      font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+      pointer-events: none;
+    }
+    .refresh-ring.refreshing .refresh-ring-text { color: var(--positive); }
+    @keyframes spin-ring { to { transform: rotate(360deg); } }
+
     .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
     .momentum-control-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
     .momentum-control-value { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
@@ -176,7 +200,18 @@
             </label>
             <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
           </div>
-          <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+          <div class="momentum-meta-row">
+            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Next refresh countdown. Click to refresh now." title="Next auto-refresh countdown. Click to refresh now.">
+              <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+                <circle class="refresh-ring-track" cx="20" cy="20" r="17" fill="none" stroke-width="3"></circle>
+                <circle class="refresh-ring-arc"   cx="20" cy="20" r="17" fill="none" stroke-width="3"
+                        stroke-dasharray="106.81" stroke-dashoffset="106.81" stroke-linecap="round"
+                        transform="rotate(-90 20 20)" id="refreshRingArc"></circle>
+              </svg>
+              <span class="refresh-ring-text" id="refreshRingText" aria-live="polite">&mdash;</span>
+            </button>
+            <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+          </div>
         </div>
         <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
         <div class="momentum-cards" id="momentumCards"></div>
@@ -389,14 +424,74 @@
           });
       }
 
-      loadMomentum();
-      // Poll every 60s; pause while the tab is hidden to avoid piling up requests.
-      var refreshMs = 60 * 1000;
-      setInterval(function() {
-        if (document.visibilityState === 'visible') loadMomentum();
-      }, refreshMs);
+      // === Auto-refresh countdown, aligned to the Worker's :00/:05/:10/... cadence ===
+      // Worker fires at the 5-min mark; add ~60s buffer for the full pipeline
+      // (commit → aggregate workflow → GH Pages redeploy → CDN propagation).
+      var REFRESH_BUFFER_SEC = 60;
+      var REFRESH_STEP_MS = 5 * 60 * 1000;
+      var RING_CIRCUMFERENCE = 106.81; // 2 * PI * 17, matches the SVG radius
+      var ringArcEl = document.getElementById('refreshRingArc');
+      var ringTextEl = document.getElementById('refreshRingText');
+      var ringEl = document.getElementById('refreshRing');
+      var nextRefreshAt = null;
+      var refreshing = false;
+
+      function computeNextRefresh() {
+        var nowMs = Date.now();
+        var nextBoundary = Math.ceil(nowMs / REFRESH_STEP_MS) * REFRESH_STEP_MS;
+        var target = nextBoundary + REFRESH_BUFFER_SEC * 1000;
+        // Skip forward if we'd miss by less than a second due to rounding.
+        if (target - nowMs < 1000) target += REFRESH_STEP_MS;
+        return target;
+      }
+
+      function doRefresh() {
+        if (refreshing) return;
+        refreshing = true;
+        ringEl.classList.add('refreshing');
+        ringTextEl.textContent = '...';
+        loadMomentum().finally(function() {
+          refreshing = false;
+          ringEl.classList.remove('refreshing');
+          nextRefreshAt = computeNextRefresh();
+          tickRing();
+        });
+      }
+
+      function tickRing() {
+        if (refreshing) return;
+        if (!nextRefreshAt) nextRefreshAt = computeNextRefresh();
+        var msLeft = nextRefreshAt - Date.now();
+        if (msLeft <= 0) { doRefresh(); return; }
+
+        var elapsed = REFRESH_STEP_MS - msLeft;
+        var progress = Math.max(0, Math.min(1, elapsed / REFRESH_STEP_MS));
+        ringArcEl.setAttribute('stroke-dashoffset', String(RING_CIRCUMFERENCE * (1 - progress)));
+
+        var secLeft = Math.ceil(msLeft / 1000);
+        var mm = Math.floor(secLeft / 60);
+        var ss = secLeft % 60;
+        ringTextEl.textContent = mm + ':' + (ss < 10 ? '0' + ss : ss);
+      }
+
+      // Click the ring to manually refresh + reset the countdown.
+      ringEl.addEventListener('click', doRefresh);
+
+      // Initial load + kick off the ticker.
+      loadMomentum().then(function() {
+        nextRefreshAt = computeNextRefresh();
+        tickRing();
+      });
+      setInterval(tickRing, 1000);
+
+      // When the tab becomes visible again, catch up on any missed refreshes immediately.
       document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') loadMomentum();
+        if (document.visibilityState !== 'visible') return;
+        if (!nextRefreshAt || Date.now() >= nextRefreshAt) {
+          doRefresh();
+        } else {
+          tickRing();
+        }
       });
     });
   </script>
