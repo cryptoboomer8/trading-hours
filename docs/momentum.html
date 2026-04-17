@@ -76,19 +76,19 @@
     .momentum-head-row h2 { margin-bottom: 6px; }
     .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
 
-    .momentum-meta-row { display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; }
+    .momentum-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
     .refresh-ring {
-      position: relative; width: 40px; height: 40px;
+      position: relative; width: 20px; height: 20px;
       display: inline-flex; align-items: center; justify-content: center;
       flex-shrink: 0; cursor: pointer;
       background: transparent; border: none; padding: 0;
       transition: transform 0.15s ease;
     }
-    .refresh-ring:hover { transform: scale(1.08); }
+    .refresh-ring:hover { transform: scale(1.15); }
     .refresh-ring:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 50%; }
     .refresh-ring svg { display: block; }
-    .refresh-ring-arc { stroke: var(--accent); transition: stroke-dashoffset 1s linear, stroke 0.2s; }
-    .refresh-ring.refreshing .refresh-ring-arc { stroke: var(--positive); animation: spin-ring 1s linear infinite; transform-origin: 20px 20px; }
+    .refresh-ring-arc { stroke: var(--accent); transition: stroke-dashoffset 0.8s linear, stroke 0.2s; }
+    .refresh-ring.refreshing .refresh-ring-arc { stroke: var(--positive); animation: spin-ring 0.9s linear infinite; transform-origin: 10px 10px; }
     @keyframes spin-ring { to { transform: rotate(360deg); } }
 
     .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
@@ -192,11 +192,11 @@
             <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
           </div>
           <div class="momentum-meta-row">
-            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Next refresh countdown. Click to refresh now." title="Next auto-refresh. Click to refresh now.">
-              <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
-                <circle class="refresh-ring-arc" cx="20" cy="20" r="17" fill="none" stroke-width="3"
-                        stroke-dasharray="106.81" stroke-dashoffset="106.81" stroke-linecap="round"
-                        transform="rotate(-90 20 20)" id="refreshRingArc"></circle>
+            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+                <circle class="refresh-ring-arc" cx="10" cy="10" r="8" fill="none" stroke-width="2"
+                        stroke-dasharray="50.27" stroke-dashoffset="50.27" stroke-linecap="round"
+                        transform="rotate(-90 10 10)" id="refreshRingArc"></circle>
               </svg>
             </button>
             <div class="momentum-meta" id="momentumMeta">&mdash;</div>
@@ -396,11 +396,33 @@
         });
       }
 
-      function loadMomentum() {
-        return fetch('./data/momentum.json?_=' + Date.now())
+      // === Poll-on-change refresh with a visual "time since last data" ring ===
+      // Every POLL_INTERVAL_MS we fetch momentum.json; if its ts differs from
+      // the last one we rendered, re-render and reset the ring. Ring fills
+      // over RING_FULL_MS (the expected Worker cadence) as a visual cue for
+      // how overdue the next update is — caps at full if upstream is delayed.
+      var POLL_INTERVAL_MS = 30 * 1000;
+      var RING_FULL_MS = 5 * 60 * 1000;
+      var RING_CIRCUMFERENCE = 50.27; // 2 * PI * 8, matches SVG radius
+      var ringArcEl = document.getElementById('refreshRingArc');
+      var ringEl = document.getElementById('refreshRing');
+      var lastSeenTs = null;          // ts string of the most recent payload we rendered
+      var lastChangeAt = Date.now();  // wall-clock of the last time ts changed
+      var polling = false;
+
+      function poll() {
+        if (polling) return;
+        polling = true;
+        ringEl.classList.add('refreshing');
+        fetch('./data/momentum.json?_=' + Date.now())
           .then(function(r) { return r.ok ? r.json() : null; })
           .then(function(m) {
-            if (m) buildMomentum(m); else showMomentumEmpty();
+            if (!m) { showMomentumEmpty(); return; }
+            if (m.ts && m.ts !== lastSeenTs) {
+              lastSeenTs = m.ts;
+              lastChangeAt = Date.now();
+              buildMomentum(m);
+            }
             var el = document.getElementById('errorState');
             if (el) el.style.display = 'none';
           })
@@ -410,69 +432,32 @@
               el.style.display = '';
               el.innerHTML = '<p>Failed to load momentum data</p><code>' + err.message + '</code>';
             }
+          })
+          .finally(function() {
+            polling = false;
+            ringEl.classList.remove('refreshing');
+            tickRing();
           });
       }
 
-      // === Auto-refresh countdown, aligned to the Worker's :00/:05/:10/... cadence ===
-      // Worker fires at the 5-min mark; add ~60s buffer for the full pipeline
-      // (commit → aggregate workflow → GH Pages redeploy → CDN propagation).
-      var REFRESH_BUFFER_SEC = 60;
-      var REFRESH_STEP_MS = 5 * 60 * 1000;
-      var RING_CIRCUMFERENCE = 106.81; // 2 * PI * 17, matches the SVG radius
-      var ringArcEl = document.getElementById('refreshRingArc');
-      var ringEl = document.getElementById('refreshRing');
-      var nextRefreshAt = null;
-      var refreshing = false;
-
-      function computeNextRefresh() {
-        var nowMs = Date.now();
-        var nextBoundary = Math.ceil(nowMs / REFRESH_STEP_MS) * REFRESH_STEP_MS;
-        var target = nextBoundary + REFRESH_BUFFER_SEC * 1000;
-        // Skip forward if we'd miss by less than a second due to rounding.
-        if (target - nowMs < 1000) target += REFRESH_STEP_MS;
-        return target;
-      }
-
-      function doRefresh() {
-        if (refreshing) return;
-        refreshing = true;
-        ringEl.classList.add('refreshing');
-        loadMomentum().finally(function() {
-          refreshing = false;
-          ringEl.classList.remove('refreshing');
-          nextRefreshAt = computeNextRefresh();
-          tickRing();
-        });
-      }
-
       function tickRing() {
-        if (refreshing) return;
-        if (!nextRefreshAt) nextRefreshAt = computeNextRefresh();
-        var msLeft = nextRefreshAt - Date.now();
-        if (msLeft <= 0) { doRefresh(); return; }
-        var elapsed = REFRESH_STEP_MS - msLeft;
-        var progress = Math.max(0, Math.min(1, elapsed / REFRESH_STEP_MS));
+        if (polling) return;
+        var elapsed = Date.now() - lastChangeAt;
+        var progress = Math.max(0, Math.min(1, elapsed / RING_FULL_MS));
         ringArcEl.setAttribute('stroke-dashoffset', String(RING_CIRCUMFERENCE * (1 - progress)));
       }
 
-      // Click the ring to manually refresh + reset the countdown.
-      ringEl.addEventListener('click', doRefresh);
+      // Click the ring to force a poll right now.
+      ringEl.addEventListener('click', poll);
 
-      // Initial load + kick off the ticker.
-      loadMomentum().then(function() {
-        nextRefreshAt = computeNextRefresh();
-        tickRing();
-      });
+      // Initial load + steady polling loop.
+      poll();
+      setInterval(poll, POLL_INTERVAL_MS);
       setInterval(tickRing, 1000);
 
-      // When the tab becomes visible again, catch up on any missed refreshes immediately.
+      // Coming back to a hidden tab: poll immediately so we catch any missed updates.
       document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState !== 'visible') return;
-        if (!nextRefreshAt || Date.now() >= nextRefreshAt) {
-          doRefresh();
-        } else {
-          tickRing();
-        }
+        if (document.visibilityState === 'visible') poll();
       });
     });
   </script>
