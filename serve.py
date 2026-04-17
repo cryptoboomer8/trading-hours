@@ -10,7 +10,8 @@ from snapshots/ on every request, so a browser refresh is enough to pick
 up any newly-pulled snapshot files without running the aggregator by hand.
 """
 
-import json
+import io
+import contextlib
 import sys
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -18,20 +19,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DASHBOARD_DIR = ROOT / "docs"
-AGG_REL_PATH = "/data/snapshots.json"
+# Requests to either lean file trigger a full regeneration so snapshots.json
+# AND momentum.json stay in sync with whatever is on disk.
+AGG_PATHS = {"/data/snapshots.json", "/data/momentum.json"}
 
 # Reuse the production aggregator so local and GitHub Pages show the same data.
 sys.path.insert(0, str(ROOT / "scripts"))
 import aggregate_snapshots  # noqa: E402
 
 
-def refresh_aggregate() -> tuple[int, int]:
-    rows, skipped = aggregate_snapshots.aggregate()
-    out = DASHBOARD_DIR / "data" / "snapshots.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(rows, f, separators=(",", ":"))
-    return len(rows), skipped
+def refresh_aggregate() -> str:
+    """Run the production aggregator's main(), returning its stdout for logs."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        aggregate_snapshots.main()
+    return buf.getvalue().strip()
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -39,13 +41,14 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(DASHBOARD_DIR), **kwargs)
 
     def do_GET(self):
-        # Regenerate right before serving the aggregate file so a page refresh
+        # Regenerate right before serving either lean file so a page refresh
         # in the browser always shows the latest on-disk snapshots.
-        if self.path.split("?", 1)[0] == AGG_REL_PATH:
+        if self.path.split("?", 1)[0] in AGG_PATHS:
             try:
-                count, skipped = refresh_aggregate()
-                note = f" (skipped {skipped})" if skipped else ""
-                print(f"  regenerated {count} rows{note}")
+                summary = refresh_aggregate()
+                # Show first line only — compact log
+                first = summary.splitlines()[0] if summary else "regenerated"
+                print(f"  {first}")
             except Exception as e:
                 print(f"  aggregate regeneration failed: {e}")
         super().do_GET()
@@ -60,10 +63,11 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     server = HTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
-    # Warm the file once so the first page load doesn't race the regenerate.
+    # Warm both files once so the first page load doesn't race the regenerate.
     try:
-        count, skipped = refresh_aggregate()
-        print(f"Initial aggregate: {count} rows" + (f" (skipped {skipped})" if skipped else ""))
+        summary = refresh_aggregate()
+        for line in summary.splitlines():
+            print(f"Initial aggregate: {line}")
     except Exception as e:
         print(f"Initial aggregate failed: {e}")
     print(f"Dashboard running at {url}")
