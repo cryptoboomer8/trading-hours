@@ -17,7 +17,9 @@ Two outputs:
 
 import gzip
 import json
-from datetime import datetime
+import re
+import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -223,9 +225,72 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
     ]
 
 
-def aggregate():
-    files = list(SNAPSHOTS_DIR.glob("snapshot_*.json")) + list(SNAPSHOTS_DIR.glob("snapshot_*.json.gz"))
-    rows = []
+_FILENAME_RE = re.compile(r"snapshot_(\d{8})_(\d{6})")
+# Safety buffer for the filename-based pre-filter. Generous enough to cover
+# legacy CEST filenames (UTC+2) drifting past a UTC cutoff, DST shifts, and
+# any late-arriving snapshots committed after a brief cron blip.
+_INCREMENTAL_SKIP_BUFFER = timedelta(hours=12)
+
+
+def filename_approx_ts(fp: Path):
+    """Parse the YYYYMMDD_HHMMSS portion of a snapshot filename as a naive datetime.
+
+    Returns None if the filename doesn't match the expected pattern.
+    Called only for the incremental pre-filter — the authoritative timestamp
+    still comes from the row JSON itself.
+    """
+    m = _FILENAME_RE.match(fp.name)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+
+
+def aggregate(mode: str = "incremental"):
+    """Compute (rows, skipped, latest_gz, new_count).
+
+    mode="incremental" (default) reads existing snapshots.json and only
+    processes files newer than its max timestamp. mode="full" reprocesses
+    everything from scratch — use for scoring formula changes or recovery.
+    """
+    existing_rows = []
+    max_existing_ts = None
+
+    if mode == "incremental" and SNAPSHOTS_OUT.exists():
+        try:
+            with open(SNAPSHOTS_OUT, encoding="utf-8") as f:
+                existing_rows = json.load(f)
+            if existing_rows:
+                max_existing_ts = max(datetime.fromisoformat(r["ts"]) for r in existing_rows)
+        except Exception as e:
+            print(f"WARN: could not load existing {SNAPSHOTS_OUT.name}, falling back to full: {e}")
+            existing_rows = []
+            max_existing_ts = None
+
+    files = sorted(
+        list(SNAPSHOTS_DIR.glob("snapshot_*.json"))
+        + list(SNAPSHOTS_DIR.glob("snapshot_*.json.gz"))
+    )
+
+    # Cheap pre-filter in incremental mode: skip files whose filename-encoded
+    # time is clearly older than the latest row we already have. Files inside
+    # the buffer window (or with unparseable names) still get loaded and their
+    # actual row timestamp is the real gate.
+    pre_filtered = 0
+    if max_existing_ts is not None:
+        cutoff = max_existing_ts.replace(tzinfo=None) - _INCREMENTAL_SKIP_BUFFER
+        kept = []
+        for fp in files:
+            approx = filename_approx_ts(fp)
+            if approx is not None and approx < cutoff:
+                pre_filtered += 1
+                continue
+            kept.append(fp)
+        files = kept
+
+    new_rows = []
     skipped = 0
     latest_gz = None
     latest_gz_ts = None
@@ -234,54 +299,102 @@ def aggregate():
         try:
             data = load_snapshot(fp)
             row = row_from_snapshot(data)
-            if row and row["ts"]:
-                rows.append(row)
-                if fp.suffix == ".gz":
-                    ts = datetime.fromisoformat(row["ts"])
-                    if latest_gz_ts is None or ts > latest_gz_ts:
-                        latest_gz_ts = ts
-                        latest_gz = data
-            else:
+            if not (row and row["ts"]):
                 skipped += 1
+                continue
+            row_ts = datetime.fromisoformat(row["ts"])
+            if max_existing_ts is None or row_ts > max_existing_ts:
+                new_rows.append(row)
+                if fp.suffix == ".gz":
+                    if latest_gz_ts is None or row_ts > latest_gz_ts:
+                        latest_gz_ts = row_ts
+                        latest_gz = data
         except Exception as e:
             print(f"WARN: skipping {fp.name}: {e}")
             skipped += 1
 
-    rows.sort(key=lambda r: datetime.fromisoformat(r["ts"]))
-    return rows, skipped, latest_gz
+    # Merge, sort by absolute timestamp, dedupe defensively.
+    all_rows = existing_rows + new_rows
+    all_rows.sort(key=lambda r: datetime.fromisoformat(r["ts"]))
+    seen = set()
+    dedup = []
+    for r in all_rows:
+        if r["ts"] in seen:
+            continue
+        seen.add(r["ts"])
+        dedup.append(r)
+
+    if pre_filtered:
+        print(f"Incremental pre-filter skipped {pre_filtered} older files")
+
+    return dedup, skipped, latest_gz, len(new_rows)
+
+
+def find_latest_gz_fallback():
+    """Used when momentum.json needs building but this run processed no new gz files
+    (e.g., manual --full with no changes, or someone deleted momentum.json)."""
+    candidates = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json.gz"))
+    for fp in reversed(candidates):  # newest filename first
+        try:
+            data = load_snapshot(fp)
+            ts_str = data.get("timestamp")
+            if ts_str:
+                return data, datetime.fromisoformat(ts_str)
+        except Exception:
+            continue
+    return None, None
+
+
+def write_momentum(latest_gz):
+    tickers = tickers_from(latest_gz) or []
+    LIQUID_COHORT_MIN_V1M = 50_000.0
+    leaderboard = compute_sms_leaderboard(tickers, top_n=60, min_v1m=LIQUID_COHORT_MIN_V1M)
+    cohort_size = sum(
+        1 for t in tickers
+        if ((t.get("tf15m") or {}).get("volume") or 0) / 15.0 >= LIQUID_COHORT_MIN_V1M
+    )
+    momentum = {
+        "ts": latest_gz.get("timestamp"),
+        "universe": len(tickers),
+        "cohort": cohort_size,
+        "cohort_min_v1m": LIQUID_COHORT_MIN_V1M,
+        "weights": SMS_WEIGHTS,
+        "leaderboard": leaderboard,
+    }
+    MOMENTUM_OUT.parent.mkdir(parents=True, exist_ok=True)
+    with open(MOMENTUM_OUT, "w", encoding="utf-8") as f:
+        json.dump(momentum, f, separators=(",", ":"))
+    print(f"Wrote momentum leaderboard ({len(leaderboard)} coins from {len(tickers)}-coin universe)")
 
 
 def main():
-    rows, skipped, latest_gz = aggregate()
+    mode = "full" if "--full" in sys.argv else "incremental"
+    rows, skipped, latest_gz, new_count = aggregate(mode=mode)
 
     SNAPSHOTS_OUT.parent.mkdir(parents=True, exist_ok=True)
-    with open(SNAPSHOTS_OUT, "w", encoding="utf-8") as f:
-        json.dump(rows, f, separators=(",", ":"))
-    print(f"Wrote {len(rows)} rows to {SNAPSHOTS_OUT.relative_to(ROOT)} (skipped {skipped})")
+    # In incremental mode, skip the write when nothing changed — saves a file write
+    # and leaves the CI "git diff" commit guard with no reason to touch the repo.
+    if mode == "full" or new_count > 0 or not SNAPSHOTS_OUT.exists():
+        with open(SNAPSHOTS_OUT, "w", encoding="utf-8") as f:
+            json.dump(rows, f, separators=(",", ":"))
+        print(f"Wrote {len(rows)} rows to {SNAPSHOTS_OUT.relative_to(ROOT)} "
+              f"(skipped {skipped}, {new_count} new) [mode={mode}]")
+    else:
+        print(f"No new rows — {SNAPSHOTS_OUT.relative_to(ROOT)} unchanged "
+              f"({len(rows)} rows) [mode={mode}]")
+
+    # Momentum: rebuild when we have a latest_gz from this run, OR when it's
+    # missing from disk (bootstrap / recovery).
+    if not latest_gz and not MOMENTUM_OUT.exists():
+        latest_gz, _ = find_latest_gz_fallback()
 
     if latest_gz:
-        tickers = tickers_from(latest_gz) or []
-        LIQUID_COHORT_MIN_V1M = 50_000.0
-        leaderboard = compute_sms_leaderboard(tickers, top_n=60, min_v1m=LIQUID_COHORT_MIN_V1M)
-        # Count the cohort size for dashboard context.
-        cohort_size = sum(
-            1 for t in tickers
-            if ((t.get("tf15m") or {}).get("volume") or 0) / 15.0 >= LIQUID_COHORT_MIN_V1M
-        )
-        momentum = {
-            "ts": latest_gz.get("timestamp"),
-            "universe": len(tickers),
-            "cohort": cohort_size,
-            "cohort_min_v1m": LIQUID_COHORT_MIN_V1M,
-            "weights": SMS_WEIGHTS,
-            "leaderboard": leaderboard,
-        }
-        MOMENTUM_OUT.parent.mkdir(parents=True, exist_ok=True)
-        with open(MOMENTUM_OUT, "w", encoding="utf-8") as f:
-            json.dump(momentum, f, separators=(",", ":"))
-        print(f"Wrote momentum leaderboard ({len(leaderboard)} coins from {len(tickers)}-coin universe)")
+        write_momentum(latest_gz)
     else:
-        print("No .json.gz snapshot found yet — momentum.json not produced.")
+        if MOMENTUM_OUT.exists():
+            print("No new .json.gz this run — momentum.json left as-is")
+        else:
+            print("No .json.gz snapshot found yet — momentum.json not produced.")
 
 
 if __name__ == "__main__":

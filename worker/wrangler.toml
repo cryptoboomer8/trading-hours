@@ -2,9 +2,10 @@ name = "orion-snapshot"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 
-# Quarter-hourly snapshot at :00, :15, :30, :45 UTC
+# 5-minute snapshot at :00, :05, :10, :15, ..., :55 UTC
+# (aggregator runs incremental now, so 3x more snapshots cost basically nothing CI-side)
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/5 * * * *"]
 
 # Vars (non-secret). Secrets are set via:
 #   wrangler secret put GITHUB_TOKEN
