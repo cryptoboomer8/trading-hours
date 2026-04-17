@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Momentum Verdicts &mdash; Orion Screener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { interpolate-size: allow-keywords; }
+
+    html.theme-dark {
+      --bg: #060b12;
+      --surface: #0d1520;
+      --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1;
+      --text-secondary: #8095ab;
+      --accent: #00e5ff;
+      --accent-secondary: #e040fb;
+      --positive: #00e676;
+      --negative: #ff1744;
+      --warning: #ffab00;
+    }
+    html.theme-light {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface-hover: #e8edf3;
+      --border: rgba(0,0,0,0.10);
+      --text: #0f172a;
+      --text-secondary: #4b5b6e;
+      --accent: #0891b2;
+      --accent-secondary: #9333ea;
+      --positive: #059669;
+      --negative: #e11d48;
+      --warning: #d97706;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(0,229,255,0.05), transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(224,64,251,0.05), transparent 50%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+      transition: background 0.3s, color 0.3s;
+      scrollbar-gutter: stable;
+      min-height: 100vh;
+    }
+    h1,h2,h3,h4 { color: var(--text); letter-spacing: -0.025em; line-height: 1.1; text-wrap: balance; }
+    h1 { font-weight: 800; font-size: clamp(2.5rem, 4vw, 3.4rem); margin-bottom: 14px; }
+    h2 { font-weight: 700; font-size: clamp(1.6rem, 2.6vw, 2.1rem); margin-bottom: 12px; }
+    h3 { font-weight: 600; font-size: 1.5rem; margin-bottom: 8px; }
+    h4 { font-weight: 600; font-size: 1.05rem; }
+    p, li, span, label, td, th { color: var(--text); font-weight: 400; }
+    .text-secondary { color: var(--text-secondary); }
+    code, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate { animation: fadeInUp 0.55s ease-out both; }
+    .animate.delay-1 { animation-delay: 0.08s; }
+    .animate.delay-2 { animation-delay: 0.16s; }
+    .animate.delay-3 { animation-delay: 0.24s; }
+    .animate.delay-4 { animation-delay: 0.32s; }
+    .animate.delay-5 { animation-delay: 0.40s; }
+    .animate.delay-6 { animation-delay: 0.48s; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+
+    @media print {
+      body { background: white !important; color: black !important; }
+      .viz-menu, .back-link { display: none !important; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .vcard, .panel, .tree-wrap { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+    @page { margin: 0.5in; }
+
+    .skip-to-content {
+      position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden;
+      background: var(--accent); color: #000; padding: 8px 16px; text-decoration: none;
+      border-radius: 4px; font-weight: 600; z-index: 10000;
+    }
+    .skip-to-content:focus { position: fixed; left: 16px; top: 16px; width: auto; height: auto; }
+
+    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
+    .viz-menu-toggle {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(12px); transition: all 0.2s;
+    }
+    .viz-menu-toggle:hover { background: var(--surface-hover); border-color: rgba(0,229,255,0.25); }
+    .viz-menu-dropdown {
+      position: absolute; top: 52px; right: 0; min-width: 200px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px;
+      opacity: 0; visibility: hidden; transform: translateY(-8px);
+      transition: all 0.2s; backdrop-filter: blur(16px);
+    }
+    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .viz-menu-dropdown button {
+      width: 100%; padding: 10px 14px; border: none; border-radius: 8px;
+      background: transparent; color: var(--text); font-size: 14px;
+      font-family: inherit; cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 10px; transition: background 0.15s;
+    }
+    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+
+    .container { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.82rem; color: var(--text-secondary); text-decoration: none;
+      padding: 6px 10px; border-radius: 6px; margin-bottom: 16px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .back-link:hover { color: var(--accent); background: var(--surface-hover); }
+
+    .header { margin-bottom: 56px; }
+    .eyebrow {
+      display: inline-block; font-size: 0.74rem; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+      margin-bottom: 14px; padding: 5px 12px;
+      background: rgba(0,229,255,0.06); border: 1px solid rgba(0,229,255,0.18);
+      border-radius: 999px;
+    }
+    .header h1 .accent-text { color: var(--accent); }
+    .header p.lede {
+      font-size: 1.08rem; color: var(--text-secondary);
+      max-width: 760px; line-height: 1.55;
+    }
+
+    section { margin-bottom: 56px; }
+
+    /* === Decision tree SVG wrapper === */
+    .tree-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px 20px 20px;
+      overflow-x: auto;
+    }
+    .tree-wrap svg { display: block; margin: 0 auto; max-width: 100%; height: auto; min-width: 720px; }
+    .tree-caption {
+      font-size: 0.82rem; color: var(--text-secondary);
+      margin-top: 14px; text-align: center; max-width: 720px; margin-left: auto; margin-right: auto;
+      line-height: 1.5;
+    }
+
+    /* === Verdict cards === */
+    .vcards {
+      display: grid; gap: 20px;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .vcard {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 4px solid var(--border);
+      border-radius: 14px; padding: 24px 26px 22px;
+      cursor: pointer;
+      transition: border-color 0.18s, box-shadow 0.18s, opacity 0.2s, transform 0.18s;
+      text-align: left; width: 100%; color: inherit; font-family: inherit;
+    }
+    .vcard:hover { box-shadow: 0 0 0 1px rgba(0,229,255,0.10), 0 12px 28px rgba(0,0,0,0.30); transform: translateY(-2px); }
+    .vcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .vcard[data-v="building"]  { border-left-color: var(--accent); }
+    .vcard[data-v="breakout"]  { border-left-color: var(--positive); }
+    .vcard[data-v="igniting"]  { border-left-color: var(--accent-secondary); }
+    .vcard[data-v="late"]      { border-left-color: var(--warning); }
+
+    body.selection-active .vcard:not(.selected) { opacity: 0.38; }
+    .vcard.selected { border-color: currentColor; transform: translateY(-3px); box-shadow: 0 0 0 1px rgba(0,229,255,0.14), 0 14px 32px rgba(0,0,0,0.36); }
+
+    .vcard-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .verdict-pill {
+      font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+      border: 1px solid currentColor;
+    }
+    .verdict-pill.v-building { color: var(--accent);           background: rgba(0,229,255,0.08); }
+    .verdict-pill.v-breakout { color: var(--positive);         background: rgba(0,230,118,0.08); }
+    .verdict-pill.v-igniting { color: var(--accent-secondary); background: rgba(224,64,251,0.08); }
+    .verdict-pill.v-late     { color: var(--warning);          background: rgba(255,171,0,0.08); }
+
+    .analogy-chip {
+      font-size: 0.7rem; color: var(--text-secondary);
+      padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px;
+      background: var(--bg); white-space: nowrap;
+    }
+
+    .vcard-title { font-size: 1.3rem; font-weight: 700; margin: 4px 0 6px; letter-spacing: -0.02em; }
+    .vcard-def   { font-size: 0.92rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.55; }
+
+    .vcard-block { margin-top: 14px; }
+    .vcard-label { font-size: 0.64rem; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px; }
+
+    /* cascade mini-bars */
+    .cascade { display: flex; flex-direction: column; gap: 5px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .cascade-row { display: grid; grid-template-columns: 42px 1fr 60px; align-items: center; gap: 10px; font-size: 0.78rem; }
+    .cascade-tf { color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; text-align: right; }
+    .cascade-track {
+      position: relative; height: 10px; border-radius: 3px;
+      background: rgba(255,255,255,0.035);
+      overflow: visible;
+    }
+    html.theme-light .cascade-track { background: rgba(0,0,0,0.04); }
+    .cascade-zero {
+      position: absolute; top: -2px; bottom: -2px; left: 50%;
+      width: 1px; background: var(--border);
+    }
+    .cascade-fill {
+      position: absolute; top: 0; bottom: 0; border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    .cascade-fill.pos { background: var(--positive); left: 50%; }
+    .cascade-fill.neg { background: var(--negative); right: 50%; }
+    .cascade-fill.volume-flag { background: var(--accent-secondary); }
+    .cascade-val { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+    .cascade-val.up { color: var(--positive); }
+    .cascade-val.down { color: var(--negative); }
+
+    .trigger-rule {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 11px 13px; font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem; color: var(--accent); overflow-x: auto; white-space: nowrap;
+    }
+
+    .vcard[data-v="building"] .trigger-rule { color: var(--accent); }
+    .vcard[data-v="breakout"] .trigger-rule { color: var(--positive); }
+    .vcard[data-v="igniting"] .trigger-rule { color: var(--accent-secondary); }
+    .vcard[data-v="late"]     .trigger-rule { color: var(--warning); }
+
+    .action-line { font-size: 0.92rem; color: var(--text); line-height: 1.5; margin-top: 4px; }
+    .action-line strong { color: var(--text); font-weight: 600; }
+
+    /* === Comparison table === */
+    .compare-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow-x: auto;
+    }
+    .compare-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 760px; }
+    .compare-table th, .compare-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+    .compare-table thead th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-secondary); font-weight: 700; background: var(--bg); }
+    .compare-table tbody tr:last-child td { border-bottom: none; }
+    .compare-table tbody tr:hover { background: var(--surface-hover); }
+    .compare-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: middle; }
+    .compare-swatch.s-building { background: var(--accent); }
+    .compare-swatch.s-breakout { background: var(--positive); }
+    .compare-swatch.s-igniting { background: var(--accent-secondary); }
+    .compare-swatch.s-late     { background: var(--warning); }
+
+    /* === Timeline === */
+    .timeline-wrap {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 24px; overflow-x: auto;
+    }
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap: 12px; align-items: stretch;
+      min-width: 760px;
+      position: relative;
+    }
+    .tl-step {
+      background: var(--bg); border: 1px solid var(--border);
+      border-top: 3px solid var(--border);
+      border-radius: 10px; padding: 16px 14px;
+      display: flex; flex-direction: column; gap: 6px;
+      position: relative;
+    }
+    .tl-step[data-v="igniting"] { border-top-color: var(--accent-secondary); }
+    .tl-step[data-v="building"] { border-top-color: var(--accent); }
+    .tl-step[data-v="breakout"] { border-top-color: var(--positive); }
+    .tl-step[data-v="late"]     { border-top-color: var(--warning); }
+    .tl-step::after {
+      content: ""; position: absolute;
+      right: -12px; top: 50%; transform: translateY(-50%);
+      width: 0; height: 0;
+      border-left: 8px solid var(--text-secondary);
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      opacity: 0.4;
+    }
+    .tl-step:last-child::after { display: none; }
+    .tl-phase { font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+    .tl-title { font-size: 1rem; font-weight: 700; }
+    .tl-body  { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; }
+
+    .tl-entry-zone {
+      margin-top: 14px; padding: 12px 14px;
+      border: 1px dashed rgba(0,230,118,0.40);
+      background: rgba(0,230,118,0.05);
+      border-radius: 10px;
+      font-size: 0.84rem;
+      color: var(--text);
+      text-align: center;
+    }
+    .tl-entry-zone strong { color: var(--positive); }
+
+    /* === Probabilistic footer note === */
+    .prob-note {
+      background: linear-gradient(180deg, rgba(255,171,0,0.05), transparent);
+      border: 1px solid rgba(255,171,0,0.24);
+      border-radius: 12px;
+      padding: 18px 22px;
+      font-size: 0.92rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .prob-note strong { color: var(--warning); }
+
+    .instruction-bar {
+      font-size: 0.82rem; color: var(--text-secondary);
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .instruction-bar svg { flex-shrink: 0; color: var(--accent); }
+
+    @media (max-width: 780px) {
+      .vcards { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .container { padding: 32px 18px 60px; }
+      section { margin-bottom: 48px; }
+    }
+    @media (max-width: 375px) {
+      body { overflow-x: hidden; }
+      .container { padding: 24px 12px 48px; }
+      .vcard { padding: 18px 18px 16px; }
+      .cascade-row { grid-template-columns: 38px 1fr 52px; gap: 8px; font-size: 0.72rem; }
+      h1 { font-size: 2.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+      </svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon">M</span><span id="themeLabel">Dark</span></button>
+      <button onclick="downloadImage()"><span>PNG</span><span>Download PNG</span></button>
+      <button onclick="window.print()"><span>PDF</span><span>Print / PDF</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <div class="container">
+
+      <header class="header animate">
+        <a class="back-link" href="./">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to index
+        </a>
+        <span class="eyebrow">Momentum Tracker &middot; Glossary</span>
+        <h1>Momentum <span class="accent-text">Verdicts</span></h1>
+        <p class="lede">Every coin on the tracker gets tagged with one of four labels. This page explains what each means, how it&rsquo;s computed, and when to act on it. Click any card to trace its path through the decision tree.</p>
+      </header>
+
+      <!-- DECISION TREE -->
+      <section aria-labelledby="tree-head" class="animate delay-1">
+        <h2 id="tree-head">How a coin lands on a verdict</h2>
+        <p class="instruction-bar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Click a verdict card below to highlight its path through the flow.
+        </p>
+        <div class="tree-wrap">
+          <svg viewBox="0 0 880 420" xmlns="http://www.w3.org/2000/svg" id="treeSvg" aria-label="Decision tree showing how coins are routed into the four verdict buckets based on cascade, volume, OI, funding and range position">
+            <!-- arrow marker -->
+            <defs>
+              <marker id="tree-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-secondary)"/>
+              </marker>
+            </defs>
+
+            <!-- Entry node -->
+            <g id="node-entry">
+              <rect x="340" y="10" width="200" height="44" rx="10" fill="var(--surface-hover)" stroke="var(--accent)" stroke-width="1.5"/>
+              <text x="440" y="36" text-anchor="middle" font-family="Inter" font-size="13" font-weight="600" fill="var(--accent)">Coin in top-SMS liquid cohort</text>
+            </g>
+
+            <!-- Late filter (top gate) -->
+            <g id="node-late">
+              <rect x="340" y="78" width="200" height="48" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="440" y="99" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">Pumpy · Crowded funding ·</text>
+              <text x="440" y="115" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">Blown out at 24h high?</text>
+            </g>
+
+            <!-- Breakout branch -->
+            <g id="node-breakout-test">
+              <rect x="20" y="170" width="200" height="48" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="120" y="191" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">1h &gt; 2.5% with</text>
+              <text x="120" y="207" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">volume confirmation?</text>
+            </g>
+
+            <!-- Building branch -->
+            <g id="node-building-test">
+              <rect x="240" y="170" width="200" height="48" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="340" y="191" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">Cascading 1h/4h/12h,</text>
+              <text x="340" y="207" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">OI holding, room in range?</text>
+            </g>
+
+            <!-- Igniting branch -->
+            <g id="node-igniting-test">
+              <rect x="460" y="170" width="200" height="48" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="560" y="191" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">1h &gt; 1% with</text>
+              <text x="560" y="207" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">positive cascade z-score?</text>
+            </g>
+
+            <!-- Fallback: else branch into Igniting mixed -->
+            <g id="node-igniting-fallback">
+              <rect x="680" y="170" width="180" height="48" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="770" y="191" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text)">Mixed signals</text>
+              <text x="770" y="207" text-anchor="middle" font-family="Inter" font-size="12" font-weight="500" fill="var(--text-secondary)">(fallback bucket)</text>
+            </g>
+
+            <!-- Leaves (verdicts) -->
+            <g id="leaf-late" data-leaf="late">
+              <rect x="360" y="360" width="160" height="40" rx="8" fill="rgba(255,171,0,0.10)" stroke="var(--warning)" stroke-width="1.5"/>
+              <text x="440" y="385" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700" fill="var(--warning)" letter-spacing="1">LATE / AVOID</text>
+            </g>
+
+            <g id="leaf-breakout" data-leaf="breakout">
+              <rect x="40" y="280" width="160" height="40" rx="8" fill="rgba(0,230,118,0.10)" stroke="var(--positive)" stroke-width="1.5"/>
+              <text x="120" y="305" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700" fill="var(--positive)" letter-spacing="1">BREAKOUT</text>
+            </g>
+
+            <g id="leaf-building" data-leaf="building">
+              <rect x="260" y="280" width="160" height="40" rx="8" fill="rgba(0,229,255,0.10)" stroke="var(--accent)" stroke-width="1.5"/>
+              <text x="340" y="305" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700" fill="var(--accent)" letter-spacing="1">BUILDING</text>
+            </g>
+
+            <g id="leaf-igniting" data-leaf="igniting">
+              <rect x="570" y="280" width="200" height="40" rx="8" fill="rgba(224,64,251,0.10)" stroke="var(--accent-secondary)" stroke-width="1.5"/>
+              <text x="670" y="305" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700" fill="var(--accent-secondary)" letter-spacing="1">IGNITING</text>
+            </g>
+
+            <!-- Paths (connectors) -->
+            <!-- entry -> late test -->
+            <path data-path="all" d="M 440 54 L 440 78" stroke="var(--text-secondary)" stroke-width="1.5" fill="none" marker-end="url(#tree-arrow)"/>
+            <!-- late YES -> LATE -->
+            <path data-path="late" d="M 540 102 Q 700 102 700 360 L 520 380" stroke="var(--warning)" stroke-width="2" fill="none" marker-end="url(#tree-arrow)"/>
+            <text x="640" y="94" font-family="JetBrains Mono" font-size="10" fill="var(--warning)">yes</text>
+            <!-- late NO -> into three branches -->
+            <path data-path="mid" d="M 440 126 L 440 150" stroke="var(--text-secondary)" stroke-width="1.5" fill="none"/>
+            <text x="448" y="144" font-family="JetBrains Mono" font-size="10" fill="var(--text-secondary)">no</text>
+            <path data-path="mid" d="M 440 150 L 120 170" stroke="var(--text-secondary)" stroke-width="1.5" fill="none" marker-end="url(#tree-arrow)"/>
+            <path data-path="mid" d="M 440 150 L 340 170" stroke="var(--text-secondary)" stroke-width="1.5" fill="none" marker-end="url(#tree-arrow)"/>
+            <path data-path="mid" d="M 440 150 L 560 170" stroke="var(--text-secondary)" stroke-width="1.5" fill="none" marker-end="url(#tree-arrow)"/>
+            <path data-path="mid" d="M 440 150 L 770 170" stroke="var(--text-secondary)" stroke-width="1.5" fill="none" marker-end="url(#tree-arrow)"/>
+
+            <!-- breakout test YES -> BREAKOUT leaf -->
+            <path data-path="breakout" d="M 120 218 L 120 280" stroke="var(--positive)" stroke-width="2" fill="none" marker-end="url(#tree-arrow)"/>
+            <text x="128" y="250" font-family="JetBrains Mono" font-size="10" fill="var(--positive)">yes</text>
+            <!-- building test YES -> BUILDING leaf -->
+            <path data-path="building" d="M 340 218 L 340 280" stroke="var(--accent)" stroke-width="2" fill="none" marker-end="url(#tree-arrow)"/>
+            <text x="348" y="250" font-family="JetBrains Mono" font-size="10" fill="var(--accent)">yes</text>
+            <!-- igniting test YES -> IGNITING leaf -->
+            <path data-path="igniting" d="M 560 218 L 640 280" stroke="var(--accent-secondary)" stroke-width="2" fill="none" marker-end="url(#tree-arrow)"/>
+            <text x="588" y="250" font-family="JetBrains Mono" font-size="10" fill="var(--accent-secondary)">yes</text>
+            <!-- fallback -> IGNITING leaf -->
+            <path data-path="igniting" d="M 770 218 L 700 280" stroke="var(--accent-secondary)" stroke-width="2" fill="none" stroke-dasharray="4 3" marker-end="url(#tree-arrow)"/>
+          </svg>
+        </div>
+        <p class="tree-caption">The Late filter runs first so stretched or pumpy setups never reach the positive buckets. Anything that survives gets tested for Breakout, Building, and Igniting in turn &mdash; a coin lands in the strongest label its numbers support.</p>
+      </section>
+
+      <!-- FOUR VERDICT CARDS -->
+      <section aria-labelledby="cards-head" class="animate delay-2">
+        <h2 id="cards-head">The four verdicts</h2>
+        <div class="vcards" id="vcardGrid">
+
+          <!-- Building -->
+          <button class="vcard" data-v="building" type="button" aria-pressed="false">
+            <div class="vcard-head">
+              <span class="verdict-pill v-building">Building</span>
+              <span class="analogy-chip">Classic continuation long</span>
+            </div>
+            <div class="vcard-title">The sweet spot</div>
+            <p class="vcard-def">Cascading positive price action across 1h / 4h / 12h with room still left in the 24h range. OI is holding up, funding isn&rsquo;t crowded &mdash; real slow buildup, not a lottery spike.</p>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Visual fingerprint</div>
+              <div class="cascade" aria-hidden="true">
+                <div class="cascade-row"><span class="cascade-tf">5m</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:6%"></span></span><span class="cascade-val up">+0.6%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">1h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:14%"></span></span><span class="cascade-val up">+3.0%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">4h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:26%"></span></span><span class="cascade-val up">+5.2%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">12h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:38%"></span></span><span class="cascade-val up">+8.4%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">24h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:45%"></span></span><span class="cascade-val up">+11.3%</span></div>
+              </div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Trigger rule</div>
+              <div class="trigger-rule">cascading AND !crowded AND !oiDumping AND (rng &lt; 0.92 OR c1h &gt; 1)</div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">What to do</div>
+              <p class="action-line"><strong>Open the chart, check volume, likely enter if clean.</strong> This is the &ldquo;A&rdquo; signal.</p>
+            </div>
+          </button>
+
+          <!-- Breakout -->
+          <button class="vcard" data-v="breakout" type="button" aria-pressed="false">
+            <div class="vcard-head">
+              <span class="verdict-pill v-breakout">Breakout</span>
+              <span class="analogy-chip">Chasing with confirmation</span>
+            </div>
+            <div class="vcard-title">Fresh push, real participation</div>
+            <p class="vcard-def">Strong 1h move (&gt;2.5%) backed by elevated volume vs the cohort and OI not falling apart. The move is already firing but still has confirmation you&rsquo;re not alone.</p>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Visual fingerprint</div>
+              <div class="cascade" aria-hidden="true">
+                <div class="cascade-row"><span class="cascade-tf">5m</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:16%"></span></span><span class="cascade-val up">+1.2%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">1h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:38%"></span></span><span class="cascade-val up">+4.8%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">4h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:32%"></span></span><span class="cascade-val up">+6.1%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">12h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:30%"></span></span><span class="cascade-val up">+5.9%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">24h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:34%"></span></span><span class="cascade-val up">+7.5%</span></div>
+              </div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Trigger rule</div>
+              <div class="trigger-rule">c1h &gt; 2.5 AND zv &gt; 0.4 AND c4h &gt; 0 AND zo &gt; -0.3</div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">What to do</div>
+              <p class="action-line"><strong>Join the continuation or let it breathe.</strong> Later entry than Building but still valid if volume stays elevated.</p>
+            </div>
+          </button>
+
+          <!-- Igniting -->
+          <button class="vcard" data-v="igniting" type="button" aria-pressed="false">
+            <div class="vcard-head">
+              <span class="verdict-pill v-igniting">Igniting</span>
+              <span class="analogy-chip">Pre-trend scout</span>
+            </div>
+            <div class="vcard-title">Fresh turn, not yet confirmed</div>
+            <p class="vcard-def">1h just started turning up, but 4h and 12h haven&rsquo;t caught up yet &mdash; or only some of the factors are firing. Either an early-stage move or mixed signals carried by a single strong component.</p>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Visual fingerprint</div>
+              <div class="cascade" aria-hidden="true">
+                <div class="cascade-row"><span class="cascade-tf">5m</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:8%"></span></span><span class="cascade-val up">+0.4%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">1h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:18%"></span></span><span class="cascade-val up">+2.1%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">4h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:4%"></span></span><span class="cascade-val up">+0.4%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">12h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill neg" style="width:8%"></span></span><span class="cascade-val down">&minus;1.1%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">24h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill neg" style="width:12%"></span></span><span class="cascade-val down">&minus;2.4%</span></div>
+              </div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Trigger rule</div>
+              <div class="trigger-rule">c1h &gt; 1 AND zc &gt; 0.3 AND c4h &lt; c1h &times; 3   // + fallback bucket</div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">What to do</div>
+              <p class="action-line"><strong>Watch, don&rsquo;t chase.</strong> Wait to see whether it matures into a Building / Breakout or fades.</p>
+            </div>
+          </button>
+
+          <!-- Late -->
+          <button class="vcard" data-v="late" type="button" aria-pressed="false">
+            <div class="vcard-head">
+              <span class="verdict-pill v-late">Late / Avoid</span>
+              <span class="analogy-chip">Already priced in</span>
+            </div>
+            <div class="vcard-title">Stretched or pumpy</div>
+            <p class="vcard-def">5m ran way ahead of 1h, or funding is overheated, or price is pinned at the 24h high with no fresh push. The breakout is already priced in &mdash; risk/reward is upside-down.</p>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Visual fingerprint</div>
+              <div class="cascade" aria-hidden="true">
+                <div class="cascade-row"><span class="cascade-tf">5m</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:2%"></span></span><span class="cascade-val up">+0.1%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">1h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:3%"></span></span><span class="cascade-val up">+0.1%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">4h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:38%"></span></span><span class="cascade-val up">+8.9%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">12h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:48%"></span></span><span class="cascade-val up">+12.4%</span></div>
+                <div class="cascade-row"><span class="cascade-tf">24h</span><span class="cascade-track"><span class="cascade-zero"></span><span class="cascade-fill pos" style="width:50%"></span></span><span class="cascade-val up">+15.2%</span></div>
+              </div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">Trigger rule</div>
+              <div class="trigger-rule">zp &gt; 1.2  OR  zx &gt; 1.2  OR  fund &gt; 0.03  OR  (rng &gt; 0.95 AND c1h &lt; 1)</div>
+            </div>
+
+            <div class="vcard-block">
+              <div class="vcard-label">What to do</div>
+              <p class="action-line"><strong>Skip for trend entries.</strong> Unless you scalp mean-reversion, the edge is gone.</p>
+            </div>
+          </button>
+
+        </div>
+      </section>
+
+      <!-- COMPARISON TABLE -->
+      <section aria-labelledby="compare-head" class="animate delay-3">
+        <h2 id="compare-head">Side-by-side</h2>
+        <div class="compare-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Verdict</th>
+                <th>Timeframe pattern</th>
+                <th>Funding</th>
+                <th>24h range position</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="compare-swatch s-building"></span>Building</td>
+                <td>Cascading up, each window bigger</td>
+                <td>Negative or calm</td>
+                <td>Mid or breaking higher</td>
+                <td>Enter if chart is clean</td>
+              </tr>
+              <tr>
+                <td><span class="compare-swatch s-breakout"></span>Breakout</td>
+                <td>Strong 1h, volume-led</td>
+                <td>Slightly positive OK</td>
+                <td>Usually high (move is running)</td>
+                <td>Join continuation</td>
+              </tr>
+              <tr>
+                <td><span class="compare-swatch s-igniting"></span>Igniting</td>
+                <td>1h leading, longer frames mixed</td>
+                <td>Neutral</td>
+                <td>Anywhere</td>
+                <td>Watch, don&rsquo;t chase</td>
+              </tr>
+              <tr>
+                <td><span class="compare-swatch s-late"></span>Late / Avoid</td>
+                <td>Longer frames already big, 1h flat</td>
+                <td>Overheated / crowded</td>
+                <td>Pinned at 24h high</td>
+                <td>Skip trend trades</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TIMELINE -->
+      <section aria-labelledby="timeline-head" class="animate delay-4">
+        <h2 id="timeline-head">Typical lifecycle of a momentum coin</h2>
+        <div class="timeline-wrap">
+          <div class="timeline">
+            <div class="tl-step" data-v="igniting">
+              <span class="tl-phase">Step 1</span>
+              <span class="tl-title">Igniting</span>
+              <span class="tl-body">1h turns positive, longer frames lagging. Mixed signals &mdash; watch, don&rsquo;t commit.</span>
+            </div>
+            <div class="tl-step" data-v="building">
+              <span class="tl-phase">Step 2</span>
+              <span class="tl-title">Building</span>
+              <span class="tl-body">Cascade confirmed, OI climbing, funding calm. Entry candidates live here.</span>
+            </div>
+            <div class="tl-step" data-v="breakout">
+              <span class="tl-phase">Step 3</span>
+              <span class="tl-title">Breakout</span>
+              <span class="tl-body">Volume spike, 1h &gt; 2.5%. Still trade-able if you missed Building.</span>
+            </div>
+            <div class="tl-step" data-v="late">
+              <span class="tl-phase">Step 4</span>
+              <span class="tl-title">Late / Avoid</span>
+              <span class="tl-body">Funding overheats, price pinned near 24h high. Skip further trend entries.</span>
+            </div>
+          </div>
+          <div class="tl-entry-zone">
+            <strong>Ideal entry zone:</strong> the handoff from Igniting &rarr; Building is early, high-reward. Building &rarr; Breakout is the safer, higher-confirmation join.
+          </div>
+        </div>
+      </section>
+
+      <!-- PROBABILISTIC FOOTNOTE -->
+      <section aria-labelledby="prob-head" class="animate delay-5">
+        <h2 id="prob-head" style="font-size:1.2rem; margin-bottom:10px;">A reminder</h2>
+        <div class="prob-note">
+          <strong>These labels are probabilistic, not deterministic.</strong> A coin tagged <em>Building</em> won&rsquo;t guarantee the trade works &mdash; volume can dry up, BTC can flush, news can hit. And a handful of <em>Late</em> coins do extend. Use the verdicts as <strong>filters on your attention</strong>, not commands. They tell you which dozen coins of the 600+ universe deserve a chart look; your own read of the chart is the final call.
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // === Menu ===
+    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
+    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); var s = selectedVerdict; if (s) setSelected(null); } });
+
+    // === Theme ===
+    var savedTheme = localStorage.getItem('viz-theme');
+    var currentTheme = savedTheme || 'dark';
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      var icon = document.getElementById('themeIcon');
+      var label = document.getElementById('themeLabel');
+      if (icon) icon.textContent = t === 'dark' ? 'M' : 'L';
+      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+    applyTheme(currentTheme);
+
+    // === Reveal / counters ===
+    document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); });
+    var revObs = new IntersectionObserver(function(es) { es.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revObs.unobserve(e.target); } }); }, { threshold: 0.15 });
+    document.querySelectorAll('.reveal').forEach(function(el) { revObs.observe(el); });
+
+    // === Download PNG ===
+    async function downloadImage() {
+      var menu = document.querySelector('.viz-menu');
+      menu.style.display = 'none';
+      try {
+        var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2, filter: function(n) { return !n.classList || !n.classList.contains('viz-menu'); } });
+        var a = document.createElement('a'); a.href = url;
+        a.download = 'momentum-verdicts.png'; a.click();
+      } catch(e) { console.error('Download failed:', e); }
+      menu.style.display = '';
+    }
+
+    // === Card selection + tree path highlight ===
+    var selectedVerdict = null;
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.vcard'));
+
+    function setSelected(v) {
+      selectedVerdict = v;
+      document.body.classList.toggle('selection-active', !!v);
+      cards.forEach(function(c) {
+        var active = c.getAttribute('data-v') === v;
+        c.classList.toggle('selected', active);
+        c.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      // Highlight tree paths matching this verdict's route. Late has its own
+      // exclusive path; the three positive verdicts all share the "mid" spine.
+      document.querySelectorAll('#treeSvg [data-path]').forEach(function(p) {
+        var t = p.getAttribute('data-path');
+        var show = !v                    // nothing selected → everything visible, no dimming
+          || t === 'all'
+          || t === v
+          || (v !== 'late' && t === 'mid');
+        p.style.opacity = show ? '1' : '0.18';
+        p.style.transition = 'opacity 0.25s';
+      });
+      // Leaf highlighting
+      ['late','breakout','building','igniting'].forEach(function(leaf) {
+        var g = document.querySelector('#leaf-' + leaf);
+        if (!g) return;
+        g.style.opacity = (!v || leaf === v) ? '1' : '0.25';
+        g.style.transition = 'opacity 0.25s';
+      });
+    }
+
+    cards.forEach(function(c) {
+      c.addEventListener('click', function() {
+        var v = c.getAttribute('data-v');
+        setSelected(v === selectedVerdict ? null : v);
+      });
+    });
+
+    // Allow clicking a tree leaf too, to select its card
+    document.querySelectorAll('#treeSvg [data-leaf]').forEach(function(leaf) {
+      leaf.style.cursor = 'pointer';
+      leaf.addEventListener('click', function() {
+        var v = leaf.getAttribute('data-leaf');
+        setSelected(v === selectedVerdict ? null : v);
+      });
+    });
+  </script>
+</body>
+</html>
