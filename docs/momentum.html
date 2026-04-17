@@ -95,6 +95,9 @@
     .momentum-control-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
     .momentum-control-value { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
     #minVolInput { width: 100%; accent-color: var(--accent); }
+    .momentum-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 0.82rem; color: var(--text); font-weight: 500; }
+    .momentum-toggle input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; cursor: pointer; }
+    .momentum-toggle .momentum-control-value { color: var(--text-secondary); font-weight: 500; margin-left: 2px; }
     .mcard-vol { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; }
     .mcard-vol .v { color: var(--text); font-weight: 500; }
     .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
@@ -191,11 +194,10 @@
             </label>
             <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
 
-            <label for="maxMcapInput" class="momentum-control-label" style="margin-top:6px;">
-              Max mcap
-              <span class="momentum-control-value"><span id="maxMcapValue">5.00</span>B$</span>
+            <label class="momentum-control-label momentum-toggle" style="margin-top:10px;">
+              <input type="checkbox" id="excludeMajorsInput" checked aria-label="Exclude majors (mcap above 5 billion USD)">
+              <span>Exclude majors <span class="momentum-control-value">&gt; $5B</span></span>
             </label>
-            <input type="range" id="maxMcapInput" min="0" max="100" step="1" value="58" aria-label="Maximum market cap (non-linear, caps at 15B so the lower end has finer resolution)">
           </div>
           <div class="momentum-meta-row">
             <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
@@ -241,21 +243,8 @@
     // === Momentum state ===
     var momentumData = null;
     var currentMinVolK = 80;
-    // Max mcap slider is non-linear: position 0..100 maps via a quadratic curve
-    // to 0..15B$. Bottom of the slider has fine resolution around the dense
-    // 0-5B range; top smoothly reaches 15B (which excludes everything above).
-    var MCAP_SLIDER_MAX_B = 15;
-    function mcapFromSlider(pos) {
-      // returns billions of USD
-      var t = Math.max(0, Math.min(100, pos)) / 100;
-      return Math.round(t * t * MCAP_SLIDER_MAX_B * 100) / 100;
-    }
-    function sliderFromMcap(bn) {
-      var t = Math.sqrt(Math.max(0, Math.min(MCAP_SLIDER_MAX_B, bn)) / MCAP_SLIDER_MAX_B);
-      return Math.round(t * 100);
-    }
-    var currentMaxMcapSliderPos = 58;             // ~5B default
-    var currentMaxMcapB = mcapFromSlider(currentMaxMcapSliderPos);
+    var excludeMajors = true;            // default: filter out coins with mcap above MAJOR_MCAP_CUTOFF
+    var MAJOR_MCAP_CUTOFF = 5e9;         // 5 billion USD
 
     function showMomentumEmpty() {
       var e = document.getElementById('momentumEmpty');
@@ -357,13 +346,12 @@
       }
 
       var minVolUsd = currentMinVolK * 1000;
-      var maxMcapUsd = currentMaxMcapB * 1e9;
       var totalCount = data.leaderboard.length;
 
       var order = { building: 0, breakout: 1, igniting: 2, late: 3 };
       var classified = data.leaderboard
         .filter(function(r) { return (r.v1m || 0) >= minVolUsd; })
-        .filter(function(r) { return (r.mcap || 0) <= maxMcapUsd; })
+        .filter(function(r) { return !excludeMajors || (r.mcap || 0) <= MAJOR_MCAP_CUTOFF; })
         .map(function(r) { return { row: r, klass: classify(r) }; });
       classified.sort(function(a, b) {
         var oa = order[a.klass.v], ob = order[b.klass.v];
@@ -372,7 +360,8 @@
       });
 
       if (classified.length === 0) {
-        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' meet the ' + currentMinVolK + 'k min volume &middot; ' + currentMaxMcapB + 'B$ max mcap filter. Loosen either slider to see more candidates.</div>';
+        var filters = currentMinVolK + 'k min volume' + (excludeMajors ? ' &middot; excluding majors (>5B$ mcap)' : '');
+        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' match: ' + filters + '. Loosen the filters to see more candidates.</div>';
         return;
       }
 
@@ -414,40 +403,20 @@
     document.addEventListener('DOMContentLoaded', function() {
       var savedMinVol = parseInt(localStorage.getItem('orion-min-vol-k') || '', 10);
       if (!isNaN(savedMinVol)) currentMinVolK = savedMinVol;
-      // Restore: prefer the slider-position key so the UI lines up exactly;
-      // otherwise back-compute from the legacy billions value.
-      var savedSliderPos = parseInt(localStorage.getItem('orion-max-mcap-slider') || '', 10);
-      var savedLegacyB = parseFloat(localStorage.getItem('orion-max-mcap-b') || '');
-      if (!isNaN(savedSliderPos)) {
-        currentMaxMcapSliderPos = savedSliderPos;
-      } else if (!isNaN(savedLegacyB)) {
-        currentMaxMcapSliderPos = sliderFromMcap(savedLegacyB);
-      }
-      currentMaxMcapB = mcapFromSlider(currentMaxMcapSliderPos);
+      var savedExclude = localStorage.getItem('orion-exclude-majors');
+      if (savedExclude === '0') excludeMajors = false;
+      else if (savedExclude === '1') excludeMajors = true;
 
       var minVolInput = document.getElementById('minVolInput');
       var minVolValue = document.getElementById('minVolValue');
-      var maxMcapInput = document.getElementById('maxMcapInput');
-      var maxMcapValue = document.getElementById('maxMcapValue');
+      var excludeInput = document.getElementById('excludeMajorsInput');
 
-      function mcapLabel(bn) {
-        if (bn >= 10) return bn.toFixed(1);
-        return bn.toFixed(2);
-      }
-
-      if (maxMcapInput) {
-        maxMcapInput.value = currentMaxMcapSliderPos;
-        if (maxMcapValue) maxMcapValue.textContent = mcapLabel(currentMaxMcapB);
-        var mcPending = false;
-        maxMcapInput.addEventListener('input', function() {
-          var pos = parseInt(maxMcapInput.value, 10) || 0;
-          currentMaxMcapSliderPos = pos;
-          currentMaxMcapB = mcapFromSlider(pos);
-          if (maxMcapValue) maxMcapValue.textContent = mcapLabel(currentMaxMcapB);
-          localStorage.setItem('orion-max-mcap-slider', String(pos));
-          if (mcPending) return;
-          mcPending = true;
-          requestAnimationFrame(function() { mcPending = false; renderMomentum(); });
+      if (excludeInput) {
+        excludeInput.checked = excludeMajors;
+        excludeInput.addEventListener('change', function() {
+          excludeMajors = !!excludeInput.checked;
+          localStorage.setItem('orion-exclude-majors', excludeMajors ? '1' : '0');
+          renderMomentum();
         });
       }
 
