@@ -193,9 +193,9 @@
 
             <label for="maxMcapInput" class="momentum-control-label" style="margin-top:6px;">
               Max mcap
-              <span class="momentum-control-value"><span id="maxMcapValue">5</span>B$</span>
+              <span class="momentum-control-value"><span id="maxMcapValue">5.00</span>B$</span>
             </label>
-            <input type="range" id="maxMcapInput" min="0" max="50" step="0.5" value="5" aria-label="Maximum market cap in billions of USD — excludes majors above this">
+            <input type="range" id="maxMcapInput" min="0" max="100" step="1" value="58" aria-label="Maximum market cap (non-linear, caps at 15B so the lower end has finer resolution)">
           </div>
           <div class="momentum-meta-row">
             <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
@@ -241,7 +241,21 @@
     // === Momentum state ===
     var momentumData = null;
     var currentMinVolK = 80;
-    var currentMaxMcapB = 5;   // max market cap in billions of USD; filters out majors
+    // Max mcap slider is non-linear: position 0..100 maps via a quadratic curve
+    // to 0..15B$. Bottom of the slider has fine resolution around the dense
+    // 0-5B range; top smoothly reaches 15B (which excludes everything above).
+    var MCAP_SLIDER_MAX_B = 15;
+    function mcapFromSlider(pos) {
+      // returns billions of USD
+      var t = Math.max(0, Math.min(100, pos)) / 100;
+      return Math.round(t * t * MCAP_SLIDER_MAX_B * 100) / 100;
+    }
+    function sliderFromMcap(bn) {
+      var t = Math.sqrt(Math.max(0, Math.min(MCAP_SLIDER_MAX_B, bn)) / MCAP_SLIDER_MAX_B);
+      return Math.round(t * 100);
+    }
+    var currentMaxMcapSliderPos = 58;             // ~5B default
+    var currentMaxMcapB = mcapFromSlider(currentMaxMcapSliderPos);
 
     function showMomentumEmpty() {
       var e = document.getElementById('momentumEmpty');
@@ -400,23 +414,37 @@
     document.addEventListener('DOMContentLoaded', function() {
       var savedMinVol = parseInt(localStorage.getItem('orion-min-vol-k') || '', 10);
       if (!isNaN(savedMinVol)) currentMinVolK = savedMinVol;
-      var savedMaxMcap = parseFloat(localStorage.getItem('orion-max-mcap-b') || '');
-      if (!isNaN(savedMaxMcap)) currentMaxMcapB = savedMaxMcap;
+      // Restore: prefer the slider-position key so the UI lines up exactly;
+      // otherwise back-compute from the legacy billions value.
+      var savedSliderPos = parseInt(localStorage.getItem('orion-max-mcap-slider') || '', 10);
+      var savedLegacyB = parseFloat(localStorage.getItem('orion-max-mcap-b') || '');
+      if (!isNaN(savedSliderPos)) {
+        currentMaxMcapSliderPos = savedSliderPos;
+      } else if (!isNaN(savedLegacyB)) {
+        currentMaxMcapSliderPos = sliderFromMcap(savedLegacyB);
+      }
+      currentMaxMcapB = mcapFromSlider(currentMaxMcapSliderPos);
 
       var minVolInput = document.getElementById('minVolInput');
       var minVolValue = document.getElementById('minVolValue');
       var maxMcapInput = document.getElementById('maxMcapInput');
       var maxMcapValue = document.getElementById('maxMcapValue');
 
+      function mcapLabel(bn) {
+        if (bn >= 10) return bn.toFixed(1);
+        return bn.toFixed(2);
+      }
+
       if (maxMcapInput) {
-        maxMcapInput.value = currentMaxMcapB;
-        if (maxMcapValue) maxMcapValue.textContent = currentMaxMcapB;
+        maxMcapInput.value = currentMaxMcapSliderPos;
+        if (maxMcapValue) maxMcapValue.textContent = mcapLabel(currentMaxMcapB);
         var mcPending = false;
         maxMcapInput.addEventListener('input', function() {
-          var v = parseFloat(maxMcapInput.value) || 0;
-          currentMaxMcapB = v;
-          if (maxMcapValue) maxMcapValue.textContent = v;
-          localStorage.setItem('orion-max-mcap-b', String(v));
+          var pos = parseInt(maxMcapInput.value, 10) || 0;
+          currentMaxMcapSliderPos = pos;
+          currentMaxMcapB = mcapFromSlider(pos);
+          if (maxMcapValue) maxMcapValue.textContent = mcapLabel(currentMaxMcapB);
+          localStorage.setItem('orion-max-mcap-slider', String(pos));
           if (mcPending) return;
           mcPending = true;
           requestAnimationFrame(function() { mcPending = false; renderMomentum(); });
