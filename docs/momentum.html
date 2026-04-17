@@ -190,6 +190,12 @@
               <span class="momentum-control-value"><span id="minVolValue">80</span>k$</span>
             </label>
             <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
+
+            <label for="maxMcapInput" class="momentum-control-label" style="margin-top:6px;">
+              Max mcap
+              <span class="momentum-control-value"><span id="maxMcapValue">5</span>B$</span>
+            </label>
+            <input type="range" id="maxMcapInput" min="0" max="50" step="0.5" value="5" aria-label="Maximum market cap in billions of USD — excludes majors above this">
           </div>
           <div class="momentum-meta-row">
             <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
@@ -235,6 +241,7 @@
     // === Momentum state ===
     var momentumData = null;
     var currentMinVolK = 80;
+    var currentMaxMcapB = 5;   // max market cap in billions of USD; filters out majors
 
     function showMomentumEmpty() {
       var e = document.getElementById('momentumEmpty');
@@ -328,11 +335,13 @@
       }
 
       var minVolUsd = currentMinVolK * 1000;
+      var maxMcapUsd = currentMaxMcapB * 1e9;
       var totalCount = data.leaderboard.length;
 
       var order = { building: 0, breakout: 1, igniting: 2, late: 3 };
       var classified = data.leaderboard
         .filter(function(r) { return (r.v1m || 0) >= minVolUsd; })
+        .filter(function(r) { return (r.mcap || 0) <= maxMcapUsd; })
         .map(function(r) { return { row: r, klass: classify(r) }; });
       classified.sort(function(a, b) {
         var oa = order[a.klass.v], ob = order[b.klass.v];
@@ -341,7 +350,7 @@
       });
 
       if (classified.length === 0) {
-        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' meet the ' + currentMinVolK + 'k minimum 1m volume. Lower the threshold to see more candidates.</div>';
+        wrap.innerHTML = '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' meet the ' + currentMinVolK + 'k min volume &middot; ' + currentMaxMcapB + 'B$ max mcap filter. Loosen either slider to see more candidates.</div>';
         return;
       }
 
@@ -383,8 +392,29 @@
     document.addEventListener('DOMContentLoaded', function() {
       var savedMinVol = parseInt(localStorage.getItem('orion-min-vol-k') || '', 10);
       if (!isNaN(savedMinVol)) currentMinVolK = savedMinVol;
+      var savedMaxMcap = parseFloat(localStorage.getItem('orion-max-mcap-b') || '');
+      if (!isNaN(savedMaxMcap)) currentMaxMcapB = savedMaxMcap;
+
       var minVolInput = document.getElementById('minVolInput');
       var minVolValue = document.getElementById('minVolValue');
+      var maxMcapInput = document.getElementById('maxMcapInput');
+      var maxMcapValue = document.getElementById('maxMcapValue');
+
+      if (maxMcapInput) {
+        maxMcapInput.value = currentMaxMcapB;
+        if (maxMcapValue) maxMcapValue.textContent = currentMaxMcapB;
+        var mcPending = false;
+        maxMcapInput.addEventListener('input', function() {
+          var v = parseFloat(maxMcapInput.value) || 0;
+          currentMaxMcapB = v;
+          if (maxMcapValue) maxMcapValue.textContent = v;
+          localStorage.setItem('orion-max-mcap-b', String(v));
+          if (mcPending) return;
+          mcPending = true;
+          requestAnimationFrame(function() { mcPending = false; renderMomentum(); });
+        });
+      }
+
       if (minVolInput) {
         minVolInput.value = currentMinVolK;
         if (minVolValue) minVolValue.textContent = currentMinVolK;

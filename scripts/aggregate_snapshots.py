@@ -164,6 +164,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "price": t.get("price") or 0.0,
             "high24h": t.get("high24h") or 0.0,
             "low24h": t.get("low24h") or 0.0,
+            "mcap": t.get("mcap") or 0,
             "funding": fund,
             "v1m": vol_per_min,
             "t5m": trades_5m,
@@ -230,6 +231,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "c12h": round(f["c12h"], 2),
             "c1d": round(f["c1d"], 2),
             "price": f["price"],
+            "mcap": f["mcap"],
             "fund": round(f["funding"] * 100, 4),  # % per funding period
             "rng": round(rng_pct(f), 2),
             "v1m": round(f["v1m"]),  # approx 1-minute MA volume (USD)
