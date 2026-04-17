@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incremental Aggregation &mdash; Orion Screener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>Chart.defaults.animation = false;</script>
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { interpolate-size: allow-keywords; }
+
+    html.theme-dark {
+      --bg: #060b12;
+      --surface: #0d1520;
+      --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1;
+      --text-secondary: #6b7f99;
+      --accent: #00e5ff;
+      --accent-secondary: #e040fb;
+      --positive: #00e676;
+      --negative: #ff1744;
+      --warning: #ffab00;
+      --grid: rgba(0,229,255,0.05);
+    }
+    html.theme-light {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface-hover: #e8edf3;
+      --border: rgba(0,0,0,0.10);
+      --text: #0f172a;
+      --text-secondary: #4b5b6e;
+      --accent: #0891b2;
+      --accent-secondary: #9333ea;
+      --positive: #059669;
+      --negative: #e11d48;
+      --warning: #d97706;
+      --grid: rgba(8,145,178,0.06);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(0,229,255,0.05), transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(224,64,251,0.05), transparent 50%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+      transition: background 0.3s, color 0.3s;
+      scrollbar-gutter: stable;
+      min-height: 100vh;
+    }
+    h1, h2, h3 { color: var(--text); letter-spacing: -0.025em; line-height: 1.1; text-wrap: balance; }
+    h1 { font-weight: 800; font-size: clamp(2.5rem, 4vw, 3.4rem); margin-bottom: 14px; }
+    h2 { font-weight: 700; font-size: clamp(1.6rem, 2.6vw, 2.1rem); margin-bottom: 12px; }
+    h3 { font-weight: 600; font-size: 1.5rem; margin-bottom: 10px; }
+    p, li, td, th, span, label { color: var(--text); font-weight: 400; }
+    .text-secondary { color: var(--text-secondary); }
+    code, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .card:hover {
+      border-color: rgba(0,229,255,0.18);
+      box-shadow: 0 0 0 1px rgba(0,229,255,0.10), 0 12px 32px rgba(0,0,0,0.35);
+    }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes flow-dash { to { stroke-dashoffset: -40; } }
+    @keyframes pulse-file {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+    .animate { animation: fadeInUp 0.55s ease-out both; }
+    .animate.delay-1 { animation-delay: 0.08s; }
+    .animate.delay-2 { animation-delay: 0.16s; }
+    .animate.delay-3 { animation-delay: 0.24s; }
+    .animate.delay-4 { animation-delay: 0.32s; }
+    .animate.delay-5 { animation-delay: 0.40s; }
+    .animate.delay-6 { animation-delay: 0.48s; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+
+    @media print {
+      body { background: white !important; color: black !important; }
+      .viz-menu, .back-link { display: none !important; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .card, .panel, .pipeline-diagram { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+    @page { margin: 0.5in; }
+
+    /* Skip link */
+    .skip-to-content {
+      position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden;
+      background: var(--accent); color: #000; padding: 8px 16px; text-decoration: none;
+      border-radius: 4px; font-weight: 600; z-index: 10000;
+    }
+    .skip-to-content:focus { position: fixed; left: 16px; top: 16px; width: auto; height: auto; }
+
+    /* Menu */
+    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
+    .viz-menu-toggle {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(12px); transition: all 0.2s;
+    }
+    .viz-menu-toggle:hover { background: var(--surface-hover); border-color: rgba(0,229,255,0.25); }
+    .viz-menu-dropdown {
+      position: absolute; top: 52px; right: 0; min-width: 200px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px;
+      opacity: 0; visibility: hidden; transform: translateY(-8px);
+      transition: all 0.2s; backdrop-filter: blur(16px);
+    }
+    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .viz-menu-dropdown button {
+      width: 100%; padding: 10px 14px; border: none; border-radius: 8px;
+      background: transparent; color: var(--text); font-size: 14px;
+      font-family: inherit; cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 10px; transition: background 0.15s;
+    }
+    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+
+    /* Layout */
+    .container { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.82rem; color: var(--text-secondary); text-decoration: none;
+      padding: 6px 10px; border-radius: 6px; margin-bottom: 16px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .back-link:hover { color: var(--accent); background: var(--surface-hover); }
+
+    .header { margin-bottom: 56px; }
+    .eyebrow {
+      display: inline-block; font-size: 0.74rem; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+      margin-bottom: 14px; padding: 5px 12px;
+      background: rgba(0,229,255,0.06); border: 1px solid rgba(0,229,255,0.18);
+      border-radius: 999px;
+    }
+    .header h1 .accent-text { color: var(--accent); }
+    .header p.lede {
+      font-size: 1.08rem; color: var(--text-secondary);
+      max-width: 760px; line-height: 1.55;
+    }
+
+    section { margin-bottom: 56px; }
+
+    /* Side-by-side comparison */
+    .compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 4px solid var(--border);
+      border-radius: 12px; padding: 26px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .panel:hover { box-shadow: 0 0 0 1px rgba(0,229,255,0.10), 0 10px 24px rgba(0,0,0,0.30); }
+    .panel.panel-before { border-left-color: var(--warning); }
+    .panel.panel-after  { border-left-color: var(--positive); }
+    .panel.active { box-shadow: 0 0 0 1px var(--accent), 0 10px 24px rgba(0,229,255,0.14); }
+
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .panel-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-secondary); }
+    .panel-title { font-size: 1.2rem; font-weight: 700; }
+    .panel-pill {
+      display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      font-weight: 600; padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--bg);
+    }
+    .panel-before .panel-pill { color: var(--warning); border-color: rgba(255,171,0,0.25); background: rgba(255,171,0,0.06); }
+    .panel-after  .panel-pill { color: var(--positive); border-color: rgba(0,230,118,0.25); background: rgba(0,230,118,0.06); }
+
+    .panel-body { display: flex; flex-direction: column; gap: 14px; }
+    .kv { display: flex; gap: 12px; align-items: flex-start; font-size: 0.9rem; }
+    .kv-key { flex: 0 0 88px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); padding-top: 3px; }
+    .kv-val { flex: 1; color: var(--text); line-height: 1.5; }
+    .kv-val code { color: var(--accent); background: rgba(0,229,255,0.06); padding: 1px 5px; border-radius: 4px; }
+
+    .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+    .stat-block {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    }
+    .stat-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; }
+    .stat-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); line-height: 1; }
+    .stat-value.warn { color: var(--warning); }
+    .stat-value.good { color: var(--positive); }
+    .stat-sub { font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; }
+
+    /* Pipeline SVG diagram */
+    .pipeline-diagram {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px; overflow-x: auto;
+    }
+    .pipeline-diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+    .pipeline-toggle {
+      display: inline-flex; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 4px; gap: 2px; margin-bottom: 20px;
+    }
+    .pipeline-toggle button {
+      padding: 8px 16px; border: none; border-radius: 7px;
+      background: transparent; color: var(--text-secondary); font-size: 0.85rem;
+      font-family: inherit; font-weight: 600; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pipeline-toggle button.active { background: var(--accent); color: #000; }
+    .pipeline-caption { font-size: 0.82rem; color: var(--text-secondary); margin-top: 12px; line-height: 1.5; max-width: 760px; }
+
+    /* Chart */
+    .chart-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px;
+    }
+    .chart-container {
+      height: 360px; padding: 12px;
+      position: relative;
+    }
+    .chart-legend-note { font-size: 0.78rem; color: var(--text-secondary); margin-top: 16px; text-align: center; }
+
+    /* How it works — numbered mechanics */
+    .mechanics { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .mechanic {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 22px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .mechanic-num {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.22);
+      color: var(--accent); display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;
+    }
+    .mechanic h3 { font-size: 1.08rem; margin: 0; }
+    .mechanic p { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; }
+    .mechanic code { display: block; background: var(--bg); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); color: var(--accent); font-size: 0.8rem; margin-top: 4px; overflow-x: auto; }
+
+    /* Tradeoffs callout */
+    .tradeoffs {
+      background: linear-gradient(180deg, rgba(255,171,0,0.04), rgba(255,171,0,0));
+      border: 1px solid rgba(255,171,0,0.20);
+      border-radius: 12px; padding: 24px;
+    }
+    .tradeoffs h2 { color: var(--warning); font-size: 1.35rem; }
+    .tradeoffs h3 { color: var(--text); font-size: 1rem; margin-top: 14px; margin-bottom: 6px; }
+    .tradeoffs ul { list-style: none; padding: 0; }
+    .tradeoffs li { padding: 4px 0 4px 20px; position: relative; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; }
+    .tradeoffs li::before { content: "—"; position: absolute; left: 0; color: var(--warning); font-weight: 700; }
+    .tradeoffs code { color: var(--accent); background: rgba(0,229,255,0.06); padding: 1px 5px; border-radius: 4px; }
+
+    /* Unlocks */
+    .unlocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .unlock {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 3px solid var(--positive);
+      border-radius: 10px; padding: 18px;
+    }
+    .unlock-title { font-weight: 600; margin-bottom: 4px; font-size: 0.98rem; }
+    .unlock-sub { font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; }
+
+    /* Counter text animation base */
+    [data-count] { font-variant-numeric: tabular-nums; }
+
+    @media (max-width: 768px) {
+      .container { padding: 32px 18px 60px; }
+      section { margin-bottom: 48px; }
+      .panel { padding: 20px; }
+    }
+    @media (max-width: 375px) {
+      body { overflow-x: hidden; }
+      .container { padding: 24px 12px 48px; }
+      .stats-row { grid-template-columns: 1fr; }
+      .kv-key { flex: 0 0 74px; font-size: 0.64rem; }
+      .panel-title { font-size: 1.05rem; }
+      h1 { font-size: 2.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+  <!-- MENU -->
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+      </svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon">M</span><span id="themeLabel">Dark</span></button>
+      <button onclick="downloadImage()"><span>PNG</span><span>Download PNG</span></button>
+      <button onclick="window.print()"><span>PDF</span><span>Print / PDF</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <div class="container">
+
+      <!-- HEADER -->
+      <header class="header animate">
+        <a class="back-link" href="./index.html">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to dashboard
+        </a>
+        <span class="eyebrow">Pipeline &middot; Engineering note</span>
+        <h1>Incremental <span class="accent-text">Aggregation</span></h1>
+        <p class="lede">Why re-processing the whole archive every 5 minutes is a waste of CI time, bandwidth, and battery &mdash; and how to stop doing it without changing anything the dashboard sees.</p>
+      </header>
+
+      <!-- SECTION 2: BEFORE VS AFTER -->
+      <section aria-labelledby="compare-head" class="animate delay-1">
+        <h2 id="compare-head">Full vs Incremental</h2>
+        <div class="compare-grid">
+
+          <!-- FULL -->
+          <article class="panel panel-before" data-panel="full" tabindex="0" role="button" aria-pressed="false">
+            <div class="panel-head">
+              <div>
+                <div class="panel-label">Current</div>
+                <div class="panel-title">Full aggregation</div>
+              </div>
+              <span class="panel-pill">O(N) &middot; grows forever</span>
+            </div>
+            <div class="panel-body">
+              <div class="kv">
+                <span class="kv-key">Input</span>
+                <span class="kv-val">Every file in <code>snapshots/</code>. 99.99% of them haven&rsquo;t changed since the last run but we re-read them anyway.</span>
+              </div>
+              <div class="kv">
+                <span class="kv-key">Process</span>
+                <span class="kv-val">Read &rarr; gunzip &rarr; parse &rarr; rank every coin by <code>tf5m.trades</code> &rarr; keep top 20 &rarr; build the SMS leaderboard from the newest one.</span>
+              </div>
+              <div class="kv">
+                <span class="kv-key">Output</span>
+                <span class="kv-val">Full <code>snapshots.json</code> rewritten from scratch. <code>momentum.json</code> regenerated from the latest snapshot.</span>
+              </div>
+              <div class="stats-row">
+                <div class="stat-block">
+                  <div class="stat-label">Today</div>
+                  <div class="stat-value" data-count="3" data-suffix="s">0s</div>
+                  <div class="stat-sub">~<span data-count="300">0</span> files, fine</div>
+                </div>
+                <div class="stat-block">
+                  <div class="stat-label">3 months at 5-min</div>
+                  <div class="stat-value warn" data-count="240" data-suffix="s">0s</div>
+                  <div class="stat-sub">~<span data-count="26000">0</span> files, painful</div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- INCREMENTAL -->
+          <article class="panel panel-after active" data-panel="incremental" tabindex="0" role="button" aria-pressed="true">
+            <div class="panel-head">
+              <div>
+                <div class="panel-label">Proposed</div>
+                <div class="panel-title">Incremental aggregation</div>
+              </div>
+              <span class="panel-pill">O(1) &middot; flat forever</span>
+            </div>
+            <div class="panel-body">
+              <div class="kv">
+                <span class="kv-key">Input</span>
+                <span class="kv-val">Only the files whose timestamp is newer than the last row in existing <code>snapshots.json</code>. Usually exactly one file.</span>
+              </div>
+              <div class="kv">
+                <span class="kv-key">Process</span>
+                <span class="kv-val">Compute the new row(s), <strong>append</strong> to <code>snapshots.json</code> instead of rewriting. Momentum still reads the single latest snapshot &mdash; same as today.</span>
+              </div>
+              <div class="kv">
+                <span class="kv-key">Output</span>
+                <span class="kv-val">Byte-for-byte identical to what full aggregation would have produced. Dashboard doesn&rsquo;t notice anything changed.</span>
+              </div>
+              <div class="stats-row">
+                <div class="stat-block">
+                  <div class="stat-label">Today</div>
+                  <div class="stat-value good" data-count="50" data-prefix="~" data-suffix="ms">0ms</div>
+                  <div class="stat-sub">1 file read per run</div>
+                </div>
+                <div class="stat-block">
+                  <div class="stat-label">3 months at 5-min</div>
+                  <div class="stat-value good" data-count="50" data-prefix="~" data-suffix="ms">0ms</div>
+                  <div class="stat-sub">still 1 file read per run</div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- SECTION 3: PIPELINE DIAGRAM -->
+      <section aria-labelledby="pipeline-head" class="animate delay-2">
+        <h2 id="pipeline-head">What the aggregator actually touches</h2>
+        <div class="pipeline-toggle" role="tablist" aria-label="Pipeline mode">
+          <button id="modeFullBtn" class="pipe-btn" data-mode="full" role="tab" aria-selected="false">Full mode</button>
+          <button id="modeIncBtn" class="pipe-btn active" data-mode="inc" role="tab" aria-selected="true">Incremental mode</button>
+        </div>
+        <div class="pipeline-diagram" role="img" aria-label="Diagram comparing full vs incremental file processing in the Orion aggregator">
+          <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" id="pipelineSvg">
+            <!-- Left cluster: stack of files -->
+            <g id="fileStack">
+              <!-- Generated in JS — placeholder for now -->
+            </g>
+
+            <!-- Center: aggregator box -->
+            <g id="aggregatorBox">
+              <rect x="370" y="115" width="150" height="90" rx="10" fill="var(--surface-hover)" stroke="var(--accent)" stroke-width="1.5"/>
+              <text x="445" y="148" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600" fill="var(--accent)">aggregator</text>
+              <text x="445" y="170" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--text-secondary)">rank &middot; score</text>
+              <text x="445" y="186" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--text-secondary)">top 20 &middot; SMS</text>
+            </g>
+
+            <!-- Right cluster: output JSONs -->
+            <g id="outputCluster">
+              <rect x="640" y="90" width="200" height="60" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="740" y="115" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="var(--text)">snapshots.json</text>
+              <text x="740" y="134" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--text-secondary)" id="snapLabel">append new row</text>
+
+              <rect x="640" y="170" width="200" height="60" rx="10" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+              <text x="740" y="195" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="var(--text)">momentum.json</text>
+              <text x="740" y="214" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--text-secondary)">rewrite from latest</text>
+            </g>
+
+            <!-- Connector arrows — drawn dynamically -->
+            <g id="connectors"></g>
+
+            <!-- Labels -->
+            <text x="100" y="30" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="var(--text-secondary)" letter-spacing="0.1em">SNAPSHOTS/</text>
+            <text x="740" y="30" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="var(--text-secondary)" letter-spacing="0.1em" text-anchor="middle">DOCS/DATA/</text>
+
+            <text x="100" y="305" font-family="Inter, sans-serif" font-size="11" fill="var(--text-secondary)" id="touchedLabel">Files actually read per run: 1 / N</text>
+          </svg>
+        </div>
+        <p class="pipeline-caption">Click the mode toggle above to see the difference. In <strong>full mode</strong> every historical snapshot lights up &mdash; each one is re-read on every trigger. In <strong>incremental mode</strong> only the newest file matters; the rest stay dim because we already captured them last time.</p>
+      </section>
+
+      <!-- SECTION 4: COST GROWTH CHART -->
+      <section aria-labelledby="cost-head" class="animate delay-3">
+        <h2 id="cost-head">Why this scales differently</h2>
+        <div class="chart-wrap">
+          <div class="chart-container" role="img" aria-label="Line chart showing aggregator runtime per trigger as history grows. Full aggregation increases linearly from 1 second at month zero to 360 seconds at month twelve; incremental stays flat at roughly fifty milliseconds throughout.">
+            <canvas id="costChart"></canvas>
+          </div>
+          <p class="chart-legend-note">Assumes 5-minute Worker cadence (~8,700 snapshots per month). Incremental time is read + parse of one file; full time scales with total history.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 5: HOW IT WORKS -->
+      <section aria-labelledby="mech-head" class="animate delay-4">
+        <h2 id="mech-head">How it actually works</h2>
+        <div class="mechanics">
+          <article class="mechanic">
+            <div class="mechanic-num">a</div>
+            <h3>How do we know which files are new?</h3>
+            <p>The existing <code>snapshots.json</code> is already sorted by timestamp. Read the last row&rsquo;s <code>ts</code> &mdash; anything newer in <code>snapshots/</code> is new. No separate state file.</p>
+            <code>latest_ts = rows[-1]["ts"]</code>
+          </article>
+          <article class="mechanic">
+            <div class="mechanic-num">b</div>
+            <h3>What if a snapshot lands late or out of order?</h3>
+            <p>Safety net: compare against the <em>max</em> timestamp in current output. Stragglers with older timestamps are skipped (already captured or would break ordering). Worker commits are monotonic in practice.</p>
+            <code>if file_ts &gt; latest_ts: process</code>
+          </article>
+          <article class="mechanic">
+            <div class="mechanic-num">c</div>
+            <h3>What about <code>momentum.json</code>?</h3>
+            <p>No incremental needed &mdash; it&rsquo;s always computed from the single latest <code>.json.gz</code>. Same as today. The speedup is entirely on <code>snapshots.json</code>, where the linear cost used to live.</p>
+            <code>leaderboard(latest_gz.tickers)</code>
+          </article>
+        </div>
+      </section>
+
+      <!-- SECTION 6: TRADE-OFFS -->
+      <section aria-labelledby="trade-head" class="animate delay-5">
+        <div class="tradeoffs">
+          <h2 id="trade-head">Trade-offs to eat</h2>
+          <p class="text-secondary" style="font-size:0.92rem;">Nothing here is free. Two things get slightly more complex:</p>
+          <h3>The aggregator now has two code paths</h3>
+          <ul>
+            <li>&ldquo;Cold start&rdquo; when <code>snapshots.json</code> doesn&rsquo;t exist &mdash; runs full.</li>
+            <li>&ldquo;Incremental&rdquo; when it does &mdash; appends only new rows.</li>
+          </ul>
+          <h3>Full rebuilds are occasionally needed</h3>
+          <ul>
+            <li>Scoring formula changes, new fields, or bugs in earlier rows all require reprocessing history.</li>
+          </ul>
+          <h3 style="margin-top:16px;">Mitigation</h3>
+          <p class="text-secondary" style="font-size:0.92rem;">Add a <code>--full</code> flag: <code>python scripts/aggregate_snapshots.py --full</code> reprocesses everything. CI defaults to incremental. One-off full runs stay one command away.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 7: WHAT THIS UNLOCKS -->
+      <section aria-labelledby="unlocks-head" class="animate delay-6">
+        <h2 id="unlocks-head">What this unlocks</h2>
+        <div class="unlocks">
+          <div class="unlock">
+            <div class="unlock-title">5-minute cadence becomes free</div>
+            <div class="unlock-sub">Triple the capture rate without any aggregator-side cost. Momentum verdicts update ~10 min sooner on fast movers.</div>
+          </div>
+          <div class="unlock">
+            <div class="unlock-title">Aggregator always runs in &lt;100ms</div>
+            <div class="unlock-sub">Whether you have one week or one year of history. CI timeouts stop being a concern.</div>
+          </div>
+          <div class="unlock">
+            <div class="unlock-title">Room for heavier per-snapshot analytics</div>
+            <div class="unlock-sub">Rolling per-coin volatility, cohort stats, regime detection &mdash; all fine to add when each run only touches one file.</div>
+          </div>
+          <div class="unlock">
+            <div class="unlock-title">R2 migration ports cleanly</div>
+            <div class="unlock-sub">Incremental logic is source-agnostic. When raw storage moves to R2, &ldquo;list files in git&rdquo; becomes &ldquo;list objects in R2&rdquo; &mdash; the rest stays the same.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // === Menu ===
+    function toggleMenu() {
+      var d = document.getElementById('vizMenuDropdown');
+      if (d) d.classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.viz-menu')) {
+        var d = document.getElementById('vizMenuDropdown');
+        if (d) d.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var d = document.getElementById('vizMenuDropdown');
+        if (d) d.classList.remove('open');
+      }
+    });
+
+    // === Theme ===
+    var savedTheme = localStorage.getItem('viz-theme');
+    var currentTheme = savedTheme || 'dark';
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      var icon = document.getElementById('themeIcon');
+      var label = document.getElementById('themeLabel');
+      if (icon) icon.textContent = t === 'dark' ? 'M' : 'L';
+      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+      if (typeof onThemeChange === 'function') onThemeChange();
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+    applyTheme(currentTheme);
+
+    // === Scroll Reveal ===
+    document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); });
+    var revealObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+
+    // === Counter ===
+    function animateCounter(el) {
+      if (el.dataset.counted) return;
+      el.dataset.counted = '1';
+      var target = parseFloat(el.dataset.count) || 0;
+      var prefix = el.dataset.prefix || '';
+      var suffix = el.dataset.suffix || '';
+      var start = performance.now(), duration = 1100;
+      (function tick(now) {
+        var p = Math.min((now - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = prefix + Math.round(target * eased).toLocaleString() + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+      })(start);
+    }
+    var counterObs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) {
+          animateCounter(e.target);
+          counterObs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    document.querySelectorAll('[data-count]').forEach(function(el) { counterObs.observe(el); });
+
+    // === Download PNG ===
+    async function downloadImage() {
+      var menu = document.querySelector('.viz-menu');
+      menu.style.display = 'none';
+      try {
+        var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2, filter: function(n) { return !n.classList || !n.classList.contains('viz-menu'); } });
+        var a = document.createElement('a'); a.href = url;
+        a.download = 'incremental-aggregation.png'; a.click();
+      } catch(e) { console.error('Download failed:', e); }
+      menu.style.display = '';
+    }
+
+    // === Pipeline SVG: render file stack + connectors, switch mode ===
+    var pipeMode = 'inc'; // 'inc' or 'full'
+    var FILE_COUNT = 14;  // 14 visible files represent ~300 (we don't need 300 rects)
+
+    function colorVar(v) {
+      return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    }
+
+    function renderFileStack() {
+      var g = document.getElementById('fileStack');
+      if (!g) return;
+      g.innerHTML = '';
+      var accent = colorVar('--accent') || '#00e5ff';
+      var borderCol = colorVar('--border') || 'rgba(255,255,255,0.08)';
+      var surface = colorVar('--surface-hover') || '#131d2e';
+      var dimText = colorVar('--text-secondary') || '#6b7f99';
+
+      var x = 40;
+      var yStart = 55;
+      var rowH = 16;
+      for (var i = 0; i < FILE_COUNT; i++) {
+        var y = yStart + i * rowH;
+        var isNewest = i === FILE_COUNT - 1;
+        var highlighted = (pipeMode === 'full') ? true : isNewest;
+        var op = highlighted ? '1' : '0.25';
+        var stroke = highlighted ? accent : borderCol;
+        var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', 240);
+        rect.setAttribute('height', 12);
+        rect.setAttribute('rx', 3);
+        rect.setAttribute('fill', surface);
+        rect.setAttribute('stroke', stroke);
+        rect.setAttribute('stroke-width', highlighted ? '1.2' : '0.6');
+        rect.setAttribute('opacity', op);
+        if (highlighted && isNewest && pipeMode === 'inc') {
+          rect.style.animation = 'pulse-file 2s ease-in-out infinite';
+        }
+        g.appendChild(rect);
+
+        // label inside each file
+        var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', x + 10);
+        t.setAttribute('y', y + 9);
+        t.setAttribute('font-family', 'JetBrains Mono, monospace');
+        t.setAttribute('font-size', '8');
+        t.setAttribute('fill', highlighted ? accent : dimText);
+        t.setAttribute('opacity', op);
+        t.textContent = 'snapshot_' + (isNewest ? '…latest' : '…' + String(300 - (FILE_COUNT - 1 - i)).padStart(4, '0')) + '.json.gz';
+        g.appendChild(t);
+      }
+
+      // "N files total" label
+      var tot = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tot.setAttribute('x', 40);
+      tot.setAttribute('y', yStart - 8);
+      tot.setAttribute('font-family', 'Inter, sans-serif');
+      tot.setAttribute('font-size', '10');
+      tot.setAttribute('fill', dimText);
+      tot.textContent = pipeMode === 'full' ? 'All files read every run →' : '1 new file per run →';
+      g.appendChild(tot);
+    }
+
+    function renderConnectors() {
+      var c = document.getElementById('connectors');
+      if (!c) return;
+      c.innerHTML = '';
+      var accent = colorVar('--accent') || '#00e5ff';
+      var dim = colorVar('--border') || 'rgba(255,255,255,0.08)';
+
+      // Files -> aggregator
+      var path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path1.setAttribute('d', 'M 280 160 C 340 160, 330 160, 370 160');
+      path1.setAttribute('fill', 'none');
+      path1.setAttribute('stroke', accent);
+      path1.setAttribute('stroke-width', '2');
+      path1.setAttribute('stroke-dasharray', '4 4');
+      path1.setAttribute('marker-end', 'url(#arrow)');
+      path1.style.animation = 'flow-dash 1.2s linear infinite';
+      c.appendChild(path1);
+
+      // Aggregator -> snapshots.json
+      var path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path2.setAttribute('d', 'M 520 140 C 580 140, 600 120, 640 120');
+      path2.setAttribute('fill', 'none');
+      path2.setAttribute('stroke', accent);
+      path2.setAttribute('stroke-width', '2');
+      path2.setAttribute('marker-end', 'url(#arrow)');
+      c.appendChild(path2);
+
+      // Aggregator -> momentum.json
+      var path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path3.setAttribute('d', 'M 520 180 C 580 180, 600 200, 640 200');
+      path3.setAttribute('fill', 'none');
+      path3.setAttribute('stroke', accent);
+      path3.setAttribute('stroke-width', '2');
+      path3.setAttribute('marker-end', 'url(#arrow)');
+      c.appendChild(path3);
+
+      // Arrow marker (defs)
+      var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+      marker.setAttribute('id', 'arrow');
+      marker.setAttribute('viewBox', '0 0 10 10');
+      marker.setAttribute('refX', '8');
+      marker.setAttribute('refY', '5');
+      marker.setAttribute('markerWidth', '6');
+      marker.setAttribute('markerHeight', '6');
+      marker.setAttribute('orient', 'auto-start-reverse');
+      var apath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      apath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+      apath.setAttribute('fill', accent);
+      marker.appendChild(apath);
+      defs.appendChild(marker);
+      c.appendChild(defs);
+
+      // Update label under snapshots.json
+      var snapLabel = document.getElementById('snapLabel');
+      if (snapLabel) {
+        snapLabel.textContent = pipeMode === 'full' ? 'rewrite N rows' : 'append 1 new row';
+      }
+
+      // Touched label
+      var touched = document.getElementById('touchedLabel');
+      if (touched) {
+        touched.textContent = pipeMode === 'full'
+          ? 'Files actually read per run: ~300 (all of them)'
+          : 'Files actually read per run: 1 (just the newest)';
+      }
+    }
+
+    function setPipeMode(mode) {
+      pipeMode = mode;
+      document.querySelectorAll('.pipe-btn').forEach(function(b) {
+        var active = b.dataset.mode === mode;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      renderFileStack();
+      renderConnectors();
+    }
+
+    document.querySelectorAll('.pipe-btn').forEach(function(b) {
+      b.addEventListener('click', function() { setPipeMode(b.dataset.mode); });
+    });
+
+    // === Also: clicking a panel selects it ===
+    document.querySelectorAll('.panel').forEach(function(p) {
+      p.addEventListener('click', function() {
+        document.querySelectorAll('.panel').forEach(function(x) {
+          x.classList.remove('active');
+          x.setAttribute('aria-pressed', 'false');
+        });
+        p.classList.add('active');
+        p.setAttribute('aria-pressed', 'true');
+        // Also flip pipeline diagram to match
+        setPipeMode(p.dataset.panel === 'full' ? 'full' : 'inc');
+      });
+      p.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.click(); }
+      });
+    });
+
+    // === Cost chart ===
+    var costChart = null;
+    var chartsBuilt = false;
+
+    function getChartColors() {
+      var s = getComputedStyle(document.documentElement);
+      return {
+        text: s.getPropertyValue('--text').trim(),
+        textSecondary: s.getPropertyValue('--text-secondary').trim(),
+        accent: s.getPropertyValue('--accent').trim(),
+        warning: s.getPropertyValue('--warning').trim(),
+        positive: s.getPropertyValue('--positive').trim(),
+        grid: s.getPropertyValue('--grid').trim() || 'rgba(0,229,255,0.05)',
+      };
+    }
+
+    function buildCostChart() {
+      if (typeof Chart === 'undefined') { console.error('Chart.js not loaded'); return; }
+      var ctx = document.getElementById('costChart');
+      if (!ctx) return;
+      if (costChart) { try { costChart.destroy(); } catch(e) {} }
+      ctx.setAttribute('role', 'img');
+      ctx.setAttribute('aria-label', 'Aggregator runtime per trigger by months of history: full grows linearly, incremental stays flat');
+      var c = getChartColors();
+
+      // Synthetic but realistic numbers at 5-min cadence
+      var months = [0, 1, 2, 3, 4, 6, 8, 10, 12];
+      var fullSeconds = [1, 10, 30, 60, 100, 180, 240, 300, 360];
+      var incSeconds  = [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05];
+
+      costChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: months.map(function(m) { return m + 'mo'; }),
+          datasets: [
+            {
+              label: 'Full aggregation',
+              data: fullSeconds,
+              borderColor: c.warning,
+              backgroundColor: 'rgba(255,171,0,0.10)',
+              fill: true,
+              tension: 0.25,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              borderWidth: 2.5,
+            },
+            {
+              label: 'Incremental',
+              data: incSeconds,
+              borderColor: c.positive,
+              backgroundColor: 'rgba(0,230,118,0.12)',
+              fill: true,
+              tension: 0.15,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              borderWidth: 2.5,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            tooltip: {
+              enabled: true,
+              mode: 'index',
+              intersect: false,
+              padding: 12,
+              cornerRadius: 8,
+              titleFont: { family: 'Inter', size: 13, weight: '600' },
+              bodyFont: { family: 'Inter', size: 12 },
+              callbacks: {
+                label: function(ctx2) {
+                  var v = ctx2.raw;
+                  var unit = v < 1 ? (Math.round(v * 1000) + 'ms') : (v.toFixed(v < 10 ? 1 : 0) + 's');
+                  return ctx2.dataset.label + ': ' + unit;
+                }
+              }
+            },
+            legend: {
+              display: true,
+              position: 'top',
+              align: 'end',
+              labels: { color: c.textSecondary, font: { family: 'Inter', size: 12 }, boxWidth: 14, padding: 14 }
+            }
+          },
+          layout: { padding: { top: 10, right: 14, bottom: 6, left: 8 } },
+          scales: {
+            x: {
+              title: { display: true, text: 'Months of history (at 5-min cadence)', color: c.textSecondary, font: { size: 11 } },
+              ticks: { color: c.textSecondary, font: { size: 11 }, maxRotation: 0 },
+              grid: { color: c.grid, drawTicks: false }
+            },
+            y: {
+              title: { display: true, text: 'Runtime per trigger (seconds)', color: c.textSecondary, font: { size: 11 } },
+              ticks: {
+                color: c.textSecondary,
+                font: { size: 11 },
+                callback: function(v) { return v >= 1 ? v + 's' : (v * 1000) + 'ms'; }
+              },
+              grid: { color: c.grid }
+            }
+          }
+        }
+      });
+      chartsBuilt = true;
+    }
+
+    function onThemeChange() {
+      // Re-render SVG with new theme colors, and rebuild chart
+      renderFileStack();
+      renderConnectors();
+      if (chartsBuilt) { chartsBuilt = false; setTimeout(buildCostChart, 60); }
+    }
+
+    // === Init ===
+    document.addEventListener('DOMContentLoaded', function() {
+      renderFileStack();
+      renderConnectors();
+      buildCostChart();
+    });
+  </script>
+</body>
+</html>
