@@ -257,6 +257,14 @@
       return '$' + Math.round(v);
     }
 
+    function fmtMcap(v) {
+      if (!v) return '—';
+      if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
+      if (v >= 1e9)  return '$' + (v / 1e9).toFixed(v >= 10e9 ? 1 : 2) + 'B';
+      if (v >= 1e6)  return '$' + (v / 1e6).toFixed(0) + 'M';
+      return '$' + Math.round(v);
+    }
+
     function classify(r) {
       var c1h = r.c1h || 0, c4h = r.c4h || 0, c12h = r.c12h || 0;
       var zc = r.zc || 0, zv = r.zv || 0, zo = r.zo || 0;
@@ -366,7 +374,7 @@
           k.v === 'late' ? 'Late / avoid' : 'Igniting';
 
         var tradesFmt = (r.t5m || 0).toLocaleString();
-        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span> &middot; <span class="v">' + tradesFmt + '</span> trades/5m</div>';
+        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span> &middot; <span class="v">' + tradesFmt + '</span> trades/5m &middot; MCap <span class="v">' + fmtMcap(r.mcap) + '</span></div>';
 
         return '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +
