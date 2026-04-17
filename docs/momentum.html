@@ -356,7 +356,8 @@
           k.v === 'breakout' ? 'Breakout' :
           k.v === 'late' ? 'Late / avoid' : 'Igniting';
 
-        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span></div>';
+        var tradesFmt = (r.t5m || 0).toLocaleString();
+        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span> &middot; <span class="v">' + tradesFmt + '</span> trades/5m</div>';
 
         return '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +

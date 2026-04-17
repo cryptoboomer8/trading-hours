@@ -156,6 +156,9 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
         # Proxy since the screener doesn't expose 1-minute candles directly.
         vol_per_min = (tf15m.get("volume") or 0.0) / 15.0
 
+        # Raw 5-minute trade count — same field the manual workflow sorts by.
+        trades_5m = int(tf5m.get("trades") or 0)
+
         feats.append({
             "symbol": t.get("symbol", ""),
             "price": t.get("price") or 0.0,
@@ -163,6 +166,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "low24h": t.get("low24h") or 0.0,
             "funding": fund,
             "v1m": vol_per_min,
+            "t5m": trades_5m,
             "c5m": c5m,
             "c15m": c15m,
             "c1h": c1h,
@@ -229,6 +233,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "fund": round(f["funding"] * 100, 4),  # % per funding period
             "rng": round(rng_pct(f), 2),
             "v1m": round(f["v1m"]),  # approx 1-minute MA volume (USD)
+            "t5m": f["t5m"],          # raw 5-minute trade count
         }
         for f in top
     ]
