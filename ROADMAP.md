@@ -36,6 +36,14 @@ Three compact gauges above the fold telling you what kind of day it is before lo
 ### Per-symbol drill-down
 Click a coin symbol anywhere → modal with that coin's own heatmap of best hours, volume profile, typical %-change distribution. Lower priority because it dilutes the "when" focus in favour of "what."
 
+### Fresh-level check for momentum entries
+For each coin in the momentum leaderboard, check whether price has been at the current level (within a ±0.3% tolerance band) at any point in the last 6 hours — excluding the last 15 min to let the breakout bar itself count as "current move".
+
+- **Why it helps:** matches the manual workflow (skip trades where there's recent price action "to the left" at the current level). Pre-filters the list so you don't have to eyeball every chart.
+- **Needs:** a new per-coin rolling price history file (`docs/data/price_hist.json`), ~72 snapshots × 634 coins, updated incrementally by the aggregator. Kept server-side only; dashboard just reads the pre-computed `fresh_h` field per leaderboard coin.
+- **Surface as:** a "Fresh 6h+" green chip on cards with no recent action at the level, or "Tested Xh ago" amber chip otherwise. Soft demote rather than hard filter, initially.
+- **Defer trigger:** when scanning >20 candidates at once starts feeling slow, or you notice yourself wanting to pre-filter before opening charts.
+
 ### Session hours toggle
 Current session bands on the hourly chart use FX-style windows (Asia 00–08, EU 08–16, US 14–22 CEST). Add a toggle for:
 - **FX sessions** (current, broader)
