@@ -14,6 +14,13 @@ GITHUB_REPO = "cryptoboomer8/orion-screener"
 GITHUB_BRANCH = "main"
 SCREENER_URL = "https://screener.orionterminal.com/api/screener"
 
-# Optional: capture logs for at least the recent few runs
+# Capture logs + invocation logs so failed scheduled runs surface a reason
+# in the CF dashboard instead of just "Exceeded Resources".
 [observability]
+
+[observability.logs]
 enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
