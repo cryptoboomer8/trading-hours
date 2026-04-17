@@ -128,8 +128,8 @@
       border-radius: 999px;
       white-space: nowrap;
     }
-    .mcard-pcts { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text); font-variant-numeric: tabular-nums; }
-    .mcard-pcts .sep { color: var(--text-secondary); margin: 0 4px; }
+    .mcard-pcts { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: var(--text); font-variant-numeric: tabular-nums; display: inline-flex; flex-wrap: wrap; gap: 2px 6px; justify-content: flex-end; }
+    .mcard-pcts .sep { color: var(--text-secondary); margin: 0 6px 0 2px; }
     .mcard-pcts .up { color: var(--positive); }
     .mcard-pcts .down { color: var(--negative); }
 
@@ -367,6 +367,7 @@
             '<span class="mcard-verdict v-' + k.v + '">' + verdictLabel + '</span>' +
             '<span class="mcard-pcts">' +
               pctSpan(r.c5m) + '<span class="sep">5m</span>' +
+              pctSpan(r.c15m) + '<span class="sep">15m</span>' +
               pctSpan(r.c1h) + '<span class="sep">1h</span>' +
               pctSpan(r.c4h) + '<span class="sep">4h</span>' +
               pctSpan(r.c1d) + '<span class="sep">24h</span>' +

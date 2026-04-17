@@ -124,6 +124,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
         c4h = tf4h.get("changePercent") or 0.0
         c12h = tf12h.get("changePercent") or 0.0
         c1d = tf1d.get("changePercent") or 0.0
+        c15m = tf15m.get("changePercent") or 0.0
         c5m = tf5m.get("changePercent") or 0.0
 
         # Cascade: reward positive-across-timeframes moves; penalise otherwise.
@@ -163,6 +164,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "funding": fund,
             "v1m": vol_per_min,
             "c5m": c5m,
+            "c15m": c15m,
             "c1h": c1h,
             "c4h": c4h,
             "c12h": c12h,
@@ -218,6 +220,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "zx": round(f["z_crowd"], 2),
             "zp": round(f["z_pump"], 2),
             "c5m": round(f["c5m"], 2),
+            "c15m": round(f["c15m"], 2),
             "c1h": round(f["c1h"], 2),
             "c4h": round(f["c4h"], 2),
             "c12h": round(f["c12h"], 2),
