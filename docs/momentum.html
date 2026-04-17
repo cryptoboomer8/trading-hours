@@ -81,23 +81,14 @@
       position: relative; width: 40px; height: 40px;
       display: inline-flex; align-items: center; justify-content: center;
       flex-shrink: 0; cursor: pointer;
+      background: transparent; border: none; padding: 0;
       transition: transform 0.15s ease;
     }
     .refresh-ring:hover { transform: scale(1.08); }
     .refresh-ring:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 50%; }
     .refresh-ring svg { display: block; }
-    .refresh-ring-track  { stroke: var(--border); }
-    .refresh-ring-arc    { stroke: var(--accent); transition: stroke-dashoffset 1s linear, stroke 0.2s; }
+    .refresh-ring-arc { stroke: var(--accent); transition: stroke-dashoffset 1s linear, stroke 0.2s; }
     .refresh-ring.refreshing .refresh-ring-arc { stroke: var(--positive); animation: spin-ring 1s linear infinite; transform-origin: 20px 20px; }
-    .refresh-ring-text {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      font-size: 0.64rem; font-weight: 600; color: var(--text-secondary);
-      font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
-      pointer-events: none;
-    }
-    .refresh-ring.refreshing .refresh-ring-text { color: var(--positive); }
     @keyframes spin-ring { to { transform: rotate(360deg); } }
 
     .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
@@ -201,14 +192,12 @@
             <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
           </div>
           <div class="momentum-meta-row">
-            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Next refresh countdown. Click to refresh now." title="Next auto-refresh countdown. Click to refresh now.">
+            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Next refresh countdown. Click to refresh now." title="Next auto-refresh. Click to refresh now.">
               <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
-                <circle class="refresh-ring-track" cx="20" cy="20" r="17" fill="none" stroke-width="3"></circle>
-                <circle class="refresh-ring-arc"   cx="20" cy="20" r="17" fill="none" stroke-width="3"
+                <circle class="refresh-ring-arc" cx="20" cy="20" r="17" fill="none" stroke-width="3"
                         stroke-dasharray="106.81" stroke-dashoffset="106.81" stroke-linecap="round"
                         transform="rotate(-90 20 20)" id="refreshRingArc"></circle>
               </svg>
-              <span class="refresh-ring-text" id="refreshRingText" aria-live="polite">&mdash;</span>
             </button>
             <div class="momentum-meta" id="momentumMeta">&mdash;</div>
           </div>
@@ -431,7 +420,6 @@
       var REFRESH_STEP_MS = 5 * 60 * 1000;
       var RING_CIRCUMFERENCE = 106.81; // 2 * PI * 17, matches the SVG radius
       var ringArcEl = document.getElementById('refreshRingArc');
-      var ringTextEl = document.getElementById('refreshRingText');
       var ringEl = document.getElementById('refreshRing');
       var nextRefreshAt = null;
       var refreshing = false;
@@ -449,7 +437,6 @@
         if (refreshing) return;
         refreshing = true;
         ringEl.classList.add('refreshing');
-        ringTextEl.textContent = '...';
         loadMomentum().finally(function() {
           refreshing = false;
           ringEl.classList.remove('refreshing');
@@ -463,15 +450,9 @@
         if (!nextRefreshAt) nextRefreshAt = computeNextRefresh();
         var msLeft = nextRefreshAt - Date.now();
         if (msLeft <= 0) { doRefresh(); return; }
-
         var elapsed = REFRESH_STEP_MS - msLeft;
         var progress = Math.max(0, Math.min(1, elapsed / REFRESH_STEP_MS));
         ringArcEl.setAttribute('stroke-dashoffset', String(RING_CIRCUMFERENCE * (1 - progress)));
-
-        var secLeft = Math.ceil(msLeft / 1000);
-        var mm = Math.floor(secLeft / 60);
-        var ss = secLeft % 60;
-        ringTextEl.textContent = mm + ':' + (ss < 10 ? '0' + ss : ss);
       }
 
       // Click the ring to manually refresh + reset the countdown.
