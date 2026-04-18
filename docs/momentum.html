@@ -240,9 +240,6 @@
     .mcard-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
     .mcard-symbol { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
     .mcard-symbol .pair { font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; margin-left: 3px; }
-    .mcard-symbol .sym-wrap { display: inline-flex; align-items: baseline; gap: 4px; }
-    .tv-link-icon { width: 12px; height: 12px; opacity: 0.35; transition: opacity 0.15s; flex-shrink: 0; align-self: center; }
-
     /* Whole-card link — wraps the <article>, click/middle-click behaves as
        a normal <a href="..." target="orion-chart"> would. */
     .mcard-link {
@@ -252,8 +249,6 @@
       border-radius: 12px;
       transition: transform 0.18s ease;
     }
-    .mcard-link:hover .tv-link-icon { opacity: 0.9; color: var(--accent); }
-    .mcard-link:hover .mcard-symbol { color: var(--accent); }
     .mcard-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .mcard-link:focus-visible .mcard { box-shadow: 0 0 0 1px var(--accent); }
     .mcard-price { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
@@ -554,11 +549,7 @@
         return '<a class="mcard-link" href="./go-chart.html?s=' + encodeURIComponent(r.s) + '" target="orion-chart" title="Click: quick preview. Middle-click / Ctrl-click: open ' + sym + ' in full TradingView tab.">' +
           '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +
-            '<div class="mcard-symbol">' +
-              '<span class="sym-wrap">' + sym + pair +
-                '<svg class="tv-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>' +
-              '</span>' +
-            '</div>' +
+            '<div class="mcard-symbol">' + sym + pair + '</div>' +
             '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
           '</div>' +
           '<div class="mcard-pcts-row">' +
