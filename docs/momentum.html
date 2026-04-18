@@ -126,7 +126,6 @@
     .mcard-symbol a:hover .tv-link-icon { opacity: 1; color: var(--accent); }
     .mcard-price { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
 
-    .mcard-verdict-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
     .mcard-verdict {
       font-size: 0.7rem;
       font-weight: 700;
@@ -136,6 +135,10 @@
       border-radius: 999px;
       white-space: nowrap;
     }
+    /* Verdict badge sits at the very top of the card now, above the symbol row. */
+    .mcard-verdict-top { display: inline-block; margin-bottom: 12px; }
+    /* Percent changes keep their own right-aligned row under the price. */
+    .mcard-pcts-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
     .mcard-pcts { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: var(--text); font-variant-numeric: tabular-nums; display: inline-flex; flex-wrap: wrap; gap: 2px 6px; justify-content: flex-end; }
     .mcard-pcts .sep { color: var(--text-secondary); margin: 0 6px 0 2px; }
     .mcard-pcts .up { color: var(--positive); }
@@ -426,6 +429,7 @@
         var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span> &middot; <span class="v">' + tradesFmt + '</span> trades/5m &middot; MCap <span class="v">' + fmtMcap(r.mcap) + '</span></div>';
 
         return '<article class="mcard" data-v="' + k.v + '">' +
+          '<span class="mcard-verdict mcard-verdict-top v-' + k.v + '">' + verdictLabel + '</span>' +
           '<div class="mcard-top">' +
             '<div class="mcard-symbol">' +
               '<a href="./go-chart.html?s=' + encodeURIComponent(r.s) + '" target="orion-chart" title="Open ' + sym + ' 1m chart in the reusable TradingView tab (drag it to split view once; subsequent clicks replace the chart in place)">' +
@@ -435,8 +439,7 @@
             '</div>' +
             '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
           '</div>' +
-          '<div class="mcard-verdict-row">' +
-            '<span class="mcard-verdict v-' + k.v + '">' + verdictLabel + '</span>' +
+          '<div class="mcard-pcts-row">' +
             '<span class="mcard-pcts">' +
               pctSpan(r.c5m) + '<span class="sep">5m</span>' +
               pctSpan(r.c15m) + '<span class="sep">15m</span>' +
