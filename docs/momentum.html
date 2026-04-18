@@ -151,7 +151,9 @@
 
     .momentum-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 
-    /* Group headers span the full grid width so cards below flow underneath cleanly. */
+    /* Each verdict group: a clickable header that spans the full grid row,
+       and a body containing an inner grid of cards. Body is hidden when
+       data-collapsed="true" on the header. */
     .mgroup-head {
       grid-column: 1 / -1;
       font-size: 0.72rem;
@@ -159,18 +161,29 @@
       letter-spacing: 0.16em;
       text-transform: uppercase;
       margin: 0;
-      padding: 2px 0 6px;
+      padding: 6px 4px;
+      border: none;
       border-bottom: 1px solid var(--border);
+      background: transparent;
+      cursor: pointer;
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 10px;
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+      color: inherit;
+      border-radius: 4px 4px 0 0;
+      transition: background 0.15s;
     }
-    .mgroup-head:first-child { margin-top: 0; }
-    .mgroup-head + * { margin-top: 2px; } /* first card after a header */
+    .mgroup-head:hover { background: var(--surface-hover); }
+    .mgroup-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .mgroup-head[data-v="building"] { color: var(--accent);           border-bottom-color: rgba(0,229,255,0.22); }
     .mgroup-head[data-v="breakout"] { color: var(--positive);         border-bottom-color: rgba(0,230,118,0.22); }
     .mgroup-head[data-v="igniting"] { color: var(--accent-secondary); border-bottom-color: rgba(224,64,251,0.22); }
     .mgroup-head[data-v="late"]     { color: var(--warning);          border-bottom-color: rgba(255,171,0,0.22); }
+    .mgroup-chevron { width: 12px; height: 12px; transition: transform 0.2s ease; flex-shrink: 0; }
+    .mgroup-head[data-collapsed="true"] .mgroup-chevron { transform: rotate(-90deg); }
     .mgroup-count {
       font-size: 0.72rem;
       font-weight: 600;
@@ -178,6 +191,21 @@
       letter-spacing: 0.06em;
       font-variant-numeric: tabular-nums;
       text-transform: none;
+      margin-left: auto;
+    }
+    .mgroup-body {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .mgroup-body[hidden] { display: none; }
+    .mgroup-empty {
+      grid-column: 1 / -1;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-style: italic;
+      padding: 4px 4px 4px 22px;
     }
 
     .mcard {
@@ -368,6 +396,9 @@
     var currentMinVolK = 80;
     var excludeMajors = true;            // default: filter out coins with mcap above MAJOR_MCAP_CUTOFF
     var MAJOR_MCAP_CUTOFF = 5e9;         // 5 billion USD
+    var MAX_PER_GROUP = 10;              // cap each verdict bucket
+    // Collapse state per verdict — initialized from localStorage on DOMContentLoaded.
+    var collapsedGroups = {};
 
     // Remove all dynamically-rendered children of the cards grid while leaving
     // the static filter card (and its event-listener bindings) in place.
@@ -492,15 +523,6 @@
         return (b.row.sms || 0) - (a.row.sms || 0);
       });
 
-      if (classified.length === 0) {
-        var filters = currentMinVolK + 'k min volume' + (excludeMajors ? ' &middot; excluding majors (>5B$ mcap)' : '');
-        clearCards();
-        wrap.insertAdjacentHTML('beforeend', '<div class="momentum-no-matches">No coins from the top ' + totalCount + ' match: ' + filters + '. Loosen the filters to see more candidates.</div>');
-        return;
-      }
-
-      var visible = classified.slice(0, 12);
-
       function renderCard(item) {
         var r = item.row, k = item.klass;
         var sym = (r.s || '').replace(/USDT$/, '');
@@ -534,14 +556,34 @@
       var groupLabels = { building: 'Building', breakout: 'Breakout', igniting: 'Igniting', late: 'Late / avoid' };
       var groupOrder = ['building', 'breakout', 'igniting', 'late'];
       var byGroup = { building: [], breakout: [], igniting: [], late: [] };
-      visible.forEach(function(item) { byGroup[item.klass.v].push(item); });
+      classified.forEach(function(item) {
+        var bucket = byGroup[item.klass.v];
+        if (bucket.length < MAX_PER_GROUP) bucket.push(item);
+      });
+
+      var chevronSvg = '<svg class="mgroup-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
 
       var parts = [];
       groupOrder.forEach(function(v) {
         var group = byGroup[v];
-        if (!group.length) return;
-        parts.push('<h3 class="mgroup-head" data-v="' + v + '">' + groupLabels[v] + ' <span class="mgroup-count">&middot; ' + group.length + '</span></h3>');
-        group.forEach(function(item) { parts.push(renderCard(item)); });
+        var isCollapsed = !!collapsedGroups[v];
+        var totalInBucket = classified.filter(function(it) { return it.klass.v === v; }).length;
+        var countLabel = group.length;
+        if (totalInBucket > MAX_PER_GROUP) countLabel = group.length + ' of ' + totalInBucket;
+        parts.push(
+          '<button type="button" class="mgroup-head" data-v="' + v + '" data-collapsed="' + isCollapsed + '" aria-expanded="' + (!isCollapsed) + '">' +
+            chevronSvg +
+            '<span>' + groupLabels[v] + '</span>' +
+            '<span class="mgroup-count">' + countLabel + '</span>' +
+          '</button>'
+        );
+        parts.push('<div class="mgroup-body" data-v="' + v + '"' + (isCollapsed ? ' hidden' : '') + '>');
+        if (group.length) {
+          group.forEach(function(item) { parts.push(renderCard(item)); });
+        } else {
+          parts.push('<div class="mgroup-empty">No coins in this bucket right now.</div>');
+        }
+        parts.push('</div>');
       });
 
       clearCards();
@@ -554,6 +596,32 @@
       var savedExclude = localStorage.getItem('orion-exclude-majors');
       if (savedExclude === '0') excludeMajors = false;
       else if (savedExclude === '1') excludeMajors = true;
+
+      try {
+        var savedCollapse = JSON.parse(localStorage.getItem('orion-collapsed-groups') || '{}');
+        if (savedCollapse && typeof savedCollapse === 'object') collapsedGroups = savedCollapse;
+      } catch (e) { collapsedGroups = {}; }
+
+      // Click any group header to toggle its body. Delegated on the cards container.
+      var cardsWrap = document.getElementById('momentumCards');
+      if (cardsWrap) {
+        cardsWrap.addEventListener('click', function(e) {
+          var head = e.target.closest('.mgroup-head');
+          if (!head) return;
+          var v = head.getAttribute('data-v');
+          var isCollapsed = head.getAttribute('data-collapsed') === 'true';
+          var nowCollapsed = !isCollapsed;
+          collapsedGroups[v] = nowCollapsed;
+          localStorage.setItem('orion-collapsed-groups', JSON.stringify(collapsedGroups));
+          head.setAttribute('data-collapsed', String(nowCollapsed));
+          head.setAttribute('aria-expanded', String(!nowCollapsed));
+          var body = head.nextElementSibling;
+          if (body && body.classList.contains('mgroup-body')) {
+            if (nowCollapsed) body.setAttribute('hidden', '');
+            else body.removeAttribute('hidden');
+          }
+        });
+      }
 
       var minVolInput = document.getElementById('minVolInput');
       var minVolValue = document.getElementById('minVolValue');
