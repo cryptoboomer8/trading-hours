@@ -291,7 +291,16 @@
     .mcard-pcts .up { color: var(--positive); }
     .mcard-pcts .down { color: var(--negative); }
 
-    .mcard-why { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45; }
+    /* Generic one-liner under each verdict header — replaces the redundant
+       per-card "why" line. */
+    .mgroup-desc {
+      grid-column: 1 / -1;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      padding: 2px 4px 8px;
+      margin: -4px 0 4px;
+    }
 
     .v-building      { background: rgba(0,229,255,0.10);   color: var(--accent);           border: 1px solid rgba(0,229,255,0.30); }
     .v-breakout      { background: rgba(0,230,118,0.10);   color: var(--positive);         border: 1px solid rgba(0,230,118,0.30); }
@@ -610,13 +619,18 @@
               pctSpan(r.c1d) + '<span class="sep">24h</span>' +
             '</span>' +
           '</div>' +
-          '<div class="mcard-why">' + k.why + '</div>' +
           volLine +
         '</article>' +
         '</a>';
       }
 
       var groupLabels = { building: 'Building', breakout: 'Breakout', igniting: 'Igniting', late: 'Late / avoid' };
+      var groupDescriptions = {
+        building: 'Cascading 1h/4h/12h, OI holding up, funding calm \u2014 the sweet spot for slow-buildup entries.',
+        breakout: 'Fresh 1h push (>2.5%) confirmed by rising volume \u2014 real participation, not a wick.',
+        igniting: '1h leading, longer frames not caught up yet \u2014 early-stage, needs confirmation.',
+        late: 'Pumpy, crowded funding, or pinned at the 24h high \u2014 the move is already priced in.'
+      };
       var groupOrder = ['building', 'breakout', 'igniting', 'late'];
       var byGroup = { building: [], breakout: [], igniting: [], late: [] };
       classified.forEach(function(item) {
@@ -638,7 +652,8 @@
             chevronSvg +
             '<span>' + groupLabels[v] + '</span>' +
             '<span class="mgroup-count">' + countLabel + '</span>' +
-          '</button>'
+          '</button>' +
+          '<div class="mgroup-desc">' + groupDescriptions[v] + '</div>'
         );
         parts.push('<div class="mgroup-body" data-v="' + v + '"' + (isCollapsed ? ' hidden' : '') + '>');
         if (group.length) {
