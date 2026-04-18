@@ -50,25 +50,33 @@
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
 
-    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
-    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); transition: all 0.2s; }
-    .viz-menu-toggle:hover { background: var(--surface-hover); }
-    .viz-menu-dropdown { position: absolute; top: 52px; right: 0; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.2s; backdrop-filter: blur(16px); }
-    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
-    .viz-menu-dropdown button { width: 100%; padding: 10px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
-    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 16px; margin-bottom: 16px;
+    }
+    .topbar .back-link {
+      color: var(--text-secondary); text-decoration: none;
+      font-size: 0.84rem; letter-spacing: 0.04em;
+      padding: 6px 10px; border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .topbar .back-link:hover { color: var(--accent); background: var(--surface-hover); }
+    .theme-toggle {
+      width: 32px; height: 32px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: inherit; font-size: 1rem; line-height: 1;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .theme-toggle:hover { background: var(--surface-hover); border-color: rgba(0,229,255,0.25); }
+    .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .theme-icon { display: inline-block; width: 18px; height: 18px; }
 
     .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
     .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
 
-    .dashboard-header { text-align: center; margin-bottom: 48px; position: relative; z-index: 1; }
-    .dashboard-header h1 { margin-bottom: 8px; }
-    .accent-text { color: var(--accent); }
-    .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; }
-    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
-    .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.04em; }
-    .back-link:hover { color: var(--accent); }
 
     /* Sustainable Momentum */
     .momentum-section { margin-bottom: 48px; position: relative; z-index: 1; }
@@ -326,23 +334,15 @@
 <body>
   <div class="bg-atmosphere"></div>
 
-  <div class="viz-menu">
-    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
-    </button>
-    <div class="viz-menu-dropdown" id="vizMenuDropdown">
-      <button onclick="cycleTheme()"><span id="themeIcon"></span><span id="themeLabel">Dark</span></button>
-    </div>
-  </div>
-
   <main role="main">
     <div class="container">
 
-      <section class="dashboard-header animate">
-        <p style="margin-bottom:12px;"><a href="./" class="back-link">&larr; Back to index</a></p>
-        <h1><span class="accent-text">Momentum Tracker</span></h1>
-        <p class="subtitle"><span class="status-dot"></span>Sustainable momentum leaderboard</p>
-      </section>
+      <div class="topbar animate">
+        <a href="./" class="back-link" aria-label="Back to index">&larr; Back</a>
+        <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
+          <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
+        </button>
+      </div>
 
       <section class="momentum-section animate delay-1" aria-labelledby="momentum-head">
         <div class="momentum-head-row">
@@ -381,20 +381,17 @@
   </main>
 
   <script>
-    // === Menu ===
-    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
-    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
-
     // === Theme (shared localStorage key with the trading-hours page) ===
     var savedTheme = localStorage.getItem('viz-theme');
     var currentTheme = savedTheme || 'dark';
+    var THEME_ICON_MOON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    var THEME_ICON_SUN  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
     function applyTheme(t) {
       document.documentElement.className = 'theme-' + t;
       var icon = document.getElementById('themeIcon');
-      var label = document.getElementById('themeLabel');
-      if (icon) icon.textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
-      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
+      // Show the icon of the theme you'll switch TO when clicking — clearer
+      // than showing the icon of the current theme.
+      if (icon) icon.innerHTML = t === 'dark' ? THEME_ICON_SUN : THEME_ICON_MOON;
       localStorage.setItem('viz-theme', t);
       currentTheme = t;
     }
