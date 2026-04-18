@@ -94,8 +94,7 @@
     .refresh-ring-dot {
       width: 10px; height: 10px; border-radius: 50%;
       background: var(--positive);
-      opacity: var(--dot-opacity, 1);
-      box-shadow: 0 0 6px rgba(0,230,118, calc(var(--dot-opacity, 1) * 0.55));
+      box-shadow: 0 0 6px rgba(0,230,118,0.55);
       animation: dot-idle 2.6s ease-in-out infinite;
       transform-origin: center;
     }
@@ -773,17 +772,12 @@
       }
 
       // === Poll-on-change refresh + "freshness" dot ===
-      // Every POLL_INTERVAL_MS we fetch momentum.json; if its ts differs from
-      // the last one we rendered, re-render and reset the freshness dot to
-      // full brightness. The dot fades from 1.0 → MIN_OPACITY over
-      // DOT_FADE_MS so you can see at a glance how overdue the next update
-      // is. Snaps back to bright green the moment new data lands.
+      // Poll momentum.json every POLL_INTERVAL_MS; if ts differs from the
+      // last rendered, re-render and fire a ripple/flash on the dot. The
+      // dot has a constant idle pulse (pure CSS) so it always reads as alive.
       var POLL_INTERVAL_MS = 30 * 1000;
-      var DOT_FADE_MS = POLL_INTERVAL_MS; // dot fades across one poll window
-      var MIN_OPACITY = 0.18;
       var ringEl = document.getElementById('refreshRing');
       var lastSeenTs = null;          // ts string of the most recent payload we rendered
-      var lastPollAt = Date.now();    // wall-clock of the last time we polled (for the fade)
       var polling = false;
 
       function poll() {
@@ -814,19 +808,7 @@
           })
           .finally(function() {
             polling = false;
-            // Reset the fade clock on every successful poll — bright dot
-            // means "just checked", fades across the next 30s wait.
-            lastPollAt = Date.now();
-            tickDot();
           });
-      }
-
-      function tickDot() {
-        if (polling) return;
-        var elapsed = Date.now() - lastPollAt;
-        var ratio = Math.max(0, Math.min(1, elapsed / DOT_FADE_MS));
-        var opacity = 1 - ratio * (1 - MIN_OPACITY);
-        ringEl.style.setProperty('--dot-opacity', opacity.toFixed(2));
       }
 
       // Click the dot to force a poll right now.
@@ -835,7 +817,6 @@
       // Initial load + steady polling loop.
       poll();
       setInterval(poll, POLL_INTERVAL_MS);
-      setInterval(tickDot, 1000);
 
       // Coming back to a hidden tab: poll immediately so we catch any missed updates.
       document.addEventListener('visibilitychange', function() {
