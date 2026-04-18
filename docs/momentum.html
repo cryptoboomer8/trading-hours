@@ -144,6 +144,9 @@
     .momentum-toggle input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; cursor: pointer; }
     .momentum-toggle .momentum-control-value { color: var(--text-secondary); font-weight: 500; margin-left: 2px; }
     .mcard-vol { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; }
+    .mcard-vol .vol-item { white-space: nowrap; }
+    .mcard-vol .vol-sub  { color: var(--text-secondary); }
+    .mcard-vol .vol-sep  { color: var(--text-secondary); margin: 0 4px; }
     .mcard-vol .v { color: var(--text); font-weight: 500; }
     .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
 
@@ -528,7 +531,13 @@
         var sym = (r.s || '').replace(/USDT$/, '');
         var pair = (r.s || '').endsWith('USDT') ? '<span class="pair">/USDT</span>' : '';
         var tradesFmt = (r.t5m || 0).toLocaleString();
-        var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span> &middot; <span class="v">' + tradesFmt + '</span> trades/5m &middot; MCap <span class="v">' + fmtMcap(r.mcap) + '</span></div>';
+        var volLine = '<div class="mcard-vol">' +
+          '<span class="vol-item">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span class="vol-sub">(15m avg)</span></span>' +
+          '<span class="vol-sep">&middot;</span>' +
+          '<span class="vol-item"><span class="v">' + tradesFmt + '</span> trades/5m</span>' +
+          '<span class="vol-sep">&middot;</span>' +
+          '<span class="vol-item">MCap <span class="v">' + fmtMcap(r.mcap) + '</span></span>' +
+        '</div>';
         return '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +
             '<div class="mcard-symbol">' +
