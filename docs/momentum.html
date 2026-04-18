@@ -592,8 +592,7 @@
       if (meta) {
         var d = new Date(data.ts);
         var pad2 = function(n) { return n < 10 ? '0' + n : '' + n; };
-        var tsLabel = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ' CEST';
-        meta.innerHTML = 'Latest snapshot: ' + tsLabel;
+        meta.innerHTML = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ' CEST';
       }
 
       var minVolUsd = currentMinVolK * 1000;
