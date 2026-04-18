@@ -240,11 +240,22 @@
     .mcard-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
     .mcard-symbol { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
     .mcard-symbol .pair { font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; margin-left: 3px; }
-    .mcard-symbol a { color: inherit; text-decoration: none; display: inline-flex; align-items: baseline; gap: 4px; border-radius: 4px; padding: 1px 2px; margin: -1px -2px; transition: color 0.15s, background 0.15s; }
-    .mcard-symbol a:hover { color: var(--accent); text-decoration: underline; text-decoration-color: rgba(0,229,255,0.6); text-underline-offset: 3px; }
-    .mcard-symbol a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .mcard-symbol a .tv-link-icon { width: 12px; height: 12px; opacity: 0.45; transition: opacity 0.15s; flex-shrink: 0; align-self: center; }
-    .mcard-symbol a:hover .tv-link-icon { opacity: 1; color: var(--accent); }
+    .mcard-symbol .sym-wrap { display: inline-flex; align-items: baseline; gap: 4px; }
+    .tv-link-icon { width: 12px; height: 12px; opacity: 0.35; transition: opacity 0.15s; flex-shrink: 0; align-self: center; }
+
+    /* Whole-card link — wraps the <article>, click/middle-click behaves as
+       a normal <a href="..." target="orion-chart"> would. */
+    .mcard-link {
+      display: block;
+      color: inherit;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: transform 0.18s ease;
+    }
+    .mcard-link:hover .tv-link-icon { opacity: 0.9; color: var(--accent); }
+    .mcard-link:hover .mcard-symbol { color: var(--accent); }
+    .mcard-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .mcard-link:focus-visible .mcard { box-shadow: 0 0 0 1px var(--accent); }
     .mcard-price { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
 
     .mcard-verdict {
@@ -540,13 +551,13 @@
           '<span class="vol-item">Trades/5m: <span class="v">' + tradesFmt + '</span></span>' +
           '<span class="vol-item">MCap: <span class="v">' + fmtMcap(r.mcap) + '</span></span>' +
         '</div>';
-        return '<article class="mcard" data-v="' + k.v + '">' +
+        return '<a class="mcard-link" href="./go-chart.html?s=' + encodeURIComponent(r.s) + '" target="orion-chart" title="Click: quick preview. Middle-click / Ctrl-click: open ' + sym + ' in full TradingView tab.">' +
+          '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +
             '<div class="mcard-symbol">' +
-              '<a href="./go-chart.html?s=' + encodeURIComponent(r.s) + '" target="orion-chart" title="Open ' + sym + ' 1m chart in the reusable TradingView tab (drag it to split view once; subsequent clicks replace the chart in place)">' +
-                sym + pair +
+              '<span class="sym-wrap">' + sym + pair +
                 '<svg class="tv-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>' +
-              '</a>' +
+              '</span>' +
             '</div>' +
             '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
           '</div>' +
@@ -561,7 +572,8 @@
           '</div>' +
           '<div class="mcard-why">' + k.why + '</div>' +
           volLine +
-        '</article>';
+        '</article>' +
+        '</a>';
       }
 
       var groupLabels = { building: 'Building', breakout: 'Breakout', igniting: 'Igniting', late: 'Late / avoid' };
@@ -791,7 +803,7 @@
       var cardsContainer = document.getElementById('momentumCards');
       if (cardsContainer) {
         cardsContainer.addEventListener('click', function(e) {
-          var a = e.target.closest('.mcard-symbol a');
+          var a = e.target.closest('.mcard-link');
           if (!a) return;
           // Let modified clicks and non-primary buttons fall through to the
           // normal href (so middle-click / ctrl-click opens full TV in a new tab).
