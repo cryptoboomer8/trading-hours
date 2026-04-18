@@ -96,9 +96,39 @@
       background: var(--positive);
       opacity: var(--dot-opacity, 1);
       box-shadow: 0 0 6px rgba(0,230,118, calc(var(--dot-opacity, 1) * 0.55));
+      animation: dot-idle 2.6s ease-in-out infinite;
+      transform-origin: center;
     }
-    .refresh-ring.refreshing { animation: ring-pulse 0.5s ease-out; }
-    @keyframes ring-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.35); } 100% { transform: scale(1); } }
+    @keyframes dot-idle {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.18); }
+    }
+
+    /* Ripple element — quiet by default, animates out when .fresh is applied. */
+    .refresh-ring-ripple {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--positive);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    @keyframes ring-ripple {
+      0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0.6; }
+      100% { transform: translate(-50%, -50%) scale(4.6); opacity: 0; }
+    }
+    @keyframes dot-flash {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(1.75); }
+      100% { transform: scale(1); }
+    }
+    .refresh-ring.fresh .refresh-ring-dot {
+      /* dot-flash is listed second so it wins the transform when both run */
+      animation: dot-idle 2.6s ease-in-out infinite, dot-flash 0.55s ease-out;
+    }
+    .refresh-ring.fresh .refresh-ring-ripple { animation: ring-ripple 0.9s ease-out; }
 
     .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
 
@@ -385,6 +415,7 @@
           <div class="momentum-meta-row">
             <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
               <span class="refresh-ring-dot" aria-hidden="true"></span>
+              <span class="refresh-ring-ripple" aria-hidden="true"></span>
             </button>
             <div class="momentum-meta" id="momentumMeta">&mdash;</div>
           </div>
@@ -766,9 +797,10 @@
               lastSeenTs = m.ts;
               buildMomentum(m);
               // Brief pulse animation whenever fresh data actually lands.
-              ringEl.classList.remove('refreshing');
-              void ringEl.offsetWidth;   // restart the animation
-              ringEl.classList.add('refreshing');
+              ringEl.classList.remove('fresh');
+              void ringEl.offsetWidth;   // restart the animations
+              ringEl.classList.add('fresh');
+              setTimeout(function() { ringEl.classList.remove('fresh'); }, 950);
             }
             var el = document.getElementById('errorState');
             if (el) el.style.display = 'none';
