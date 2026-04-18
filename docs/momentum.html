@@ -50,17 +50,6 @@
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
 
-    .topbar {
-      display: flex; justify-content: space-between; align-items: center;
-      gap: 16px; margin-bottom: 16px;
-    }
-    .topbar .back-link {
-      color: var(--text-secondary); text-decoration: none;
-      font-size: 0.84rem; letter-spacing: 0.04em;
-      padding: 6px 10px; border-radius: 6px;
-      transition: color 0.15s, background 0.15s;
-    }
-    .topbar .back-link:hover { color: var(--accent); background: var(--surface-hover); }
     .theme-toggle {
       width: 32px; height: 32px;
       background: var(--surface); border: 1px solid var(--border);
@@ -382,13 +371,6 @@
   <main role="main">
     <div class="container">
 
-      <div class="topbar animate">
-        <a href="./" class="back-link" aria-label="Back to index">&larr; Back</a>
-        <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
-          <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
-        </button>
-      </div>
-
       <section class="momentum-section animate delay-1" aria-labelledby="momentum-head">
         <div class="momentum-head-row">
           <h2 id="momentum-head">MOMO Tracker</h2>
@@ -397,6 +379,9 @@
               <span class="refresh-ring-dot" aria-hidden="true"></span>
             </button>
             <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+            <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
+              <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
+            </button>
           </div>
         </div>
         <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
