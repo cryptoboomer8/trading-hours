@@ -753,11 +753,11 @@
       // DOT_FADE_MS so you can see at a glance how overdue the next update
       // is. Snaps back to bright green the moment new data lands.
       var POLL_INTERVAL_MS = 30 * 1000;
-      var DOT_FADE_MS = 5 * 60 * 1000; // same as the Worker cadence
+      var DOT_FADE_MS = POLL_INTERVAL_MS; // dot fades across one poll window
       var MIN_OPACITY = 0.18;
       var ringEl = document.getElementById('refreshRing');
       var lastSeenTs = null;          // ts string of the most recent payload we rendered
-      var lastChangeAt = Date.now();  // wall-clock of the last time ts changed
+      var lastPollAt = Date.now();    // wall-clock of the last time we polled (for the fade)
       var polling = false;
 
       function poll() {
@@ -769,7 +769,6 @@
             if (!m) { showMomentumEmpty(); return; }
             if (m.ts && m.ts !== lastSeenTs) {
               lastSeenTs = m.ts;
-              lastChangeAt = Date.now();
               buildMomentum(m);
               // Brief pulse animation whenever fresh data actually lands.
               ringEl.classList.remove('refreshing');
@@ -788,13 +787,16 @@
           })
           .finally(function() {
             polling = false;
+            // Reset the fade clock on every successful poll — bright dot
+            // means "just checked", fades across the next 30s wait.
+            lastPollAt = Date.now();
             tickDot();
           });
       }
 
       function tickDot() {
         if (polling) return;
-        var elapsed = Date.now() - lastChangeAt;
+        var elapsed = Date.now() - lastPollAt;
         var ratio = Math.max(0, Math.min(1, elapsed / DOT_FADE_MS));
         var opacity = 1 - ratio * (1 - MIN_OPACITY);
         ringEl.style.setProperty('--dot-opacity', opacity.toFixed(2));
