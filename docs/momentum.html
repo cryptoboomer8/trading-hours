@@ -209,6 +209,19 @@
       font-variant-numeric: tabular-nums;
       text-transform: none;
       margin-left: auto;
+      flex-shrink: 0;
+    }
+    .mgroup-head .mgroup-desc-inline {
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      text-transform: none;
+      letter-spacing: 0;
+      line-height: 1.3;
+      min-width: 0;
+      flex: 1 1 0;
+      white-space: normal;
+      text-align: left;
     }
     .mgroup-body {
       grid-column: 1 / -1;
@@ -292,16 +305,6 @@
     .mcard-pcts .up { color: var(--positive); }
     .mcard-pcts .down { color: var(--negative); }
 
-    /* Generic one-liner under each verdict header — replaces the redundant
-       per-card "why" line. */
-    .mgroup-desc {
-      grid-column: 1 / -1;
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      line-height: 1.45;
-      padding: 2px 4px 8px;
-      margin: -4px 0 4px;
-    }
 
     .v-building      { background: rgba(0,229,255,0.10);   color: var(--accent);           border: 1px solid rgba(0,229,255,0.30); }
     .v-breakout      { background: rgba(0,230,118,0.10);   color: var(--positive);         border: 1px solid rgba(0,230,118,0.30); }
@@ -663,9 +666,9 @@
           '<button type="button" class="mgroup-head" data-v="' + v + '" data-collapsed="' + isCollapsed + '" aria-expanded="' + (!isCollapsed) + '">' +
             chevronSvg +
             '<span>' + groupLabels[v] + '</span>' +
+            '<span class="mgroup-desc-inline">' + groupDescriptions[v] + '</span>' +
             '<span class="mgroup-count">' + countLabel + '</span>' +
-          '</button>' +
-          '<div class="mgroup-desc">' + groupDescriptions[v] + '</div>'
+          '</button>'
         );
         parts.push('<div class="mgroup-body" data-v="' + v + '"' + (isCollapsed ? ' hidden' : '') + '>');
         if (group.length) {
