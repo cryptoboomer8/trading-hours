@@ -62,6 +62,14 @@
     .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .theme-icon { display: inline-block; width: 18px; height: 18px; }
 
+    .page-footer {
+      display: flex; justify-content: center;
+      padding: 28px 0 8px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .page-footer:hover { opacity: 1; }
+
     .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
     .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
@@ -73,7 +81,7 @@
     .momentum-head-row h2 { margin: 0; color: var(--text); font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
     .momentum-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; text-align: right; }
 
-    .momentum-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; justify-content: flex-end; margin-bottom: 8px; }
+    .momentum-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
     .refresh-ring {
       position: relative; width: 20px; height: 20px;
       display: inline-flex; align-items: center; justify-content: center;
@@ -374,15 +382,12 @@
       <section class="momentum-section animate delay-1" aria-labelledby="momentum-head">
         <div class="momentum-head-row">
           <h2 id="momentum-head">MOMO Tracker</h2>
-          <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
-            <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
-          </button>
-        </div>
-        <div class="momentum-meta-row">
-          <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
-            <span class="refresh-ring-dot" aria-hidden="true"></span>
-          </button>
-          <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+          <div class="momentum-meta-row">
+            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
+              <span class="refresh-ring-dot" aria-hidden="true"></span>
+            </button>
+            <div class="momentum-meta" id="momentumMeta">&mdash;</div>
+          </div>
         </div>
         <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
         <div class="momentum-cards" id="momentumCards">
@@ -402,6 +407,12 @@
       </section>
 
       <div id="errorState" class="error-state" style="display:none;"></div>
+
+      <footer class="page-footer" role="contentinfo">
+        <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
+          <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
+        </button>
+      </footer>
 
     </div>
   </main>
