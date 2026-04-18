@@ -258,20 +258,6 @@
         </div>
         <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
         <div class="momentum-cards" id="momentumCards"></div>
-
-        <!-- Quick-glance TradingView chart preview overlay -->
-        <div class="preview-backdrop" id="previewBackdrop" hidden>
-          <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="previewSymbol">
-            <div class="preview-head">
-              <div class="preview-title">
-                <span id="previewSymbol" class="preview-sym">&mdash;</span>
-                <a id="previewFullTv" href="#" target="_blank" rel="noopener" class="preview-fulltv">Open full TV &rarr;</a>
-              </div>
-              <button class="preview-close" id="previewClose" aria-label="Close chart preview" type="button">&times;</button>
-            </div>
-            <iframe id="previewFrame" class="preview-frame" title="TradingView 1-minute chart preview" loading="lazy"></iframe>
-          </div>
-        </div>
       </section>
 
       <div id="errorState" class="error-state" style="display:none;"></div>
@@ -640,5 +626,20 @@
       }
     });
   </script>
+
+  <!-- Chart preview pane lives at the body root so position:fixed anchors to
+       the viewport, not to any transformed ancestor like .animate sections. -->
+  <div class="preview-backdrop" id="previewBackdrop" hidden>
+    <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="previewSymbol">
+      <div class="preview-head">
+        <div class="preview-title">
+          <span id="previewSymbol" class="preview-sym">&mdash;</span>
+          <a id="previewFullTv" href="#" target="_blank" rel="noopener" class="preview-fulltv">Open full TV &rarr;</a>
+        </div>
+        <button class="preview-close" id="previewClose" aria-label="Close chart preview" type="button">&times;</button>
+      </div>
+      <iframe id="previewFrame" class="preview-frame" title="TradingView 1-minute chart preview" loading="lazy"></iframe>
+    </div>
+  </div>
 </body>
 </html>
