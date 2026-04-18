@@ -898,7 +898,13 @@
           var href = a.getAttribute('href') || '';
           var m = href.match(/[?&]s=([^&]+)/);
           if (!m) return;
-          openPreview(decodeURIComponent(m[1]));
+          var clickedSymbol = decodeURIComponent(m[1]);
+          // Toggle: clicking the currently-previewed coin closes the pane.
+          if (!previewBackdrop.hidden && previewFrame.dataset.symbol === clickedSymbol) {
+            closePreview();
+          } else {
+            openPreview(clickedSymbol);
+          }
         });
       }
     });
