@@ -183,9 +183,11 @@
       border-bottom: 1px solid var(--border);
       background: transparent;
       cursor: pointer;
-      display: flex;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
       align-items: center;
-      gap: 10px;
+      column-gap: 10px;
+      row-gap: 4px;
       width: 100%;
       text-align: left;
       font-family: inherit;
@@ -201,25 +203,25 @@
     .mgroup-head[data-v="late"]     { color: var(--warning);          border-bottom-color: rgba(255,171,0,0.22); }
     .mgroup-chevron { width: 12px; height: 12px; transition: transform 0.2s ease; flex-shrink: 0; }
     .mgroup-head[data-collapsed="true"] .mgroup-chevron { transform: rotate(-90deg); }
+    .mgroup-chevron { grid-column: 1; grid-row: 1; }
+    .mgroup-label   { grid-column: 2; grid-row: 1; min-width: 0; }
     .mgroup-count {
+      grid-column: 3; grid-row: 1;
       font-size: 0.72rem;
       font-weight: 600;
       color: var(--text-secondary);
       letter-spacing: 0.06em;
       font-variant-numeric: tabular-nums;
       text-transform: none;
-      margin-left: auto;
-      flex-shrink: 0;
     }
     .mgroup-head .mgroup-desc-inline {
+      grid-column: 2 / 4; grid-row: 2;
       font-size: 0.72rem;
       font-weight: 400;
       color: var(--text-secondary);
       text-transform: none;
       letter-spacing: 0;
-      line-height: 1.3;
-      min-width: 0;
-      flex: 1 1 0;
+      line-height: 1.35;
       white-space: normal;
       text-align: left;
     }
@@ -665,9 +667,9 @@
         parts.push(
           '<button type="button" class="mgroup-head" data-v="' + v + '" data-collapsed="' + isCollapsed + '" aria-expanded="' + (!isCollapsed) + '">' +
             chevronSvg +
-            '<span>' + groupLabels[v] + '</span>' +
-            '<span class="mgroup-desc-inline">' + groupDescriptions[v] + '</span>' +
+            '<span class="mgroup-label">' + groupLabels[v] + '</span>' +
             '<span class="mgroup-count">' + countLabel + '</span>' +
+            '<span class="mgroup-desc-inline">' + groupDescriptions[v] + '</span>' +
           '</button>'
         );
         parts.push('<div class="mgroup-body" data-v="' + v + '"' + (isCollapsed ? ' hidden' : '') + '>');
