@@ -361,6 +361,47 @@ def find_latest_gz_fallback():
     return None, None
 
 
+SPARK_WINDOW_SIZE = 48  # number of recent snapshots per sparkline (4h at 5-min)
+
+
+def gather_price_series(window_files, symbols):
+    """Return { symbol: [price, price, ...] } in chronological order.
+
+    Reads only the requested symbols from each snapshot to keep work bounded
+    (per-snapshot iteration over all ~634 tickers is unavoidable, but we skip
+    the payload-building step for coins we don't care about).
+    """
+    if not symbols or not window_files:
+        return {s: [] for s in symbols}
+    series = []  # list of (timestamp, {symbol: price})
+    for fp in window_files:
+        try:
+            data = load_snapshot(fp)
+        except Exception as e:
+            print(f"WARN: spark skip {fp.name}: {e}")
+            continue
+        ts = data.get("timestamp")
+        if not ts:
+            continue
+        tickers = tickers_from(data) or []
+        prices = {}
+        for t in tickers:
+            sym = t.get("symbol")
+            if sym in symbols:
+                px = t.get("price")
+                if px is not None:
+                    prices[sym] = float(px)
+        series.append((ts, prices))
+    # Sort by absolute ISO timestamp
+    series.sort(key=lambda x: x[0])
+    out = {s: [] for s in symbols}
+    for _, prices in series:
+        for sym in symbols:
+            if sym in prices:
+                out[sym].append(prices[sym])
+    return out
+
+
 def write_momentum(latest_gz):
     tickers = tickers_from(latest_gz) or []
     LIQUID_COHORT_MIN_V1M = 50_000.0
@@ -369,18 +410,31 @@ def write_momentum(latest_gz):
         1 for t in tickers
         if ((t.get("tf15m") or {}).get("volume") or 0) / 15.0 >= LIQUID_COHORT_MIN_V1M
     )
+
+    # Attach a compact price series per leaderboard coin so the dashboard can
+    # draw a sparkline without any extra fetches. We read only the last
+    # SPARK_WINDOW_SIZE gz snapshots — linear in window size, not history.
+    symbols = {r["s"] for r in leaderboard}
+    gz_files = sorted(SNAPSHOTS_DIR.glob("snapshot_*.json.gz"))
+    window = gz_files[-SPARK_WINDOW_SIZE:]
+    series = gather_price_series(window, symbols)
+    for r in leaderboard:
+        r["p"] = series.get(r["s"], [])
+
     momentum = {
         "ts": latest_gz.get("timestamp"),
         "universe": len(tickers),
         "cohort": cohort_size,
         "cohort_min_v1m": LIQUID_COHORT_MIN_V1M,
+        "spark_window": SPARK_WINDOW_SIZE,
         "weights": SMS_WEIGHTS,
         "leaderboard": leaderboard,
     }
     MOMENTUM_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(MOMENTUM_OUT, "w", encoding="utf-8") as f:
         json.dump(momentum, f, separators=(",", ":"))
-    print(f"Wrote momentum leaderboard ({len(leaderboard)} coins from {len(tickers)}-coin universe)")
+    total_pts = sum(len(r.get("p") or []) for r in leaderboard)
+    print(f"Wrote momentum leaderboard ({len(leaderboard)} coins from {len(tickers)}-coin universe, {total_pts} spark points)")
 
 
 def main():

@@ -253,6 +253,26 @@
     .mcard-link:focus-visible .mcard { box-shadow: 0 0 0 1px var(--accent); }
     .mcard-price { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-variant-numeric: tabular-nums; }
 
+    /* Sparkline — 4h of recent prices, compact, no axes, colored by verdict */
+    .mcard-spark {
+      display: block;
+      width: 100%;
+      height: 36px;
+      margin: 0 0 10px;
+      overflow: visible;
+    }
+    .mcard-spark polyline { fill: none; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+    .mcard[data-v="building"] .mcard-spark polyline { stroke: var(--accent); }
+    .mcard[data-v="breakout"] .mcard-spark polyline { stroke: var(--positive); }
+    .mcard[data-v="igniting"] .mcard-spark polyline { stroke: var(--accent-secondary); }
+    .mcard[data-v="late"]     .mcard-spark polyline { stroke: var(--warning); }
+    .mcard-spark .spark-area { fill-opacity: 0.12; stroke: none; }
+    .mcard[data-v="building"] .mcard-spark .spark-area { fill: var(--accent); }
+    .mcard[data-v="breakout"] .mcard-spark .spark-area { fill: var(--positive); }
+    .mcard[data-v="igniting"] .mcard-spark .spark-area { fill: var(--accent-secondary); }
+    .mcard[data-v="late"]     .mcard-spark .spark-area { fill: var(--warning); }
+    .mcard-spark .spark-dot { fill: currentColor; }
+
     .mcard-verdict {
       font-size: 0.7rem;
       font-weight: 700;
@@ -437,6 +457,34 @@
       return '$' + Math.round(v);
     }
 
+    function makeSpark(prices) {
+      if (!prices || prices.length < 2) return '';
+      var w = 280, h = 36;
+      var min = Infinity, max = -Infinity;
+      for (var i = 0; i < prices.length; i++) {
+        if (prices[i] < min) min = prices[i];
+        if (prices[i] > max) max = prices[i];
+      }
+      var span = (max - min) || (Math.abs(max) || 1) * 0.001;
+      var step = prices.length > 1 ? w / (prices.length - 1) : 0;
+      var pts = [];
+      for (var j = 0; j < prices.length; j++) {
+        var x = j * step;
+        var y = h - ((prices[j] - min) / span) * (h - 2) - 1;
+        pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+      }
+      var line = pts.join(' ');
+      // Area path underneath the line for a subtle fill.
+      var area = 'M ' + pts[0] + (pts.length > 1 ? ' L ' + pts.slice(1).join(' L ') : '') + ' L ' + w + ',' + h + ' L 0,' + h + ' Z';
+      // Last-point dot
+      var last = pts[pts.length - 1].split(',');
+      return '<svg class="mcard-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path class="spark-area" d="' + area + '"/>' +
+        '<polyline points="' + line + '"/>' +
+        '<circle class="spark-dot" cx="' + last[0] + '" cy="' + last[1] + '" r="2"/>' +
+      '</svg>';
+    }
+
     function fmtMcap(v) {
       if (!v) return '—';
       if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
@@ -552,6 +600,7 @@
             '<div class="mcard-symbol">' + sym + pair + '</div>' +
             '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
           '</div>' +
+          makeSpark(r.p) +
           '<div class="mcard-pcts-row">' +
             '<span class="mcard-pcts">' +
               pctSpan(r.c5m) + '<span class="sep">5m</span>' +
