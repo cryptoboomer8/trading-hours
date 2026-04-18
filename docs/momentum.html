@@ -539,9 +539,9 @@
         var pair = (r.s || '').endsWith('USDT') ? '<span class="pair">/USDT</span>' : '';
         var tradesFmt = (r.t5m || 0).toLocaleString();
         var volLine = '<div class="mcard-vol">' +
-          '<span class="vol-item">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span class="vol-sub">(15m avg)</span></span>' +
-          '<span class="vol-item"><span class="v">' + tradesFmt + '</span> trades/5m</span>' +
-          '<span class="vol-item">MCap <span class="v">' + fmtMcap(r.mcap) + '</span></span>' +
+          '<span class="vol-item">1m MA vol <span class="vol-sub">(15m avg)</span>: <span class="v">' + fmtVolume(r.v1m || 0) + '</span></span>' +
+          '<span class="vol-item">trades/5m: <span class="v">' + tradesFmt + '</span></span>' +
+          '<span class="vol-item">MCap: <span class="v">' + fmtMcap(r.mcap) + '</span></span>' +
         '</div>';
         return '<article class="mcard" data-v="' + k.v + '">' +
           '<div class="mcard-top">' +
