@@ -693,8 +693,8 @@
           localStorage.setItem('orion-collapsed-groups', JSON.stringify(collapsedGroups));
           head.setAttribute('data-collapsed', String(nowCollapsed));
           head.setAttribute('aria-expanded', String(!nowCollapsed));
-          var body = head.nextElementSibling;
-          if (body && body.classList.contains('mgroup-body')) {
+          var body = cardsWrap.querySelector('.mgroup-body[data-v="' + v + '"]');
+          if (body) {
             if (nowCollapsed) body.setAttribute('hidden', '');
             else body.removeAttribute('hidden');
           }
