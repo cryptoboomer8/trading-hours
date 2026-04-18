@@ -331,11 +331,29 @@
     /* Verdict badge sits at the very top-right of the card, above the symbol row. */
     .mcard-verdict-top { align-self: flex-end; margin-bottom: 12px; }
     /* Percent changes keep their own right-aligned row under the price. */
-    .mcard-pcts-row { display: flex; justify-content: flex-start; margin-top: 10px; margin-bottom: 0; }
-    .mcard-pcts { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: var(--text); font-variant-numeric: tabular-nums; display: inline-flex; flex-wrap: wrap; gap: 2px 6px; justify-content: flex-start; }
-    .mcard-pcts .sep { color: var(--text-secondary); margin: 0 6px 0 2px; }
-    .mcard-pcts .up { color: var(--positive); }
-    .mcard-pcts .down { color: var(--negative); }
+    .mcard-pcts {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 3px;
+      margin-top: 10px;
+      margin-bottom: 0;
+    }
+    .pct-cell {
+      border-radius: 4px;
+      padding: 3px 2px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+      min-width: 0;
+    }
+    .pct-cell[data-sign="pos"]  { background: rgba(0, 230, 118, var(--pct-shade, 0.1)); }
+    .pct-cell[data-sign="neg"]  { background: rgba(255, 23, 68, var(--pct-shade, 0.1)); }
+    .pct-cell[data-sign="zero"] { background: rgba(128, 149, 171, 0.08); }
+    .pct-tf { font-size: 0.56rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; line-height: 1; }
+    .pct-val { font-size: 0.74rem; color: var(--text); font-weight: 600; line-height: 1.1; }
 
 
     .v-building      { background: rgba(0,229,255,0.10);   color: var(--accent);           border: 1px solid rgba(0,229,255,0.30); }
@@ -592,10 +610,19 @@
       return p.toFixed(6);
     }
 
-    function pctSpan(v) {
-      var cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
-      var sign = v > 0 ? '+' : '';
-      return '<span class="' + cls + '">' + sign + (v || 0).toFixed(1) + '%</span>';
+    function pctCell(v, tf) {
+      v = v || 0;
+      var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+      // Nonlinear scale so small moves (0–2%) still get visible shading and
+      // big ones (>20%) don't oversaturate. 20% move caps the ramp.
+      var mag = Math.min(1, Math.abs(v) / 20);
+      mag = Math.pow(mag, 0.6);
+      var shade = 0.08 + mag * 0.75;
+      var label = (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+      return '<div class="pct-cell" data-sign="' + sign + '" style="--pct-shade:' + shade.toFixed(2) + ';">' +
+        '<span class="pct-tf">' + tf + '</span>' +
+        '<span class="pct-val">' + label + '</span>' +
+      '</div>';
     }
 
     function buildMomentum(data) {
@@ -652,14 +679,12 @@
             '<div class="mcard-price">$' + formatPrice(r.price) + '</div>' +
           '</div>' +
           makeSpark(r.p) +
-          '<div class="mcard-pcts-row">' +
-            '<span class="mcard-pcts">' +
-              pctSpan(r.c5m) + '<span class="sep">5m</span>' +
-              pctSpan(r.c15m) + '<span class="sep">15m</span>' +
-              pctSpan(r.c1h) + '<span class="sep">1h</span>' +
-              pctSpan(r.c4h) + '<span class="sep">4h</span>' +
-              pctSpan(r.c1d) + '<span class="sep">24h</span>' +
-            '</span>' +
+          '<div class="mcard-pcts">' +
+            pctCell(r.c5m, '5m') +
+            pctCell(r.c15m, '15m') +
+            pctCell(r.c1h, '1h') +
+            pctCell(r.c4h, '4h') +
+            pctCell(r.c1d, '24h') +
           '</div>' +
           volLine +
         '</article>' +
