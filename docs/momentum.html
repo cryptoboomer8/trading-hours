@@ -106,6 +106,35 @@
 
     .momentum-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 
+    /* Group headers span the full grid width so cards below flow underneath cleanly. */
+    .mgroup-head {
+      grid-column: 1 / -1;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin: 0;
+      padding: 2px 0 6px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .mgroup-head:first-child { margin-top: 0; }
+    .mgroup-head + * { margin-top: 2px; } /* first card after a header */
+    .mgroup-head[data-v="building"] { color: var(--accent);           border-bottom-color: rgba(0,229,255,0.22); }
+    .mgroup-head[data-v="breakout"] { color: var(--positive);         border-bottom-color: rgba(0,230,118,0.22); }
+    .mgroup-head[data-v="igniting"] { color: var(--accent-secondary); border-bottom-color: rgba(224,64,251,0.22); }
+    .mgroup-head[data-v="late"]     { color: var(--warning);          border-bottom-color: rgba(255,171,0,0.22); }
+    .mgroup-count {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+      text-transform: none;
+    }
+
     .mcard {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -418,20 +447,13 @@
 
       var visible = classified.slice(0, 12);
 
-      wrap.innerHTML = visible.map(function(item) {
+      function renderCard(item) {
         var r = item.row, k = item.klass;
         var sym = (r.s || '').replace(/USDT$/, '');
         var pair = (r.s || '').endsWith('USDT') ? '<span class="pair">/USDT</span>' : '';
-        var verdictLabel =
-          k.v === 'building' ? 'Building' :
-          k.v === 'breakout' ? 'Breakout' :
-          k.v === 'late' ? 'Late / avoid' : 'Igniting';
-
         var tradesFmt = (r.t5m || 0).toLocaleString();
         var volLine = '<div class="mcard-vol">1m MA vol: <span class="v">' + fmtVolume(r.v1m || 0) + '</span> <span style="color:var(--text-secondary);">(15m avg)</span> &middot; <span class="v">' + tradesFmt + '</span> trades/5m &middot; MCap <span class="v">' + fmtMcap(r.mcap) + '</span></div>';
-
         return '<article class="mcard" data-v="' + k.v + '">' +
-          '<span class="mcard-verdict mcard-verdict-top v-' + k.v + '">' + verdictLabel + '</span>' +
           '<div class="mcard-top">' +
             '<div class="mcard-symbol">' +
               '<a href="./go-chart.html?s=' + encodeURIComponent(r.s) + '" target="orion-chart" title="Open ' + sym + ' 1m chart in the reusable TradingView tab (drag it to split view once; subsequent clicks replace the chart in place)">' +
@@ -453,7 +475,22 @@
           '<div class="mcard-why">' + k.why + '</div>' +
           volLine +
         '</article>';
-      }).join('');
+      }
+
+      var groupLabels = { building: 'Building', breakout: 'Breakout', igniting: 'Igniting', late: 'Late / avoid' };
+      var groupOrder = ['building', 'breakout', 'igniting', 'late'];
+      var byGroup = { building: [], breakout: [], igniting: [], late: [] };
+      visible.forEach(function(item) { byGroup[item.klass.v].push(item); });
+
+      var parts = [];
+      groupOrder.forEach(function(v) {
+        var group = byGroup[v];
+        if (!group.length) return;
+        parts.push('<h3 class="mgroup-head" data-v="' + v + '">' + groupLabels[v] + ' <span class="mgroup-count">&middot; ' + group.length + '</span></h3>');
+        group.forEach(function(item) { parts.push(renderCard(item)); });
+      });
+
+      wrap.innerHTML = parts.join('');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
