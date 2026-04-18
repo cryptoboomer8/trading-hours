@@ -111,9 +111,12 @@
       min-width: 0;
     }
     .momentum-filter-card .filter-row {
-      display: flex; flex-direction: column; gap: 8px;
-      flex: 0 0 240px; min-width: 0;
+      display: flex; flex-direction: row; align-items: center; gap: 10px;
+      flex: 0 0 auto; min-width: 0;
     }
+    .momentum-filter-card .filter-row .filter-label { white-space: nowrap; }
+    .momentum-filter-card .filter-row #minVolInput { width: 140px; }
+    .momentum-filter-card .filter-row .filter-value { white-space: nowrap; }
     .momentum-filter-card .filter-toggle { flex: 0 0 auto; }
     .momentum-filter-card .filter-label {
       display: flex; justify-content: space-between; align-items: baseline;
@@ -322,11 +325,9 @@
           <fieldset class="momentum-filter-card" id="momentumFilterCard">
             <legend class="sr-only">Filters</legend>
             <div class="filter-row">
-              <label for="minVolInput" class="filter-label">
-                Min 1m volume
-                <span class="filter-value"><span id="minVolValue">80</span>k$</span>
-              </label>
+              <label for="minVolInput" class="filter-label">Min 1m vol</label>
               <input type="range" id="minVolInput" min="0" max="500" step="10" value="80" aria-label="Minimum 1-minute volume in thousands of USD">
+              <span class="filter-value"><span id="minVolValue">80</span>k$</span>
             </div>
             <label class="filter-toggle">
               <input type="checkbox" id="excludeMajorsInput" checked aria-label="Exclude majors (mcap above 5 billion USD)">
