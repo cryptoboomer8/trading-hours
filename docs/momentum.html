@@ -272,6 +272,7 @@
     .mcard[data-v="igniting"] .mcard-spark .spark-area { fill: var(--accent-secondary); }
     .mcard[data-v="late"]     .mcard-spark .spark-area { fill: var(--warning); }
     .mcard-spark .spark-dot { fill: currentColor; }
+    .mcard-spark .spark-tick { stroke: var(--text-secondary); stroke-width: 1; opacity: 0.35; }
 
     .mcard-verdict {
       font-size: 0.7rem;
@@ -475,21 +476,32 @@
         if (prices[i] > max) max = prices[i];
       }
       var span = (max - min) || (Math.abs(max) || 1) * 0.001;
-      var step = prices.length > 1 ? w / (prices.length - 1) : 0;
+      var n = prices.length;
+      var step = n > 1 ? w / (n - 1) : 0;
       var pts = [];
-      for (var j = 0; j < prices.length; j++) {
+      for (var j = 0; j < n; j++) {
         var x = j * step;
-        var y = h - ((prices[j] - min) / span) * (h - 2) - 1;
+        var y = h - ((prices[j] - min) / span) * (h - 4) - 2;
         pts.push(x.toFixed(1) + ',' + y.toFixed(1));
       }
       var line = pts.join(' ');
-      // Area path underneath the line for a subtle fill.
       var area = 'M ' + pts[0] + (pts.length > 1 ? ' L ' + pts.slice(1).join(' L ') : '') + ' L ' + w + ',' + h + ' L 0,' + h + ' Z';
-      // Last-point dot
+
+      // Hour ticks along the x-axis baseline, working back from "now".
+      // 5-min snapshot cadence → every 12 points is ~1 hour.
+      var ticks = '';
+      for (var k = 12; k < n; k += 12) {
+        var idx = n - 1 - k;
+        if (idx < 0) break;
+        var tx = (idx * step).toFixed(1);
+        ticks += '<line class="spark-tick" x1="' + tx + '" y1="' + (h - 4) + '" x2="' + tx + '" y2="' + (h - 0.5) + '" vector-effect="non-scaling-stroke"/>';
+      }
+
       var last = pts[pts.length - 1].split(',');
       return '<svg class="mcard-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
         '<path class="spark-area" d="' + area + '"/>' +
         '<polyline points="' + line + '"/>' +
+        ticks +
         '<circle class="spark-dot" cx="' + last[0] + '" cy="' + last[1] + '" r="2"/>' +
       '</svg>';
     }
