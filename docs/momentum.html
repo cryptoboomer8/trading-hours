@@ -374,15 +374,15 @@
       <section class="momentum-section animate delay-1" aria-labelledby="momentum-head">
         <div class="momentum-head-row">
           <h2 id="momentum-head">MOMO Tracker</h2>
-          <div class="momentum-meta-row">
-            <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
-              <span class="refresh-ring-dot" aria-hidden="true"></span>
-            </button>
-            <div class="momentum-meta" id="momentumMeta">&mdash;</div>
-            <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
-              <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
-            </button>
-          </div>
+          <button type="button" class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme" title="Toggle theme">
+            <span id="themeIcon" class="theme-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="momentum-meta-row">
+          <button class="refresh-ring" id="refreshRing" type="button" aria-label="Time since last data update. Click to poll now." title="Time since last data update. Click to poll now.">
+            <span class="refresh-ring-dot" aria-hidden="true"></span>
+          </button>
+          <div class="momentum-meta" id="momentumMeta">&mdash;</div>
         </div>
         <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
         <div class="momentum-cards" id="momentumCards">
