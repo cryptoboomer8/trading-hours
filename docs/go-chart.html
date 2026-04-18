@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Opening chart…</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #060b12; color: #8095ab; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { display: flex; align-items: center; justify-content: center; font-size: 14px; letter-spacing: 0.04em; }
+  </style>
+</head>
+<body>
+  <span id="msg">Opening TradingView…</span>
+  <script>
+    // Tiny same-origin redirect page. The Momentum Tracker opens this with
+    // target="orion-chart" so Chrome honors the named target and reuses the
+    // tab on subsequent clicks — cross-origin named targeting (straight to
+    // tradingview.com) got severed by Chrome's COOP defaults. From here we
+    // replace() into the real TV chart URL, staying in the same tab.
+    (function() {
+      var params = new URLSearchParams(location.search);
+      var symbol = (params.get('s') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var interval = params.get('i') || '1';
+      if (!symbol) {
+        document.getElementById('msg').textContent = 'Missing symbol.';
+        return;
+      }
+      var url = 'https://www.tradingview.com/chart/?symbol=BYBIT:' + symbol + '.P&interval=' + encodeURIComponent(interval);
+      // replace() so the back button skips this stub and returns to the dashboard.
+      location.replace(url);
+    })();
+  </script>
+</body>
+</html>
