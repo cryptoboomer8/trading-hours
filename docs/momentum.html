@@ -93,20 +93,28 @@
 
     .momentum-controls { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
 
-    /* Filter card — sits inside the cards grid as the first item, so it
-       always inherits the same column width as a regular momentum card. */
+    /* Filter card — sits inside the cards grid spanning the full row, with
+       its own children laid out side-by-side until they can't fit, then
+       wrapping to a vertical stack. */
     .momentum-filter-card {
+      grid-column: 1 / -1;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 16px 18px;
+      padding: 14px 18px;
       margin: 0;
       display: flex;
-      flex-direction: column;
-      gap: 16px;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px 28px;
       min-width: 0;
     }
-    .momentum-filter-card .filter-row { display: flex; flex-direction: column; gap: 8px; }
+    .momentum-filter-card .filter-row {
+      display: flex; flex-direction: column; gap: 8px;
+      flex: 1 1 240px; min-width: 0;
+    }
+    .momentum-filter-card .filter-toggle { flex: 0 0 auto; }
     .momentum-filter-card .filter-label {
       display: flex; justify-content: space-between; align-items: baseline;
       gap: 8px; font-size: 0.72rem; color: var(--text-secondary);
