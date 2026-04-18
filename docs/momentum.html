@@ -164,6 +164,48 @@
       .momentum-cards { grid-template-columns: 1fr; }
       .mcard { padding: 14px; }
     }
+
+    /* Chart preview overlay — appears over the tracker itself */
+    .preview-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(4px);
+      z-index: 9000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .preview-backdrop[hidden] { display: none; }
+    .preview-modal {
+      width: 100%; max-width: 820px;
+      height: min(80vh, 640px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .preview-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .preview-title { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+    .preview-sym { font-size: 0.95rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+    .preview-fulltv { font-size: 0.78rem; color: var(--accent); text-decoration: none; white-space: nowrap; }
+    .preview-fulltv:hover { text-decoration: underline; }
+    .preview-close {
+      background: transparent; border: none; color: var(--text-secondary);
+      font-size: 1.6rem; line-height: 1; cursor: pointer;
+      padding: 2px 10px; border-radius: 6px; font-family: inherit;
+    }
+    .preview-close:hover { color: var(--text); background: var(--surface-hover); }
+    .preview-frame {
+      flex: 1; width: 100%; border: 0; background: var(--bg);
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -217,6 +259,20 @@
         </div>
         <div class="momentum-empty" id="momentumEmpty" style="display:none;">No momentum data yet &mdash; waiting for the first full-payload snapshot.</div>
         <div class="momentum-cards" id="momentumCards"></div>
+
+        <!-- Quick-glance TradingView chart preview overlay -->
+        <div class="preview-backdrop" id="previewBackdrop" hidden>
+          <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="previewSymbol">
+            <div class="preview-head">
+              <div class="preview-title">
+                <span id="previewSymbol" class="preview-sym">&mdash;</span>
+                <a id="previewFullTv" href="#" target="_blank" rel="noopener" class="preview-fulltv">Open full TV &rarr;</a>
+              </div>
+              <button class="preview-close" id="previewClose" aria-label="Close chart preview" type="button">&times;</button>
+            </div>
+            <iframe id="previewFrame" class="preview-frame" title="TradingView 1-minute chart preview" loading="lazy"></iframe>
+          </div>
+        </div>
       </section>
 
       <div id="errorState" class="error-state" style="display:none;"></div>
@@ -508,6 +564,77 @@
       document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') poll();
       });
+
+      // === Chart preview overlay ===
+      // Left-click a coin symbol -> quick glance in an embedded TV iframe,
+      // overlaid on the tracker pane. Middle-click / Ctrl-click / Cmd-click
+      // still follow the <a href> (goes via go-chart.html stub to full TV).
+      var previewBackdrop = document.getElementById('previewBackdrop');
+      var previewFrame = document.getElementById('previewFrame');
+      var previewSymbolEl = document.getElementById('previewSymbol');
+      var previewFullTv = document.getElementById('previewFullTv');
+      var previewCloseBtn = document.getElementById('previewClose');
+
+      function buildTvEmbedSrc(symbol) {
+        // Official TradingView widgetembed URL — free, no key, iframe-friendly.
+        // hidesidetoolbar=0 keeps the drawing tools available for a quick measure.
+        var params = [
+          'symbol=BYBIT%3A' + encodeURIComponent(symbol) + '.P',
+          'interval=1',
+          'theme=dark',
+          'style=1',
+          'timezone=Etc%2FUTC',
+          'locale=en',
+          'toolbarbg=060b12',
+          'hidesidetoolbar=0',
+          'hideideas=1',
+          'hotlist=0',
+          'calendar=0',
+          'autosize=1'
+        ];
+        return 'https://s.tradingview.com/widgetembed/?' + params.join('&');
+      }
+
+      function openPreview(symbol) {
+        var display = symbol.replace(/USDT$/, '') + ' / USDT';
+        previewSymbolEl.textContent = display;
+        previewFullTv.href = 'https://www.tradingview.com/chart/?symbol=BYBIT:' + symbol + '.P&interval=1';
+        previewFrame.src = buildTvEmbedSrc(symbol);
+        previewBackdrop.hidden = false;
+        document.body.style.overflow = 'hidden';
+      }
+      function closePreview() {
+        previewBackdrop.hidden = true;
+        // Unload the iframe so it stops streaming when closed.
+        previewFrame.src = 'about:blank';
+        document.body.style.overflow = '';
+      }
+
+      previewCloseBtn.addEventListener('click', closePreview);
+      previewBackdrop.addEventListener('click', function(e) {
+        if (e.target === previewBackdrop) closePreview();
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !previewBackdrop.hidden) closePreview();
+      });
+
+      // Intercept left-clicks on any symbol anchor inside the momentum cards.
+      var cardsContainer = document.getElementById('momentumCards');
+      if (cardsContainer) {
+        cardsContainer.addEventListener('click', function(e) {
+          var a = e.target.closest('.mcard-symbol a');
+          if (!a) return;
+          // Let modified clicks and non-primary buttons fall through to the
+          // normal href (so middle-click / ctrl-click opens full TV in a new tab).
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          // Extract the symbol from the go-chart stub's href (?s=SYMBOL).
+          var href = a.getAttribute('href') || '';
+          var m = href.match(/[?&]s=([^&]+)/);
+          if (!m) return;
+          openPreview(decodeURIComponent(m[1]));
+        });
+      }
     });
   </script>
 </body>
