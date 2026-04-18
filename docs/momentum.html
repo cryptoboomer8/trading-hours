@@ -571,12 +571,14 @@
           'timezone=Etc%2FUTC',
           'locale=en',
           'toolbarbg=060b12',
-          'hidesidetoolbar=0',
-          'hide_legend=1',      // hide the OHLC + symbol header bar
+          'hide_top_toolbar=1',  // strip the interval/compare/indicator row
+          'hide_legend=1',       // hide the OHLC + symbol header bar
+          'hidesidetoolbar=1',   // hide the left drawing-tools column
           'hideideas=1',
           'hotlist=0',
           'calendar=0',
           'details=0',
+          'studies=%5B%22Volume%40tv-basicstudies%22%5D', // force volume pane even if globally off
           'autosize=1'
         ];
         return 'https://s.tradingview.com/widgetembed/?' + params.join('&');
