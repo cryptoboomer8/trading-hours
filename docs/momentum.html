@@ -205,9 +205,6 @@
       color: var(--text);
       font-variant-numeric: tabular-nums;
     }
-    .mcard-vol .vol-item.corr-high .v { color: var(--warning); }
-    .mcard-vol .vol-item.corr-low  .v { color: var(--positive); }
-    .mcard-vol .vol-item.corr-neg  .v { color: var(--accent); }
     .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
 
     .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
@@ -712,9 +709,8 @@
         var tradesFmt = (r.t5m || 0).toLocaleString();
         var corrStat = '';
         if (r.corr4h != null) {
-          var cb = r.corr4h >= 0.7 ? 'corr-high' : r.corr4h < 0 ? 'corr-neg' : r.corr4h < 0.3 ? 'corr-low' : '';
           var corrStr = (r.corr4h >= 0 ? '+' : '') + r.corr4h.toFixed(2);
-          corrStat = '<div class="vol-item ' + cb + '"><span class="label">BTC Corr 4h</span><span class="v">' + corrStr + '</span></div>';
+          corrStat = '<div class="vol-item"><span class="label">BTC Corr 4h</span><span class="v">' + corrStr + '</span></div>';
         }
         var volLine = '<div class="mcard-vol">' +
           '<div class="vol-item"><span class="label">Vol 1m</span><span class="v">' + fmtVolume(r.v1m || 0) + '</span></div>' +
