@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pct Cell Variants &mdash; Experiment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html.theme-dark {
+      --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1; --text-secondary: #8095ab;
+      --accent: #00e5ff; --accent-secondary: #e040fb;
+      --positive: #00e676; --negative: #ff1744; --warning: #ffab00;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(0,229,255,0.05), transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(224,64,251,0.05), transparent 50%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      padding: 40px 24px 80px;
+    }
+
+    .container { max-width: 1080px; margin: 0 auto; }
+    h1 { font-weight: 800; font-size: 2rem; letter-spacing: -0.025em; margin-bottom: 6px; }
+    h1 .accent-text { color: var(--accent); }
+    .lede { color: var(--text-secondary); max-width: 700px; margin-bottom: 40px; font-size: 0.98rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text-secondary); text-decoration: none; padding: 6px 10px; border-radius: 6px; margin-bottom: 18px; transition: color 0.15s, background 0.15s; }
+    .back-link:hover { color: var(--accent); background: var(--surface-hover); }
+
+    .variant {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .variant h2 {
+      font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.015em;
+      color: var(--accent);
+    }
+    .variant-note { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.5; }
+
+    .strips { display: flex; flex-direction: column; gap: 14px; }
+    .strip {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .strip-label {
+      padding-top: 14px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      line-height: 1.35;
+    }
+    .strip-label strong { display: block; color: var(--text); font-weight: 600; font-size: 0.88rem; margin-bottom: 2px; letter-spacing: -0.01em; }
+
+    /* Shared heatmap grid */
+    .pcts {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: auto auto;
+      column-gap: 3px;
+      row-gap: 3px;
+      max-width: 360px;
+    }
+    .pct-tf {
+      font-size: 0.58rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 500;
+      line-height: 1;
+      text-align: center;
+      align-self: end;
+    }
+    .pct-cell {
+      border-radius: 4px;
+      padding: 5px 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text);
+      min-width: 0;
+    }
+
+    /* ============= OPTION A: discrete 3-tier buckets ============= */
+    .optA .pct-cell[data-sign="pos"][data-bucket="0"] { background: rgba(0,230,118,0.07); }
+    .optA .pct-cell[data-sign="pos"][data-bucket="1"] { background: rgba(0,230,118,0.22); }
+    .optA .pct-cell[data-sign="pos"][data-bucket="2"] { background: rgba(0,230,118,0.42); }
+    .optA .pct-cell[data-sign="neg"][data-bucket="0"] { background: rgba(255,23,68,0.08); }
+    .optA .pct-cell[data-sign="neg"][data-bucket="1"] { background: rgba(255,23,68,0.25); }
+    .optA .pct-cell[data-sign="neg"][data-bucket="2"] { background: rgba(255,23,68,0.45); }
+    .optA .pct-cell[data-sign="zero"] { background: rgba(128,149,171,0.08); }
+
+    /* ============= OPTION B: flat tint + font weight emphasis ============= */
+    .optB .pct-cell[data-sign="pos"]  { background: rgba(0,230,118,0.13); }
+    .optB .pct-cell[data-sign="neg"]  { background: rgba(255,23,68,0.13); }
+    .optB .pct-cell[data-sign="zero"] { background: rgba(128,149,171,0.08); }
+    .optB .pct-cell[data-bucket="0"] { font-weight: 500; font-size: 0.70rem; color: var(--text-secondary); }
+    .optB .pct-cell[data-bucket="1"] { font-weight: 600; font-size: 0.74rem; color: var(--text); }
+    .optB .pct-cell[data-bucket="2"] { font-weight: 700; font-size: 0.82rem; color: var(--text); }
+
+    /* ============= OPTION C: flat tint + magnitude bar at bottom ============= */
+    .optC .pct-cell {
+      position: relative;
+      padding-bottom: 8px;
+      overflow: hidden;
+    }
+    .optC .pct-cell[data-sign="pos"]  { background: rgba(0,230,118,0.10); }
+    .optC .pct-cell[data-sign="neg"]  { background: rgba(255,23,68,0.10); }
+    .optC .pct-cell[data-sign="zero"] { background: rgba(128,149,171,0.06); }
+    .optC .pct-cell::after {
+      content: '';
+      position: absolute;
+      left: 6%; right: 6%;
+      bottom: 2px;
+      height: 2px;
+      border-radius: 1px;
+      background: transparent;
+      transform: scaleX(var(--mag-bar, 0));
+      transform-origin: left center;
+      transition: transform 0.2s ease;
+    }
+    .optC .pct-cell[data-sign="pos"]::after { background: var(--positive); }
+    .optC .pct-cell[data-sign="neg"]::after { background: var(--negative); }
+
+    /* ============= OPTION D: plain colored text, no fills ============= */
+    .optD .pct-cell { background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; }
+    .optD .pct-cell[data-sign="pos"] { color: var(--positive); }
+    .optD .pct-cell[data-sign="neg"] { color: var(--negative); }
+    .optD .pct-cell[data-sign="zero"] { color: var(--text-secondary); }
+
+    @media (max-width: 620px) {
+      .strip { grid-template-columns: 1fr; gap: 8px; }
+      .strip-label { padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <a class="back-link" href="./momentum.html">&larr; Back to momentum</a>
+    <h1>Pct Cell <span class="accent-text">Variants</span></h1>
+    <p class="lede">Four design options for the cascading percent-change row. Same five example patterns rendered each way — pick the look that reads cleanest for you. All examples use identical data so the only variable is the visual treatment.</p>
+
+    <!-- Option A -->
+    <section class="variant">
+      <h2>Option A &mdash; 3-tier buckets</h2>
+      <p class="variant-note">Three discrete color intensities per sign: <em>faint</em> (&lt;1%), <em>medium</em> (1&ndash;5%), <em>strong</em> (&gt;5%). No muddy middles, cells read as "levels" rather than a gradient.</p>
+      <div class="strips optA" id="stripsA"></div>
+    </section>
+
+    <!-- Option B -->
+    <section class="variant">
+      <h2>Option B &mdash; Flat tint, text carries emphasis</h2>
+      <p class="variant-note">Every cell gets the same subtle green/red fill. The number itself grows bolder and larger with magnitude. Pattern comes from text weight, not from background shade.</p>
+      <div class="strips optB" id="stripsB"></div>
+    </section>
+
+    <!-- Option C -->
+    <section class="variant">
+      <h2>Option C &mdash; Flat tint + magnitude bar</h2>
+      <p class="variant-note">Each cell has one fixed background tint. A thin colored bar at the bottom fills proportional to magnitude. The pattern reads as bar lengths — smooth continuous signal without muddy fill colors.</p>
+      <div class="strips optC" id="stripsC"></div>
+    </section>
+
+    <!-- Option D -->
+    <section class="variant">
+      <h2>Option D &mdash; Plain colored text, no fills</h2>
+      <p class="variant-note">Back to basics: no backgrounds at all, just green/red numbers with a thin underline. Smallest visual footprint. You lose the quick pattern recognition but the row is calmer.</p>
+      <div class="strips optD" id="stripsD"></div>
+    </section>
+  </main>
+
+  <script>
+    // Example patterns — realistic numbers that produce the verdict signatures.
+    var EXAMPLES = [
+      { title: 'Building',        note: 'Staircase up — cascading green across timeframes',        vals: [0.5, 1.2, 3.0, 5.2, 8.4] },
+      { title: 'Breakout',        note: 'Big 1h and 4h, everything elevated but sustained',       vals: [1.2, 3.8, 4.8, 6.1, 7.5] },
+      { title: 'Late (extended)', note: 'Small 5m, huge 24h — move already ran',                  vals: [0.1, 0.3, 0.5, 8.9, 12.4] },
+      { title: 'Pumpy',           note: 'Front-loaded 5m, nothing else confirms',                 vals: [4.5, 1.1, 0.8, 0.4, -1.2] },
+      { title: 'Fading',          note: 'All red, longer frames still red — downtrend',           vals: [-0.8, -1.5, -2.2, -3.5, -5.1] }
+    ];
+    var TF_LABELS = ['5m', '15m', '1h', '4h', '24h'];
+
+    // Helpers ----------
+
+    function bucketFor(v) {
+      var a = Math.abs(v);
+      if (a < 1) return 0;
+      if (a < 5) return 1;
+      return 2;
+    }
+
+    function magBar(v) {
+      var a = Math.min(1, Math.abs(v) / 20);
+      return Math.pow(a, 0.55); // mild ease so small moves still show a bar
+    }
+
+    function labelsRow() {
+      return TF_LABELS.map(function(tf) { return '<span class="pct-tf">' + tf + '</span>'; }).join('');
+    }
+
+    // Cell renderers per option ----------
+
+    function cellA(v) {
+      var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+      var b = bucketFor(v);
+      var txt = (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+      return '<div class="pct-cell" data-sign="' + sign + '" data-bucket="' + b + '">' + txt + '</div>';
+    }
+    function cellB(v) {
+      var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+      var b = bucketFor(v);
+      var txt = (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+      return '<div class="pct-cell" data-sign="' + sign + '" data-bucket="' + b + '">' + txt + '</div>';
+    }
+    function cellC(v) {
+      var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+      var bar = magBar(v);
+      var txt = (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+      return '<div class="pct-cell" data-sign="' + sign + '" style="--mag-bar:' + bar.toFixed(2) + '">' + txt + '</div>';
+    }
+    function cellD(v) {
+      var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+      var txt = (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+      return '<div class="pct-cell" data-sign="' + sign + '">' + txt + '</div>';
+    }
+
+    function renderStrip(vals, cellFn) {
+      return '<div class="pcts">' + labelsRow() + vals.map(cellFn).join('') + '</div>';
+    }
+
+    function renderStrips(containerId, cellFn) {
+      var c = document.getElementById(containerId);
+      c.innerHTML = EXAMPLES.map(function(ex) {
+        return '<div class="strip">' +
+          '<div class="strip-label"><strong>' + ex.title + '</strong>' + ex.note + '</div>' +
+          renderStrip(ex.vals, cellFn) +
+        '</div>';
+      }).join('');
+    }
+
+    renderStrips('stripsA', cellA);
+    renderStrips('stripsB', cellB);
+    renderStrips('stripsC', cellC);
+    renderStrips('stripsD', cellD);
+  </script>
+</body>
+</html>
