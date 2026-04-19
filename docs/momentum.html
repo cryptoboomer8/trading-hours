@@ -682,10 +682,17 @@
         return (b.row.sms || 0) - (a.row.sms || 0);
       });
 
+      function splitSymbol(s) {
+        s = s || '';
+        var m = s.match(/^(.+?)(USDT|USDC)$/);
+        return m ? { base: m[1], quote: m[2] } : { base: s, quote: '' };
+      }
+
       function renderCard(item) {
         var r = item.row, k = item.klass;
-        var sym = (r.s || '').replace(/USDT$/, '');
-        var pair = (r.s || '').endsWith('USDT') ? '<span class="pair">/USDT</span>' : '';
+        var parts = splitSymbol(r.s);
+        var sym = parts.base;
+        var pair = parts.quote ? '<span class="pair">/' + parts.quote + '</span>' : '';
         var tradesFmt = (r.t5m || 0).toLocaleString();
         var volLine = '<div class="mcard-vol">' +
           '<span class="vol-item">Vol/1m (15m avg): <span class="v">' + fmtVolume(r.v1m || 0) + '</span></span>' +
@@ -908,7 +915,8 @@
       }
 
       function openPreview(symbol) {
-        var display = symbol.replace(/USDT$/, '') + ' / USDT';
+        var parts = splitSymbol(symbol);
+        var display = parts.quote ? parts.base + ' / ' + parts.quote : symbol;
         previewSymbolEl.textContent = display;
         previewFullTv.href = 'https://www.tradingview.com/chart/?symbol=BYBIT:' + symbol + '.P&interval=1';
         // Only reload the iframe when the symbol actually changed; avoids
