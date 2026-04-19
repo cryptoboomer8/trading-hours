@@ -168,6 +168,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "funding": fund,
             "v1m": vol_per_min,
             "t5m": trades_5m,
+            "corr4h": tf4h.get("btcCorrelation"),
             "c5m": c5m,
             "c15m": c15m,
             "c1h": c1h,
@@ -236,6 +237,7 @@ def compute_sms_leaderboard(tickers, top_n: int = 30, min_v1m: float = 50_000.0)
             "rng": round(rng_pct(f), 2),
             "v1m": round(f["v1m"]),  # approx 1-minute MA volume (USD)
             "t5m": f["t5m"],          # raw 5-minute trade count
+            "corr4h": round(f["corr4h"], 2) if f["corr4h"] is not None else None,
         }
         for f in top
     ]

@@ -182,16 +182,32 @@
     .momentum-toggle input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; cursor: pointer; }
     .momentum-toggle .momentum-control-value { color: var(--text-secondary); font-weight: 500; margin-left: 2px; }
     .mcard-vol {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.72rem;
-      color: var(--text-secondary);
       margin-top: 12px;
-      display: flex; flex-wrap: wrap;
-      align-items: baseline;
-      column-gap: 12px; row-gap: 4px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+      gap: 10px 14px;
     }
-    .mcard-vol .vol-item { white-space: nowrap; }
-    .mcard-vol .v { color: var(--text); font-weight: 500; }
+    .mcard-vol .vol-item {
+      display: flex; flex-direction: column; gap: 2px;
+      white-space: nowrap; min-width: 0;
+    }
+    .mcard-vol .vol-item .label {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.6rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .mcard-vol .vol-item .v {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem; font-weight: 600;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .mcard-vol .vol-item.corr-high .v { color: var(--warning); }
+    .mcard-vol .vol-item.corr-low  .v { color: var(--positive); }
+    .mcard-vol .vol-item.corr-neg  .v { color: var(--accent); }
     .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
 
     .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
@@ -694,10 +710,17 @@
         var sym = parts.base;
         var pair = parts.quote ? '<span class="pair">/' + parts.quote + '</span>' : '';
         var tradesFmt = (r.t5m || 0).toLocaleString();
+        var corrStat = '';
+        if (r.corr4h != null) {
+          var cb = r.corr4h >= 0.7 ? 'corr-high' : r.corr4h < 0 ? 'corr-neg' : r.corr4h < 0.3 ? 'corr-low' : '';
+          var corrStr = (r.corr4h >= 0 ? '+' : '') + r.corr4h.toFixed(2);
+          corrStat = '<div class="vol-item ' + cb + '"><span class="label">BTC Corr 4h</span><span class="v">' + corrStr + '</span></div>';
+        }
         var volLine = '<div class="mcard-vol">' +
-          '<span class="vol-item">Vol/1m (15m avg): <span class="v">' + fmtVolume(r.v1m || 0) + '</span></span>' +
-          '<span class="vol-item">Trades/5m: <span class="v">' + tradesFmt + '</span></span>' +
-          '<span class="vol-item">MCap: <span class="v">' + fmtMcap(r.mcap) + '</span></span>' +
+          '<div class="vol-item"><span class="label">Vol 1m</span><span class="v">' + fmtVolume(r.v1m || 0) + '</span></div>' +
+          '<div class="vol-item"><span class="label">Trades 5m</span><span class="v">' + tradesFmt + '</span></div>' +
+          '<div class="vol-item"><span class="label">MCap</span><span class="v">' + fmtMcap(r.mcap) + '</span></div>' +
+          corrStat +
         '</div>';
         return '<a class="mcard-link" href="./go-chart.html?s=' + encodeURIComponent(r.s) + '" target="orion-chart" title="Click: quick preview. Middle-click / Ctrl-click: open ' + sym + ' in full TradingView tab.">' +
           '<article class="mcard" data-v="' + k.v + '">' +
