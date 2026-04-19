@@ -351,8 +351,9 @@
       align-self: end;
     }
     .pct-cell {
+      position: relative;
       border-radius: 4px;
-      padding: 5px 2px;
+      padding: 5px 2px 8px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -362,10 +363,23 @@
       font-weight: 600;
       color: var(--text);
       min-width: 0;
+      overflow: hidden;
     }
-    .pct-cell[data-sign="pos"]  { background: rgba(0, 230, 118, var(--pct-shade, 0.1)); }
-    .pct-cell[data-sign="neg"]  { background: rgba(255, 23, 68, var(--pct-shade, 0.1)); }
-    .pct-cell[data-sign="zero"] { background: rgba(128, 149, 171, 0.08); }
+    .pct-cell[data-sign="pos"]  { background: rgba(0, 230, 118, 0.10); }
+    .pct-cell[data-sign="neg"]  { background: rgba(255, 23, 68, 0.10); }
+    .pct-cell[data-sign="zero"] { background: rgba(128, 149, 171, 0.06); }
+    .pct-cell::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      bottom: 0;
+      height: 3px;
+      background: transparent;
+      opacity: var(--mag-shade, 0);
+    }
+    .pct-cell[data-sign="pos"]::after  { background: var(--positive); }
+    .pct-cell[data-sign="neg"]::after  { background: var(--negative); }
+    .pct-cell[data-sign="zero"]::after { background: var(--text-secondary); }
 
 
     .v-building      { background: rgba(0,229,255,0.10);   color: var(--accent);           border: 1px solid rgba(0,229,255,0.30); }
@@ -625,13 +639,10 @@
     function pctCell(v) {
       v = v || 0;
       var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
-      // Nonlinear scale so small moves (0–2%) still get visible shading and
-      // big ones (>20%) don't oversaturate. 20% move caps the ramp.
-      var mag = Math.min(1, Math.abs(v) / 20);
-      mag = Math.pow(mag, 0.6);
-      var shade = 0.08 + mag * 0.75;
+      var a = Math.abs(v);
+      var shade = a < 1 ? 0.20 : a < 3 ? 0.45 : a < 6 ? 0.75 : 1.0;
       var label = (v > 0 ? '+' : '') + v.toFixed(1) + '%';
-      return '<div class="pct-cell" data-sign="' + sign + '" style="--pct-shade:' + shade.toFixed(2) + ';">' + label + '</div>';
+      return '<div class="pct-cell" data-sign="' + sign + '" style="--mag-shade:' + shade.toFixed(2) + ';">' + label + '</div>';
     }
 
     function buildMomentum(data) {
