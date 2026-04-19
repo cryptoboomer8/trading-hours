@@ -636,6 +636,12 @@
       return p.toFixed(6);
     }
 
+    function splitSymbol(s) {
+      s = s || '';
+      var m = s.match(/^(.+?)(USDT|USDC)$/);
+      return m ? { base: m[1], quote: m[2] } : { base: s, quote: '' };
+    }
+
     function pctCell(v) {
       v = v || 0;
       var sign = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
@@ -681,12 +687,6 @@
         if (oa !== ob) return oa - ob;
         return (b.row.sms || 0) - (a.row.sms || 0);
       });
-
-      function splitSymbol(s) {
-        s = s || '';
-        var m = s.match(/^(.+?)(USDT|USDC)$/);
-        return m ? { base: m[1], quote: m[2] } : { base: s, quote: '' };
-      }
 
       function renderCard(item) {
         var r = item.row, k = item.klass;
