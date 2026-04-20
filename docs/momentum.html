@@ -205,6 +205,8 @@
       color: var(--text);
       font-variant-numeric: tabular-nums;
     }
+    .mcard-vol .vol-item .v.trades-hi { color: var(--positive); }
+    .mcard-vol .vol-item .v.trades-lo { color: var(--negative); }
     .momentum-no-matches { padding: 28px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
 
     .momentum-empty { padding: 40px 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
@@ -706,7 +708,9 @@
         var parts = splitSymbol(r.s);
         var sym = parts.base;
         var pair = parts.quote ? '<span class="pair">/' + parts.quote + '</span>' : '';
-        var tradesFmt = String(r.t5m || 0).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+        var tradesCount = r.t5m || 0;
+        var tradesFmt = String(tradesCount).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+        var tradesCls = tradesCount >= 10000 ? ' trades-hi' : (tradesCount < 5000 ? ' trades-lo' : '');
         var corrStat = '';
         if (r.corr4h != null) {
           var corrStr = (r.corr4h >= 0 ? '+' : '') + r.corr4h.toFixed(2);
@@ -714,7 +718,7 @@
         }
         var volLine = '<div class="mcard-vol">' +
           '<div class="vol-item"><span class="label">Vol 1m</span><span class="v">' + fmtVolume(r.v1m || 0) + '</span></div>' +
-          '<div class="vol-item"><span class="label">Trades 5m</span><span class="v">' + tradesFmt + '</span></div>' +
+          '<div class="vol-item"><span class="label">Trades 5m</span><span class="v' + tradesCls + '">' + tradesFmt + '</span></div>' +
           '<div class="vol-item"><span class="label">MCap</span><span class="v">' + fmtMcap(r.mcap) + '</span></div>' +
           corrStat +
         '</div>';
