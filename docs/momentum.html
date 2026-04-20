@@ -706,7 +706,7 @@
         var parts = splitSymbol(r.s);
         var sym = parts.base;
         var pair = parts.quote ? '<span class="pair">/' + parts.quote + '</span>' : '';
-        var tradesFmt = (r.t5m || 0).toLocaleString();
+        var tradesFmt = String(r.t5m || 0).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
         var corrStat = '';
         if (r.corr4h != null) {
           var corrStr = (r.corr4h >= 0 ? '+' : '') + r.corr4h.toFixed(2);
