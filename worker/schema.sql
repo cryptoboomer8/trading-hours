@@ -2,5 +2,5 @@ CREATE TABLE IF NOT EXISTS rows (
   ts TEXT PRIMARY KEY,
   tR TEXT NOT NULL,
   vR TEXT NOT NULL,
-  tS TEXT
+  symbols TEXT
 );

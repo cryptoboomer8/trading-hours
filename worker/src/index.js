@@ -53,7 +53,7 @@ async function addRow(request, env) {
     return new Response("Invalid row", { status: 400 });
   }
   const [insert] = await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO rows (ts, tR, vR, tS) VALUES (?, ?, ?, ?)").bind(
+    env.DB.prepare("INSERT OR IGNORE INTO rows (ts, tR, vR, symbols) VALUES (?, ?, ?, ?)").bind(
       row.ts,
       JSON.stringify(row.tR),
       JSON.stringify(row.vR),
@@ -67,11 +67,11 @@ async function addRow(request, env) {
 
 async function readRows(env) {
   if (!cached || Date.now() - cached.at > READ_CACHE_MS) {
-    const rows = await env.DB.prepare("SELECT ts, tR, vR, tS FROM rows WHERE ts >= ? ORDER BY ts")
+    const rows = await env.DB.prepare("SELECT ts, tR, vR, symbols FROM rows WHERE ts >= ? ORDER BY ts")
       .bind(cutoff())
       .raw();
-    // tR, vR and tS are already JSON, so join the text rather than parse it.
-    // tS is null on rows saved before names were stored.
+    // tR, vR and symbols are already JSON, so join the text rather than parse it.
+    // symbols is null on rows saved before names were stored.
     const body = "[" + rows.map((r) => `{"ts":"${r[0]}","tR":${r[1]},"vR":${r[2]},"tS":${r[3]}}`).join(",") + "]";
     cached = { at: Date.now(), body };
   }
