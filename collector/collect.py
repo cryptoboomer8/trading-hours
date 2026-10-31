@@ -22,7 +22,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 BINANCE = "https://fapi.binance.com"
-API_URL = "https://trading-hours.cryptoboomer.workers.dev/rows"
+API_URL = "https://trading-hours.cryptoboomer.workers.dev"
 USER_AGENT = "orion-collector"
 SLOT_MS = 5 * 60 * 1000
 TOP_N = 20
@@ -60,8 +60,7 @@ def binance_get(path):
     return payload
 
 
-def collect_row(now_ms):
-    """Return the row for the last closed 5-minute candle, or raise."""
+def active_symbols():
     info = binance_get("/fapi/v1/exchangeInfo")
     symbols = [
         s["symbol"]
@@ -70,6 +69,24 @@ def collect_row(now_ms):
     ]
     if len(symbols) < MIN_SYMBOLS:
         raise RuntimeError(f"only {len(symbols)} symbols from exchangeInfo")
+    return symbols
+
+
+def post(path, body):
+    result, _ = request(
+        os.environ.get("ORION_API_URL", API_URL) + path,
+        headers={
+            "Authorization": f"Bearer {os.environ['ORION_WRITE_SECRET']}",
+            "Content-Type": "application/json",
+        },
+        body=body,
+    )
+    return result
+
+
+def collect_row(now_ms):
+    """Return the row for the last closed 5-minute candle, or raise."""
+    symbols = active_symbols()
 
     slot = now_ms - now_ms % SLOT_MS - SLOT_MS
     candles = []
@@ -107,14 +124,7 @@ def main():
     if dry_run:
         print(json.dumps(row))
         return
-    result, _ = request(
-        os.environ.get("ORION_API_URL", API_URL),
-        headers={
-            "Authorization": f"Bearer {os.environ['ORION_WRITE_SECRET']}",
-            "Content-Type": "application/json",
-        },
-        body=row,
-    )
+    result = post("/rows", row)
     print(f"{row['ts']} added={result['added']}: top trades {row['tR'][0]}")
     ping_healthcheck()
 

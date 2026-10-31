@@ -175,6 +175,22 @@
     .chart-section { margin-bottom: 48px; position: relative; z-index: 1; }
     .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; transition: box-shadow 0.2s ease; }
     .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
+    .coins-section { margin-bottom: 48px; position: relative; z-index: 1; }
+    .coin-search { padding: 8px 12px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; }
+    .coin-card { padding: 16px 20px; margin-bottom: 20px; }
+    .coin-table-wrap { overflow-x: auto; }
+    .coin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .coin-table th { text-align: left; font-weight: 500; font-size: 0.75rem; color: var(--text-secondary); padding: 8px 10px; }
+    .coin-table td { padding: 7px 10px; border-top: 1px solid var(--border); white-space: nowrap; }
+    .coin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .coin-table tbody tr { cursor: pointer; }
+    .coin-table tbody tr:hover, .coin-table tbody tr.selected { background: var(--surface-hover); }
+    .coin-table svg { display: block; }
+    .coin-up { color: #22c55e; }
+    .coin-down { color: #ef4444; }
+    .coin-choppy { color: #f59e0b; }
+    .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; }
+    .coin-detail h3 { font-size: 1rem; margin-bottom: 16px; }
     .chart-container { position: relative; height: 380px; }
 
     .dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px; position: relative; z-index: 1; }
@@ -306,6 +322,28 @@
               <span>Low</span>
               <div class="legend-bar" id="legendBar"></div>
               <span>High</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- POPULAR COINS -->
+        <section class="coins-section" data-reveal>
+          <h2>Popular Coins</h2>
+          <p class="section-sub">Every Binance perpetual, ranked by total trades in the selected period &mdash; click a coin for its history</p>
+          <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
+          <div class="chart-card coin-card">
+            <div class="coin-table-wrap">
+              <table class="coin-table">
+                <thead><tr><th>#</th><th>Coin</th><th class="num">Trades</th><th class="num">Trades / day</th><th class="num">Volume</th><th>Price</th><th class="num">Change</th><th>Trend</th></tr></thead>
+                <tbody id="coinRows"></tbody>
+              </table>
+            </div>
+            <p class="section-sub coin-note" id="coinNote"></p>
+          </div>
+          <div class="chart-card coin-detail">
+            <h3 id="coinTitle">&mdash;</h3>
+            <div class="chart-container" role="img" aria-label="Daily trade count and closing price for the selected coin">
+              <canvas id="coinChart"></canvas>
             </div>
           </div>
         </section>
@@ -837,8 +875,151 @@
       currentWindowDays = parseInt(btn.dataset.days, 10);
       document.querySelectorAll('#windowToggle button').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
-      if (dataReady) rebuildAll();
+      if (dataReady) { rebuildAll(); loadCoins(); }
     });
+
+    // === POPULAR COINS ===
+    var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
+    var COIN_ROWS = 25;
+    var coinLists = {};
+    var coinHistories = {};
+    var selectedCoin = null;
+
+    function compactNumber(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+      return String(n);
+    }
+
+    // Straight-line moves count as a trend; a net move much smaller than the
+    // distance travelled to get there counts as choppy.
+    function priceTrend(closes) {
+      if (closes.length < 2 || !closes[0]) return { change: 0, label: '–', cls: '' };
+      var path = 0;
+      for (var i = 1; i < closes.length; i++) path += Math.abs(closes[i] - closes[i - 1]);
+      var net = closes[closes.length - 1] - closes[0];
+      var label = 'Choppy', cls = 'coin-choppy';
+      if (path > 0 && Math.abs(net) / path >= 0.6) {
+        label = net > 0 ? 'Up' : 'Down';
+        cls = net > 0 ? 'coin-up' : 'coin-down';
+      }
+      return { change: net / closes[0] * 100, label: label, cls: cls };
+    }
+
+    function sparkline(closes, cls) {
+      var ns = 'http://www.w3.org/2000/svg', w = 90, h = 24;
+      var svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', w); svg.setAttribute('height', h); svg.setAttribute('class', cls);
+      if (closes.length < 2) return svg;
+      var lo = Math.min.apply(null, closes), hi = Math.max.apply(null, closes), range = hi - lo || 1;
+      var points = closes.map(function(c, i) {
+        return (i / (closes.length - 1) * (w - 2) + 1).toFixed(1) + ',' + (h - 2 - (c - lo) / range * (h - 4)).toFixed(1);
+      });
+      var line = document.createElementNS(ns, 'polyline');
+      line.setAttribute('points', points.join(' ')); line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', 'currentColor'); line.setAttribute('stroke-width', '1.5');
+      svg.appendChild(line);
+      return svg;
+    }
+
+    function coinCell(row, text, cls) {
+      var td = document.createElement('td');
+      td.textContent = text;
+      if (cls) td.className = cls;
+      row.appendChild(td);
+      return td;
+    }
+
+    function renderCoins() {
+      var list = coinLists[currentWindowDays];
+      if (!list) return;
+      var query = document.getElementById('coinSearch').value.trim().toUpperCase();
+      var shown = [];
+      list.forEach(function(c, i) { if (c[0].indexOf(query) !== -1 && shown.length < COIN_ROWS) shown.push({ rank: i + 1, coin: c }); });
+      var body = document.getElementById('coinRows');
+      body.textContent = '';
+      shown.forEach(function(item) {
+        var c = item.coin, trend = priceTrend(c[3]);
+        var row = document.createElement('tr');
+        if (c[0] === selectedCoin) row.className = 'selected';
+        row.addEventListener('click', function() { selectCoin(c[0]); });
+        coinCell(row, item.rank);
+        coinCell(row, c[0]);
+        coinCell(row, c[1].toLocaleString(), 'num');
+        coinCell(row, Math.round(c[1] / Math.max(c[3].length, 1)).toLocaleString(), 'num');
+        coinCell(row, '$' + compactNumber(c[2]), 'num');
+        coinCell(row, '').appendChild(sparkline(c[3], trend.cls));
+        coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
+        coinCell(row, trend.label, trend.cls);
+        body.appendChild(row);
+      });
+      document.getElementById('coinNote').textContent = list.length + ' coins in total. Price uses daily closes, and today counts so far. Up or Down means most of the price movement went one way; Choppy means it mostly cancelled out.';
+    }
+
+    function loadCoins() {
+      var days = currentWindowDays;
+      var ready = coinLists[days] ? Promise.resolve() : fetch(API_URL + '/coins?days=' + days)
+        .then(function(r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function(list) { coinLists[days] = list; });
+      ready.then(function() {
+        if (days !== currentWindowDays) return;
+        renderCoins();
+        var list = coinLists[days];
+        if (selectedCoin) buildCoinChart();
+        else if (list.length) selectCoin(list[0][0]);
+      }).catch(function(err) {
+        document.getElementById('coinNote').textContent = 'Failed to load coins: ' + err.message;
+      });
+    }
+
+    function selectCoin(symbol) {
+      selectedCoin = symbol;
+      renderCoins();
+      var ready = coinHistories[symbol] ? Promise.resolve() : fetch(API_URL + '/coins/history?symbol=' + encodeURIComponent(symbol))
+        .then(function(r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function(history) { coinHistories[symbol] = history; });
+      ready.then(function() { if (symbol === selectedCoin) buildCoinChart(); }).catch(function(err) {
+        document.getElementById('coinTitle').textContent = symbol + ' — failed to load: ' + err.message;
+      });
+    }
+
+    function buildCoinChart() {
+      var history = coinHistories[selectedCoin];
+      if (typeof Chart === 'undefined' || !history) return;
+      var c = getChartColors();
+      var days = history.slice(-currentWindowDays);
+      document.getElementById('coinTitle').textContent = selectedCoin + ' — trades and closing price per day';
+      var ctx = resetCanvas('coinChart');
+      if (!ctx) return;
+      new Chart(ctx, {
+        data: {
+          labels: days.map(function(d) { return d[0].substring(5); }),
+          datasets: [
+            { type: 'line', label: 'Close', data: days.map(function(d) { return d[3]; }), yAxisID: 'price', borderColor: c.text, borderWidth: 2, pointRadius: 2, tension: 0 },
+            { type: 'bar', label: 'Trades', data: days.map(function(d) { return d[1]; }), yAxisID: 'trades', backgroundColor: c.accent, borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: true, labels: { color: c.textSecondary, boxWidth: 12 }, position: 'bottom' } },
+          scales: {
+            x: { ticks: { color: c.textSecondary, maxRotation: 0, autoSkip: true }, grid: { display: false } },
+            trades: { position: 'left', beginAtZero: true, ticks: { color: c.textSecondary, callback: function(v) { return compactNumber(v); } }, grid: { display: false } },
+            price: { position: 'right', ticks: { color: c.textSecondary }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    document.getElementById('coinSearch').addEventListener('input', renderCoins);
 
     // === CHARTS ===
     var chartsBuilt = false;
@@ -994,6 +1175,7 @@
       buildHeatmap();
       buildSessionBrief();
       buildCharts();
+      buildCoinChart();
     }
 
     // === INIT ===
@@ -1013,7 +1195,7 @@
         });
       }
 
-      fetch('https://trading-hours.cryptoboomer.workers.dev/rows')
+      fetch(API_URL + '/rows')
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
@@ -1026,6 +1208,7 @@
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('dashboardContent').style.display = '';
           setupReveal();
+          loadCoins();
         })
         .catch(function(err) {
           document.getElementById('loadingState').style.display = 'none';

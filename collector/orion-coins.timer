@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Orion coin totals every hour
+
+[Timer]
+OnCalendar=*:07:30
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target
