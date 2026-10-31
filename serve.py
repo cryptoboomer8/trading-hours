@@ -5,7 +5,7 @@ Tiny local server for the Orion dashboard.
     python serve.py          # http://localhost:8000
     python serve.py 9000     # http://localhost:9000
 
-Serves docs/ as a static site. Run `git pull` to pick up new data.
+Serves docs/ as a static site. The data comes from the orion-trades Worker.
 """
 
 import sys
@@ -23,8 +23,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
         status = args[1] if len(args) > 1 else ""
-        # Days with no data yet are an expected 404.
-        if str(status) not in ("200", "304", "404"):
+        if str(status) not in ("200", "304"):
             super().log_message(format, *args)
 
 

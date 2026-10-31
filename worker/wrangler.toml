@@ -1,0 +1,13 @@
+name = "orion-trades"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# The write secret is set via:
+#   wrangler secret put WRITE_SECRET
+[[d1_databases]]
+binding = "DB"
+database_name = "orion-trades"
+database_id = "57cd8580-b89d-45dd-a04f-b75fe687a48d"
+
+[observability]
+enabled = true

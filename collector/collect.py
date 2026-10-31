@@ -1,32 +1,29 @@
 """Record the top-20 Binance futures pairs by 5-minute trade count.
 
-Runs on a server Binance doesn't block, every 5 minutes. Each run adds one
-{ts, tR, vR} row to docs/data/days/YYYY-MM-DD.json via the GitHub Contents API
-and deletes day files that have left the rolling window.
+Runs on a server Binance doesn't block, every 5 minutes. Each run posts one
+{ts, tR, vR} row to the orion-trades Worker, which stores it and handles the
+rolling window.
 
 Standard library only. Environment:
-  GITHUB_TOKEN   fine-grained token with Contents read/write on the repo
-  GITHUB_REPO    defaults to cryptoboomer8/orion-screener
-  GITHUB_BRANCH  defaults to main
+  ORION_WRITE_SECRET  the Worker's WRITE_SECRET
+  ORION_API_URL       defaults to the deployed Worker
 
 Usage: collect.py [--dry-run]   (--dry-run prints the row, writes nothing)
 """
 
-import base64
 import json
 import os
 import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 BINANCE = "https://fapi.binance.com"
-GITHUB = "https://api.github.com"
-DAYS_DIR = "docs/data/days"
+API_URL = "https://orion-trades.cryptoboomer.workers.dev/rows"
+USER_AGENT = "orion-collector"
 SLOT_MS = 5 * 60 * 1000
 TOP_N = 20
-RETENTION_DAYS = 31
 # Refuse to record a row if this share of symbols failed: a top-20 built from
 # partial data looks valid but is wrong.
 MIN_SUCCESS_SHARE = 0.95
@@ -40,9 +37,9 @@ class BinanceBackoff(Exception):
     """Binance asked us to stop (429/418) or we're close to the weight limit."""
 
 
-def request(url, method="GET", headers=None, body=None, timeout=20):
+def request(url, headers=None, body=None, timeout=20):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+    req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT, **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read() or b"null"), resp.headers
 
@@ -98,84 +95,23 @@ def collect_row(now_ms):
     return {"ts": ts, "tR": [c[0] for c in top], "vR": [c[1] for c in top]}
 
 
-class GitHub:
-    def __init__(self, token, repo, branch):
-        self.base = f"{GITHUB}/repos/{repo}/contents"
-        self.branch = branch
-        self.headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "orion-collector",
-            "Content-Type": "application/json",
-        }
-
-    def get(self, path):
-        """Return the listing or file object, or None if it doesn't exist."""
-        try:
-            return request(f"{self.base}/{path}?ref={self.branch}", headers=self.headers)[0]
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return None
-            raise
-
-    def put(self, path, text, sha, message):
-        body = {
-            "message": message,
-            "content": base64.b64encode(text.encode()).decode(),
-            "branch": self.branch,
-        }
-        if sha:
-            body["sha"] = sha
-        request(f"{self.base}/{path}", "PUT", self.headers, body)
-
-    def delete(self, path, sha, message):
-        body = {"message": message, "sha": sha, "branch": self.branch}
-        request(f"{self.base}/{path}", "DELETE", self.headers, body)
-
-
-def append_row(gh, row):
-    day = row["ts"][:10]
-    path = f"{DAYS_DIR}/{day}.json"
-    current = gh.get(path)
-    rows = json.loads(base64.b64decode(current["content"])) if current else []
-    if any(r["ts"] == row["ts"] for r in rows):
-        print(f"{row['ts']} already recorded")
-        return
-    rows.append(row)
-    rows.sort(key=lambda r: r["ts"])
-    text = json.dumps(rows, separators=(",", ":"))
-    gh.put(path, text, current["sha"] if current else None, f"chore: add trades row {row['ts'][:16]} UTC")
-    print(f"{row['ts']} recorded in {path}: top trades {row['tR'][0]}")
-
-
-def prune(gh, now):
-    cutoff = (now - timedelta(days=RETENTION_DAYS)).strftime("%Y-%m-%d")
-    for item in gh.get(DAYS_DIR) or []:
-        name = item["name"]
-        if name.endswith(".json") and name[:10] < cutoff:
-            gh.delete(item["path"], item["sha"], f"chore: drop {name[:10]}, past retention window")
-            print(f"pruned {name}")
-
-
 def main():
     dry_run = "--dry-run" in sys.argv
-    now = datetime.now(timezone.utc)
     start = time.monotonic()
-    row = collect_row(int(now.timestamp() * 1000))
+    row = collect_row(int(time.time() * 1000))
     print(f"collected in {time.monotonic() - start:.0f}s")
     if dry_run:
         print(json.dumps(row))
         return
-    gh = GitHub(
-        os.environ["GITHUB_TOKEN"],
-        os.environ.get("GITHUB_REPO", "cryptoboomer8/orion-screener"),
-        os.environ.get("GITHUB_BRANCH", "main"),
+    result, _ = request(
+        os.environ.get("ORION_API_URL", API_URL),
+        headers={
+            "Authorization": f"Bearer {os.environ['ORION_WRITE_SECRET']}",
+            "Content-Type": "application/json",
+        },
+        body=row,
     )
-    append_row(gh, row)
-    # Once a day is enough: the first run after midnight UTC.
-    if row["ts"][11:16] == "00:00":
-        prune(gh, now)
+    print(f"{row['ts']} added={result['added']}: top trades {row['tR'][0]}")
 
 
 if __name__ == "__main__":

@@ -1013,21 +1013,13 @@
         });
       }
 
-      // One file per UTC day. Days with no data yet simply 404.
-      var dayFetches = [];
-      for (var i = 0; i <= currentWindowDays; i++) {
-        var day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-        dayFetches.push(fetch('./data/days/' + day + '.json?_=' + Date.now()).then(function(r) {
-          if (r.status === 404) return [];
+      fetch('https://orion-trades.cryptoboomer.workers.dev/rows')
+        .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
-        }));
-      }
-
-      Promise.all(dayFetches)
-        .then(function(days) {
-          var raw = [].concat.apply([], days).sort(function(a, b) { return new Date(a.ts) - new Date(b.ts); });
-          if (raw.length === 0) throw new Error('No snapshot data found');
+        })
+        .then(function(raw) {
+          if (!raw || raw.length === 0) throw new Error('No snapshot data found');
           rawData = raw;
           rebuildAll();
 

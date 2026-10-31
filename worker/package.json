@@ -1,0 +1,10 @@
+{
+  "name": "orion-trades",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.83.0"
+  }
+}
