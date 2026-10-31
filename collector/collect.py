@@ -29,13 +29,13 @@ TOP_N = 20
 # partial data looks valid but is wrong.
 MIN_SUCCESS_SHARE = 0.95
 MIN_SYMBOLS = 300
-# This IP may be shared with other Binance clients, so stay well under the
-# 2400/min weight limit and back off early.
+# This IP is shared with other Binance clients, so stay well under the
+# 2400/min weight limit: above this, wait for the next minute's fresh count.
 MAX_USED_WEIGHT = 1000
 
 
 class BinanceBackoff(Exception):
-    """Binance asked us to stop (429/418) or we're close to the weight limit."""
+    """Binance asked us to stop (429/418)."""
 
 
 def request(url, headers=None, body=None, timeout=20):
@@ -52,8 +52,10 @@ def binance_get(path):
         if e.code in (418, 429):
             raise BinanceBackoff(f"HTTP {e.code} from Binance") from e
         raise
-    if int(headers.get("X-MBX-USED-WEIGHT-1M") or 0) > MAX_USED_WEIGHT:
-        raise BinanceBackoff(f"used weight {headers.get('X-MBX-USED-WEIGHT-1M')}")
+    used = int(headers.get("X-MBX-USED-WEIGHT-1M") or 0)
+    if used > MAX_USED_WEIGHT:
+        print(f"used weight {used}, pausing until the next minute")
+        time.sleep(61 - time.time() % 60)
     return payload
 
 
