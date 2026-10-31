@@ -1,7 +1,7 @@
 /**
  * Stores the 5-minute trade rows behind the Trading Hours page.
  *
- *   POST /rows  add one {ts, tR, vR} row (needs the write secret)
+ *   POST /rows  add one {ts, tR, vR, tS} row (needs the write secret)
  *   GET  /rows  every row in the rolling window, oldest first
  *
  * Each insert also deletes rows that have left the window.
@@ -25,6 +25,10 @@ function isCounts(a) {
   return Array.isArray(a) && a.length > 0 && a.length <= TOP_N && a.every((n) => Number.isInteger(n) && n >= 0);
 }
 
+function isSymbols(a, length) {
+  return Array.isArray(a) && a.length === length && a.every((s) => typeof s === "string" && s.length > 0 && s.length <= 40);
+}
+
 async function secretMatches(given, expected) {
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([
@@ -45,14 +49,15 @@ async function addRow(request, env) {
   } catch {
     return new Response("Invalid JSON", { status: 400 });
   }
-  if (!row || !TS_RE.test(row.ts) || !isCounts(row.tR) || !isCounts(row.vR)) {
+  if (!row || !TS_RE.test(row.ts) || !isCounts(row.tR) || !isCounts(row.vR) || !isSymbols(row.tS, row.tR.length)) {
     return new Response("Invalid row", { status: 400 });
   }
   const [insert] = await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO rows (ts, tR, vR) VALUES (?, ?, ?)").bind(
+    env.DB.prepare("INSERT OR IGNORE INTO rows (ts, tR, vR, tS) VALUES (?, ?, ?, ?)").bind(
       row.ts,
       JSON.stringify(row.tR),
-      JSON.stringify(row.vR)
+      JSON.stringify(row.vR),
+      JSON.stringify(row.tS)
     ),
     env.DB.prepare("DELETE FROM rows WHERE ts < ?").bind(cutoff()),
   ]);
@@ -62,11 +67,12 @@ async function addRow(request, env) {
 
 async function readRows(env) {
   if (!cached || Date.now() - cached.at > READ_CACHE_MS) {
-    const rows = await env.DB.prepare("SELECT ts, tR, vR FROM rows WHERE ts >= ? ORDER BY ts")
+    const rows = await env.DB.prepare("SELECT ts, tR, vR, tS FROM rows WHERE ts >= ? ORDER BY ts")
       .bind(cutoff())
       .raw();
-    // tR and vR are already JSON, so join the text rather than parse it.
-    const body = "[" + rows.map((r) => `{"ts":"${r[0]}","tR":${r[1]},"vR":${r[2]}}`).join(",") + "]";
+    // tR, vR and tS are already JSON, so join the text rather than parse it.
+    // tS is null on rows saved before names were stored.
+    const body = "[" + rows.map((r) => `{"ts":"${r[0]}","tR":${r[1]},"vR":${r[2]},"tS":${r[3]}}`).join(",") + "]";
     cached = { at: Date.now(), body };
   }
   return new Response(cached.body, {

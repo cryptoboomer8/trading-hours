@@ -1,7 +1,7 @@
 """Record the top-20 Binance futures pairs by 5-minute trade count.
 
 Runs on a server Binance doesn't block, every 5 minutes. Each run posts one
-{ts, tR, vR} row to the trading-hours Worker, which stores it and handles the
+{ts, tR, vR, tS} row to the trading-hours Worker, which stores it and handles the
 rolling window.
 
 Standard library only. Environment:
@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -77,7 +78,7 @@ def collect_row(now_ms):
     for symbol in symbols:
         try:
             rows = binance_get(
-                f"/fapi/v1/klines?symbol={symbol}&interval=5m&startTime={slot}&limit=1"
+                f"/fapi/v1/klines?symbol={urllib.parse.quote(symbol)}&interval=5m&startTime={slot}&limit=1"
             )
         except BinanceBackoff:
             raise
@@ -85,7 +86,7 @@ def collect_row(now_ms):
             failed += 1
             continue
         if rows and rows[0][0] == slot:
-            candles.append((int(rows[0][8]), round(float(rows[0][7]))))
+            candles.append((int(rows[0][8]), round(float(rows[0][7])), symbol))
         else:
             failed += 1
 
@@ -95,7 +96,7 @@ def collect_row(now_ms):
     candles.sort(key=lambda c: c[0], reverse=True)
     top = candles[:TOP_N]
     ts = datetime.fromtimestamp(slot / 1000, timezone.utc).isoformat()
-    return {"ts": ts, "tR": [c[0] for c in top], "vR": [c[1] for c in top]}
+    return {"ts": ts, "tR": [c[0] for c in top], "vR": [c[1] for c in top], "tS": [c[2] for c in top]}
 
 
 def main():
