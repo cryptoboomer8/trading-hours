@@ -7,6 +7,7 @@ rolling window.
 Standard library only. Environment:
   ORION_WRITE_SECRET  the Worker's WRITE_SECRET
   ORION_API_URL       defaults to the deployed Worker
+  HEALTHCHECK_URL     optional, pinged after each saved row
 
 Usage: collect.py [--dry-run]   (--dry-run prints the row, writes nothing)
 """
@@ -112,6 +113,19 @@ def main():
         body=row,
     )
     print(f"{row['ts']} added={result['added']}: top trades {row['tR'][0]}")
+    ping_healthcheck()
+
+
+def ping_healthcheck():
+    """Tell the monitor this run saved its row. Never fails the run itself."""
+    url = os.environ.get("HEALTHCHECK_URL")
+    if not url:
+        return
+    try:
+        urllib.request.urlopen(url, timeout=10).read()
+        print("healthcheck pinged")
+    except (urllib.error.URLError, TimeoutError) as e:
+        print(f"healthcheck ping failed: {e}")
 
 
 if __name__ == "__main__":
