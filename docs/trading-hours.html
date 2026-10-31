@@ -243,6 +243,16 @@
             </div>
             <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; spread shown as IQR</span>
           </div>
+          <div class="topn-row">
+            <span class="topn-label">Period</span>
+            <div class="stat-toggle" id="windowToggle" role="group" aria-label="Choose how many weeks of data to include">
+              <button data-days="7" type="button">1W</button>
+              <button data-days="14" type="button">2W</button>
+              <button data-days="21" type="button">3W</button>
+              <button class="active" data-days="31" type="button">Month</button>
+            </div>
+            <span class="topn-hint text-secondary" id="windowHint"></span>
+          </div>
           <div class="session-legend" aria-label="Trading sessions (CEST)">
             <span class="sl-swatch sl-asia"></span><span>Asia 00&ndash;08</span>
             <span class="sl-swatch sl-eu"></span><span>Europe 08&ndash;16</span>
@@ -409,6 +419,7 @@
     var peakSnap = null, quietSnap = null;
     var currentMetric = 'trades';
     var currentStat = 'median';
+    var currentWindowDays = 31;
 
     // === Statistics helpers ===
     function quantile(sorted, p) {
@@ -531,8 +542,27 @@
       dataReady = true;
     }
 
+    // Measured from the newest row, not the clock, so the page still has
+    // something to show if the collector has stopped.
+    function rowsInWindow() {
+      if (rawData.length === 0) return rawData;
+      var cutoff = new Date(rawData[rawData.length - 1].ts).getTime() - currentWindowDays * 86400000;
+      return rawData.filter(function(r) { return new Date(r.ts).getTime() > cutoff; });
+    }
+
+    function updateWindowHint() {
+      var el = document.getElementById('windowHint');
+      if (!el || rawData.length === 0) return;
+      var span = new Date(rawData[rawData.length - 1].ts) - new Date(rawData[0].ts);
+      var have = Math.floor(span / 86400000) + 1;
+      el.textContent = have < currentWindowDays
+        ? 'Only ' + have + ' day' + (have === 1 ? '' : 's') + ' of data so far'
+        : 'Keeps the last ' + currentWindowDays + ' days';
+    }
+
     function rebuildAll() {
-      processData(rawData, currentTopN);
+      processData(rowsInWindow(), currentTopN);
+      updateWindowHint();
       buildKPIs();
       buildSessionBrief();
       buildHeatmap();
@@ -801,6 +831,15 @@
       if (dataReady) rebuildAll();
     });
 
+    document.getElementById('windowToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || parseInt(btn.dataset.days, 10) === currentWindowDays) return;
+      currentWindowDays = parseInt(btn.dataset.days, 10);
+      document.querySelectorAll('#windowToggle button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      if (dataReady) rebuildAll();
+    });
+
     // === CHARTS ===
     var chartsBuilt = false;
 
@@ -974,13 +1013,21 @@
         });
       }
 
-      fetch('./data/snapshots.json?_=' + Date.now())
-        .then(function(r) {
+      // One file per UTC day. Days with no data yet simply 404.
+      var dayFetches = [];
+      for (var i = 0; i <= currentWindowDays; i++) {
+        var day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        dayFetches.push(fetch('./data/days/' + day + '.json?_=' + Date.now()).then(function(r) {
+          if (r.status === 404) return [];
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
-        })
-        .then(function(raw) {
-          if (!raw || raw.length === 0) throw new Error('No snapshot data found');
+        }));
+      }
+
+      Promise.all(dayFetches)
+        .then(function(days) {
+          var raw = [].concat.apply([], days).sort(function(a, b) { return new Date(a.ts) - new Date(b.ts); });
+          if (raw.length === 0) throw new Error('No snapshot data found');
           rawData = raw;
           rebuildAll();
 

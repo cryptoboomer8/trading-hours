@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Orion collector every 5 minutes
+
+[Timer]
+# 10 seconds past the slot so the previous candle has closed.
+OnCalendar=*:00/5:10
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Record top-20 Binance futures trade counts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+EnvironmentFile=/etc/orion-collector.env
+ExecStart=/usr/bin/python3 /opt/orion-collector/collect.py
+TimeoutStartSec=280
