@@ -893,14 +893,15 @@
     }
 
     // Straight-line moves count as a trend; a net move much smaller than the
-    // distance travelled to get there counts as choppy.
+    // distance travelled to get there counts as choppy. Longer periods always
+    // backtrack more, so the bar drops with the square root of the days.
     function priceTrend(closes) {
       if (closes.length < 2 || !closes[0]) return { change: 0, label: '–', cls: '' };
       var path = 0;
       for (var i = 1; i < closes.length; i++) path += Math.abs(closes[i] - closes[i - 1]);
       var net = closes[closes.length - 1] - closes[0];
       var label = 'Choppy', cls = 'coin-choppy';
-      if (path > 0 && Math.abs(net) / path >= 0.6) {
+      if (path > 0 && Math.abs(net) / path >= 1 / Math.sqrt(closes.length - 1)) {
         label = net > 0 ? 'Up' : 'Down';
         cls = net > 0 ? 'coin-up' : 'coin-down';
       }
