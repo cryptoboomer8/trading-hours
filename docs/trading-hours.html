@@ -1031,7 +1031,7 @@
           document.getElementById('loadingState').style.display = 'none';
           var el = document.getElementById('errorState');
           el.style.display = '';
-          el.innerHTML = '<p>Failed to load snapshot data</p><code>' + err.message + '</code><p style="margin-top:16px;color:var(--text-secondary);font-size:0.9rem;">Make sure serve.py is running:<br><code>python serve.py</code></p>';
+          el.innerHTML = '<p>Failed to load snapshot data</p><code>' + err.message + '</code>';
         });
     });
 
