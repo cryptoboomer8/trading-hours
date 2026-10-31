@@ -1013,7 +1013,7 @@
         });
       }
 
-      fetch('https://orion-trades.cryptoboomer.workers.dev/rows')
+      fetch('https://trading-hours.cryptoboomer.workers.dev/rows')
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();

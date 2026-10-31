@@ -1,7 +1,7 @@
 """Record the top-20 Binance futures pairs by 5-minute trade count.
 
 Runs on a server Binance doesn't block, every 5 minutes. Each run posts one
-{ts, tR, vR} row to the orion-trades Worker, which stores it and handles the
+{ts, tR, vR} row to the trading-hours Worker, which stores it and handles the
 rolling window.
 
 Standard library only. Environment:
@@ -20,7 +20,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 BINANCE = "https://fapi.binance.com"
-API_URL = "https://orion-trades.cryptoboomer.workers.dev/rows"
+API_URL = "https://trading-hours.cryptoboomer.workers.dev/rows"
 USER_AGENT = "orion-collector"
 SLOT_MS = 5 * 60 * 1000
 TOP_N = 20

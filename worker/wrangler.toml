@@ -1,4 +1,4 @@
-name = "orion-trades"
+name = "trading-hours"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
 

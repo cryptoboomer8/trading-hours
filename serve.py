@@ -5,7 +5,7 @@ Tiny local server for the Orion dashboard.
     python serve.py          # http://localhost:8000
     python serve.py 9000     # http://localhost:9000
 
-Serves docs/ as a static site. The data comes from the orion-trades Worker.
+Serves docs/ as a static site. The data comes from the trading-hours Worker.
 """
 
 import sys

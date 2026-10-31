@@ -1,5 +1,5 @@
 {
-  "name": "orion-trades",
+  "name": "trading-hours",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy"
