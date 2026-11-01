@@ -4,15 +4,16 @@
  *   POST /rows           add one {ts, tR, vR, tS} top-20 row (needs the write secret)
  *   GET  /rows           every top-20 row in the rolling window, oldest first
  *   POST /coins?period=P replace one period's coin list (needs the write secret)
- *   GET  /coins?period=P {start, end, step, coins: [[symbol, trades, volume, [trades], [closes]]]},
- *                        busiest first, for P = 7d, 1d, 12h, 4h or 2h
+ *   GET  /coins?period=P {start, end, step, coins: [[symbol, trades, volume, [closes]]]},
+ *                        busiest first, for P = 7d, 1d, 12h, 6h, 4h or 2h;
+ *                        P = highcap gives {symbols: [high-cap pairs]}
  *
  * Each new row also deletes rows that have left the window.
  */
 
 const RETENTION_DAYS = 31;
 const TOP_N = 20;
-const COIN_PERIODS = new Set(["7d", "1d", "12h", "4h", "2h"]);
+const COIN_PERIODS = new Set(["7d", "1d", "12h", "6h", "4h", "2h", "highcap"]);
 // D1's limit for one value is 2,000,000 bytes.
 const MAX_COIN_BYTES = 1_900_000;
 const READ_CACHE_MS = 60_000;

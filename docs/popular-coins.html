@@ -15,6 +15,7 @@
       --border: rgba(0,255,255,0.08);
       --text: #e8ecf1; --text-secondary: #6b7f99;
       --accent: #e040fb; --positive: #00e676; --negative: #ff1744;
+      --smma-fast: #ffab00; --smma-slow: #00e5ff;
       --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
     }
     html.theme-light {
@@ -22,6 +23,7 @@
       --border: rgba(0,0,0,0.08);
       --text: #0f172a; --text-secondary: #64748b;
       --accent: #9333ea; --positive: #059669; --negative: #e11d48;
+      --smma-fast: #d97706; --smma-slow: #0891b2;
       --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
     }
 
@@ -42,22 +44,25 @@
     .bg-atmosphere { position: fixed; inset: 0; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
 
-    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; position: relative; z-index: 1; }
+    .container { max-width: 2000px; margin: 0 auto; padding: 24px 76px 24px 24px; position: relative; z-index: 1; }
     .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.04em; }
-    .dashboard-header { text-align: center; margin-bottom: 32px; }
-    .dashboard-header h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.08; color: var(--accent); margin: 12px 0 8px; }
-    .subtitle { font-size: 1rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; }
+    .dashboard-header { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+    .dashboard-header h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.08; color: var(--accent); }
+    .subtitle { font-size: 0.8rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; }
     .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
     .status-dot.stale { background: var(--negative); animation: none; }
 
-    .controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
     .period-toggle { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
     .period-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
     .period-toggle button:hover { color: var(--text); }
     .period-toggle button.active { background: var(--accent); color: #fff; }
     .coin-search { padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; }
+    .cap-filter { font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .cap-filter input { accent-color: var(--accent); }
 
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
     .coin-table-wrap { overflow-x: auto; }
     .coin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .coin-table th { text-align: left; font-weight: 500; font-size: 0.75rem; color: var(--text-secondary); padding: 8px 10px; }
@@ -70,13 +75,17 @@
     .coin-down { color: #ef4444; }
     .coin-choppy { color: #f59e0b; }
     .coin-flat { color: var(--text-secondary); }
-    .filters { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .filter { font-size: 0.8rem; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 6px; }
-    .filter input { width: 96px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
     .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
-    .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 16px; }
-    .chart-container { position: relative; height: 380px; }
-    @media (max-width: 768px) { .container { padding: 20px 16px; } .chart-container { height: 280px; } }
+    .coin-detail { position: sticky; top: 16px; }
+    .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 12px; }
+    .chart-container { position: relative; height: calc(100vh - 100px); min-height: 420px; }
+
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: minmax(0, 1fr); }
+      .coin-detail { position: static; }
+      .chart-container { height: 420px; }
+      .container { padding: 20px 16px; }
+    }
   </style>
 </head>
 <body>
@@ -95,44 +104,62 @@
         <button class="active" data-period="7d" type="button">7D</button>
         <button data-period="1d" type="button">1D</button>
         <button data-period="12h" type="button">12H</button>
+        <button data-period="6h" type="button">6H</button>
         <button data-period="4h" type="button">4H</button>
         <button data-period="2h" type="button">2H</button>
       </div>
-      <div class="filters">
-        <label class="filter">Min trades / 5m <input type="number" id="minTrades" min="0" step="500" value="3000"></label>
-        <label class="filter">Min volume / 5m ($) <input type="number" id="minVolume" min="0" step="100000" value="500000"></label>
-        <label class="filter">Min move (%) <input type="number" id="minMove" min="0" step="5" value="0"></label>
-        <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
-      </div>
+      <label class="cap-filter"><input type="checkbox" id="hideHighCaps"> Hide high caps</label>
+      <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
     </section>
 
-    <section class="card">
-      <div class="coin-table-wrap">
-        <table class="coin-table">
-          <thead><tr><th>#</th><th>Coin</th><th class="num">Trades / 5m</th><th class="num">Volume / 5m</th><th>Price</th><th class="num">Change</th><th class="num">Off high</th><th class="num">Trades vs peak</th></tr></thead>
-          <tbody id="coinRows"></tbody>
-        </table>
-      </div>
-      <p class="coin-note" id="coinNote"></p>
-    </section>
+    <div class="workspace">
+      <section class="card">
+        <div class="coin-table-wrap">
+          <table class="coin-table">
+            <thead><tr><th>#</th><th>Coin</th><th class="num">Trades / 5m</th><th class="num">Volume / 5m</th><th>Price</th><th class="num">Change</th></tr></thead>
+            <tbody id="coinRows"></tbody>
+          </table>
+        </div>
+        <p class="coin-note" id="coinNote"></p>
+      </section>
 
-    <section class="card coin-detail">
-      <h3 id="coinTitle">&mdash;</h3>
-      <div class="chart-container" role="img" aria-label="Trade count and closing price for the selected coin">
-        <canvas id="coinChart"></canvas>
-      </div>
-    </section>
+      <section class="card coin-detail">
+        <h3 id="coinTitle">&mdash;</h3>
+        <div class="chart-container" role="img" aria-label="Price with SMMA 30 and 120 from 1-minute candles, and trade count, for the selected coin">
+          <canvas id="coinChart"></canvas>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script>
     var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
+    var BINANCE = 'https://fapi.binance.com';
     var COIN_ROWS = 50;
-    var HOUR_MS = 3600000;
+    var MINUTE_MS = 60000;
+    var HOUR_MS = 60 * MINUTE_MS;
     // A list older than this means the collector has stopped.
-    var STALE_MS = { '7d': 3 * HOUR_MS, '1d': HOUR_MS / 2, '12h': HOUR_MS / 2, '4h': HOUR_MS / 2, '2h': HOUR_MS / 2 };
+    var STALE_MS = { '7d': 3 * HOUR_MS, '1d': HOUR_MS / 2, '12h': HOUR_MS / 2, '6h': HOUR_MS / 2, '4h': HOUR_MS / 2, '2h': HOUR_MS / 2 };
+    var SMMA_FAST = 30;
+    var SMMA_SLOW = 120;
+    // SMMA never fully forgets its starting value, so read this much earlier
+    // history to let the slow line settle before the chart begins.
+    var WARMUP_CANDLES = 6 * SMMA_SLOW;
+    var CANDLES_PER_REQUEST = 1500;
+    var CANDLE_CACHE_MS = MINUTE_MS;
+    // The lines are calculated on every 1-minute candle; a long period is then
+    // drawn at a coarser spacing so it stays readable.
+    var MAX_CHART_POINTS = 500;
+    var CHART_STEPS = [1, 2, 5, 15, 30, 60];
+
     var currentPeriod = '7d';
     var views = {};
+    var highCaps = {};
+    var candleCache = {};
     var selectedCoin = null;
+    var chartData = null;
+    var coinChart = null;
+    var chartRequest = 0;
 
     var currentTheme = localStorage.getItem('viz-theme') || 'dark';
     function applyTheme(t) {
@@ -140,7 +167,7 @@
       document.getElementById('themeIcon').textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
       localStorage.setItem('viz-theme', t);
       currentTheme = t;
-      buildCoinChart();
+      drawChart();
     }
     function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
 
@@ -165,10 +192,10 @@
     // Normal price noise grows with the square root of time, so grey's cut-off
     // does too: 1% over 2 hours, about 3.5% over a day, about 9% over a week.
     function priceTrend(closes, hours) {
-      if (closes.length < 2 || !closes[0]) return { change: 0, offHigh: 0, cls: '' };
+      if (closes.length < 2 || !closes[0]) return { change: 0, cls: '' };
       var first = closes[0], last = closes[closes.length - 1];
       var high = Math.max.apply(null, closes), low = Math.min.apply(null, closes), range = high - low;
-      var trend = { change: (last / first - 1) * 100, offHigh: (last / high - 1) * 100, cls: 'coin-choppy' };
+      var trend = { change: (last / first - 1) * 100, cls: 'coin-choppy' };
       if (range / first * 100 < Math.sqrt(hours / 2)) {
         trend.cls = 'coin-flat';
         return trend;
@@ -216,100 +243,115 @@
       return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + timeLabel(ms);
     }
 
-    function stepLabel(step) {
-      return step >= HOUR_MS ? (step / HOUR_MS) + ' hours' : (step / 60000) + ' minutes';
-    }
-
     function renderHeader(view) {
       var stale = Date.now() - view.end > STALE_MS[currentPeriod];
       document.getElementById('statusDot').className = 'status-dot' + (stale ? ' stale' : '');
       document.getElementById('subtitleText').textContent = (stale ? 'Stale: ' : '') + dateTimeLabel(view.start) + ' – ' + dateTimeLabel(view.end) + ' your time';
     }
 
-    function filterValue(id) {
-      return parseFloat(document.getElementById(id).value) || 0;
-    }
-
-    // Averages over the selected period, in the 5-minute units the filters use.
-    function coinStats(coin, view) {
-      var slots = (view.end - view.start) / 300000;
-      return {
-        tradesPer5m: coin[1] / slots,
-        volumePer5m: coin[2] / slots,
-        closes: known(coin[4]),
-        trend: priceTrend(known(coin[4]), (view.end - view.start) / HOUR_MS),
-        vsPeak: coin[3][coin[3].length - 1] / Math.max.apply(null, coin[3]) * 100
-      };
-    }
-
-    function passesFilters(stats) {
-      return stats.tradesPer5m >= filterValue('minTrades') &&
-        stats.volumePer5m >= filterValue('minVolume') &&
-        Math.abs(stats.trend.change) >= filterValue('minMove');
+    function visibleCoins(view) {
+      var hide = document.getElementById('hideHighCaps').checked;
+      return view.coins.filter(function(c) { return !hide || !highCaps[c[0]]; });
     }
 
     function renderCoins() {
       var view = views[currentPeriod];
       if (!view) return;
+      var slots = (view.end - view.start) / (5 * MINUTE_MS);
+      var hours = (view.end - view.start) / HOUR_MS;
       var query = document.getElementById('coinSearch').value.trim().toUpperCase();
+      var list = visibleCoins(view);
       var body = document.getElementById('coinRows');
       body.textContent = '';
-      var passing = 0, shown = 0;
-      view.coins.forEach(function(c, i) {
-        var stats = coinStats(c, view), passes = passesFilters(stats);
-        if (passes) passing++;
-        // A search looks through every coin, so one the filters hide can still be found.
-        var match = query ? c[0].indexOf(query) !== -1 : passes;
-        if (!match || shown >= COIN_ROWS) return;
-        shown++;
-        var trend = stats.trend;
+      // A search looks through every coin, so a hidden high cap can still be found.
+      var rows = query ? view.coins.filter(function(c) { return c[0].indexOf(query) !== -1; }) : list;
+      rows.slice(0, COIN_ROWS).forEach(function(c) {
+        var closes = known(c[3]), trend = priceTrend(closes, hours);
         var row = document.createElement('tr');
         if (c[0] === selectedCoin) row.className = 'selected';
         row.addEventListener('click', function() { selectCoin(c[0]); });
-        coinCell(row, query ? i + 1 : shown);
+        coinCell(row, list.indexOf(c) + 1 || view.coins.indexOf(c) + 1);
         coinCell(row, c[0]);
-        coinCell(row, Math.round(stats.tradesPer5m).toLocaleString(), 'num');
-        coinCell(row, '$' + compactNumber(Math.round(stats.volumePer5m)), 'num');
-        coinCell(row, '').appendChild(sparkline(stats.closes, trend.cls));
+        coinCell(row, Math.round(c[1] / slots).toLocaleString(), 'num');
+        coinCell(row, '$' + compactNumber(Math.round(c[2] / slots)), 'num');
+        coinCell(row, '').appendChild(sparkline(closes, trend.cls));
         coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
-        coinCell(row, trend.offHigh.toFixed(1) + '%', 'num');
-        coinCell(row, Math.round(stats.vsPeak) + '%', 'num');
         body.appendChild(row);
       });
-      document.getElementById('coinNote').textContent = passing + ' of ' + view.coins.length + ' coins pass the filters, using averages over this period. 7D updates hourly and the rest every 5 minutes. Price points are ' + stepLabel(view.step) + ' apart. Trades vs peak compares the latest bar with the busiest bar in the period. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
+      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. High cap means a market cap of $1B or more, from CoinGecko. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
     }
 
-    function selectedCoinData(view) {
-      return view.coins.filter(function(c) { return c[0] === selectedCoin; })[0];
-    }
-
-    function buildCoinChart() {
-      var view = views[currentPeriod];
-      if (typeof Chart === 'undefined' || !view || !selectedCoin) return;
-      var title = document.getElementById('coinTitle');
-      var old = document.getElementById('coinChart');
-      var canvas = document.createElement('canvas');
-      canvas.id = 'coinChart';
-      old.parentNode.replaceChild(canvas, old);
-      var coin = selectedCoinData(view);
-      if (!coin) {
-        title.textContent = selectedCoin + ' — no trades in this period';
-        return;
-      }
-      title.textContent = selectedCoin + ' — trades and closing price per ' + stepLabel(view.step);
-      var s = getComputedStyle(document.documentElement);
-      var text = s.getPropertyValue('--text').trim(), secondary = s.getPropertyValue('--text-secondary').trim(), accent = s.getPropertyValue('--accent').trim();
-      var overDays = view.end - view.start > 24 * HOUR_MS;
-      var labels = coin[3].map(function(_, i) {
-        var ms = view.start + i * view.step;
-        return overDays ? dateTimeLabel(ms) : timeLabel(ms);
+    function smma(closes, length) {
+      var out = [], value = null, sum = 0;
+      closes.forEach(function(close, i) {
+        if (i < length) {
+          sum += close;
+          if (i === length - 1) value = sum / length;
+        } else {
+          value = (value * (length - 1) + close) / length;
+        }
+        out.push(value);
       });
-      new Chart(canvas, {
+      return out;
+    }
+
+    function fetchCandles(symbol, start, end) {
+      var requests = [];
+      for (var from = start; from < end; from += CANDLES_PER_REQUEST * MINUTE_MS) {
+        requests.push(fetch(BINANCE + '/fapi/v1/klines?symbol=' + encodeURIComponent(symbol) + '&interval=1m&startTime=' + from + '&limit=' + CANDLES_PER_REQUEST)
+          .then(function(r) {
+            if (!r.ok) throw new Error('Binance returned ' + r.status);
+            return r.json();
+          }));
+      }
+      return Promise.all(requests).then(function(pages) { return [].concat.apply([], pages); });
+    }
+
+    // Returns {labels, closes, fast, slow, trades, step} for the chart.
+    function buildChartData(candles, start, showDates) {
+      var closes = candles.map(function(c) { return parseFloat(c[4]); });
+      var fast = smma(closes, SMMA_FAST), slow = smma(closes, SMMA_SLOW);
+      var first = candles.findIndex(function(c) { return c[0] >= start; });
+      if (first < 0) first = candles.length;
+      var count = candles.length - first;
+      var step = CHART_STEPS.filter(function(s) { return count / s <= MAX_CHART_POINTS; })[0] || CHART_STEPS[CHART_STEPS.length - 1];
+      var data = { labels: [], closes: [], fast: [], slow: [], trades: [], step: step };
+      for (var i = first; i < candles.length; i += step) {
+        var last = Math.min(i + step, candles.length) - 1, trades = 0;
+        for (var j = i; j <= last; j++) trades += candles[j][8];
+        data.labels.push(showDates ? dateTimeLabel(candles[i][0]) : timeLabel(candles[i][0]));
+        data.closes.push(closes[last]);
+        data.fast.push(fast[last]);
+        data.slow.push(slow[last]);
+        data.trades.push(trades);
+      }
+      return data;
+    }
+
+    function clearChart() {
+      if (coinChart) coinChart.destroy();
+      coinChart = null;
+      chartData = null;
+    }
+
+    function drawChart() {
+      if (typeof Chart === 'undefined' || !chartData) return;
+      if (coinChart) coinChart.destroy();
+      var s = getComputedStyle(document.documentElement);
+      var color = function(name) { return s.getPropertyValue(name).trim(); };
+      var secondary = color('--text-secondary');
+      var maxTrades = Math.max.apply(null, chartData.trades);
+      var lineSet = function(label, data, borderColor, borderWidth) {
+        return { type: 'line', label: label, data: data, yAxisID: 'price', borderColor: borderColor, backgroundColor: borderColor, borderWidth: borderWidth, pointRadius: 0, tension: 0, order: 1 };
+      };
+      coinChart = new Chart(document.getElementById('coinChart'), {
         data: {
-          labels: labels,
+          labels: chartData.labels,
           datasets: [
-            { type: 'line', label: 'Close', data: coin[4], yAxisID: 'price', borderColor: text, borderWidth: 2, pointRadius: 0, tension: 0, spanGaps: false },
-            { type: 'bar', label: 'Trades', data: coin[3], yAxisID: 'trades', backgroundColor: accent, borderRadius: 2 }
+            lineSet('Close', chartData.closes, color('--text'), 1.25),
+            lineSet('SMMA ' + SMMA_FAST, chartData.fast, color('--smma-fast'), 1.75),
+            lineSet('SMMA ' + SMMA_SLOW, chartData.slow, color('--smma-slow'), 1.75),
+            { type: 'bar', label: 'Trades', data: chartData.trades, yAxisID: 'trades', backgroundColor: color('--accent'), order: 2 }
           ]
         },
         options: {
@@ -318,28 +360,58 @@
           plugins: { legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' } },
           scales: {
             x: { ticks: { color: secondary, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
-            trades: { position: 'left', beginAtZero: true, ticks: { color: secondary, callback: function(v) { return compactNumber(v); } }, grid: { display: false } },
+            // Keeps the bars in the bottom quarter, clear of the price lines.
+            trades: { position: 'left', beginAtZero: true, max: maxTrades * 4, ticks: { color: secondary, callback: function(v) { return v <= maxTrades ? compactNumber(v) : null; } }, grid: { display: false } },
             price: { position: 'right', ticks: { color: secondary }, grid: { display: false } }
           }
         }
       });
     }
 
+    function loadChart() {
+      var view = views[currentPeriod];
+      if (!view || !selectedCoin) return;
+      var symbol = selectedCoin, period = currentPeriod, request = ++chartRequest;
+      var title = document.getElementById('coinTitle');
+      title.textContent = symbol + ' — loading 1-minute candles…';
+      var length = view.end - view.start, key = symbol + ':' + period, cached = candleCache[key];
+      var ready;
+      if (cached && Date.now() - cached.at < CANDLE_CACHE_MS) {
+        ready = Promise.resolve(cached);
+      } else {
+        var end = Date.now(), start = end - length;
+        ready = fetchCandles(symbol, start - WARMUP_CANDLES * MINUTE_MS, end).then(function(candles) {
+          candleCache[key] = { at: Date.now(), start: start, candles: candles };
+          return candleCache[key];
+        });
+      }
+      ready.then(function(entry) {
+        if (request !== chartRequest) return;
+        chartData = buildChartData(entry.candles, entry.start, length > 24 * HOUR_MS);
+        title.textContent = symbol + ' — 1m close, SMMA ' + SMMA_FAST + ' and ' + SMMA_SLOW + (chartData.step > 1 ? ', drawn every ' + chartData.step + ' minutes' : '');
+        drawChart();
+      }).catch(function(err) {
+        if (request !== chartRequest) return;
+        clearChart();
+        title.textContent = symbol + ' — could not load 1-minute candles: ' + err.message;
+      });
+    }
+
     function selectCoin(symbol) {
       selectedCoin = symbol;
       renderCoins();
-      buildCoinChart();
+      loadChart();
     }
 
     function showPeriod() {
       var view = views[currentPeriod];
       renderHeader(view);
-      if (!selectedCoin && view.coins.length) {
-        var firstPassing = view.coins.filter(function(c) { return passesFilters(coinStats(c, view)); })[0];
-        selectedCoin = (firstPassing || view.coins[0])[0];
+      if (!selectedCoin) {
+        var list = visibleCoins(view);
+        if (list.length) selectedCoin = list[0][0];
       }
       renderCoins();
-      buildCoinChart();
+      loadChart();
     }
 
     function loadPeriod() {
@@ -361,6 +433,23 @@
       });
     }
 
+    function loadHighCaps() {
+      var box = document.getElementById('hideHighCaps');
+      fetch(API_URL + '/coins?period=highcap')
+        .then(function(r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function(data) {
+          data.symbols.forEach(function(s) { highCaps[s] = true; });
+          renderCoins();
+        })
+        .catch(function() {
+          box.disabled = true;
+          box.parentNode.title = 'The high-cap list could not be loaded';
+        });
+    }
+
     document.getElementById('periodToggle').addEventListener('click', function(e) {
       var btn = e.target.closest('button');
       if (!btn || btn.dataset.period === currentPeriod) return;
@@ -370,11 +459,10 @@
       loadPeriod();
     });
     document.getElementById('coinSearch').addEventListener('input', renderCoins);
-    ['minTrades', 'minVolume', 'minMove'].forEach(function(id) {
-      document.getElementById(id).addEventListener('input', renderCoins);
-    });
+    document.getElementById('hideHighCaps').addEventListener('change', renderCoins);
 
     applyTheme(currentTheme);
+    loadHighCaps();
     loadPeriod();
   </script>
 </body>

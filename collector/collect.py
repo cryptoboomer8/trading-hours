@@ -2,7 +2,7 @@
 
 Runs on a server Binance doesn't block, every 5 minutes. Each run posts two
 things to the trading-hours Worker: one {ts, tR, vR, tS} top-20 row for the
-Trading Hours page, and the Popular Coins lists for the 2h, 4h, 12h and 1d
+Trading Hours page, and the Popular Coins lists for the 2h, 4h, 6h, 12h and 1d
 periods. The 7d list comes from coins.py.
 
 Standard library only. Environment:
@@ -123,25 +123,24 @@ def build_row(series, slot):
 
 
 def build_view(series, start, end, step):
-    """Return one period's coin list, busiest first, with trades and closes per step.
+    """Return one period's coin list, busiest first, with a close per step.
 
-    Each coin is [symbol, trades, volume, [trades per step], [close per step]].
-    A step before the coin was listed has 0 trades and a null close.
+    Each coin is [symbol, trades, volume, [close per step]]. A step before the
+    coin was listed has a null close.
     """
     steps = (end - start + step - 1) // step
     coins = []
     for symbol, rows in series.items():
-        trades = [0] * steps
+        trades = 0
         closes = [None] * steps
         volume = 0
         for open_ms, count, vol, close in rows:
             if start <= open_ms < end:
-                i = (open_ms - start) // step
-                trades[i] += count
-                closes[i] = float(f"{close:.6g}")
+                trades += count
+                closes[(open_ms - start) // step] = float(f"{close:.6g}")
                 volume += vol
-        if sum(trades) > 0:
-            coins.append([symbol, sum(trades), volume, trades, closes])
+        if trades > 0:
+            coins.append([symbol, trades, volume, closes])
     coins.sort(key=lambda c: c[1], reverse=True)
     return {"start": start, "end": end, "step": step, "coins": coins}
 
@@ -152,6 +151,7 @@ def build_views(series, slot):
     return {
         "2h": build_view(series, end - 120 * MINUTE_MS, end, SLOT_MS),
         "4h": build_view(series, end - 240 * MINUTE_MS, end, SLOT_MS),
+        "6h": build_view(series, end - 360 * MINUTE_MS, end, SLOT_MS),
         "12h": build_view(series, end - 720 * MINUTE_MS, end, 15 * MINUTE_MS),
         "1d": build_view(series, end - DAY_MS, end, 30 * MINUTE_MS),
     }
