@@ -269,7 +269,7 @@
             </div>
             <span class="topn-hint text-secondary" id="windowHint"></span>
           </div>
-          <div class="session-legend" aria-label="Trading sessions (CEST)">
+          <div class="session-legend" aria-label="Trading sessions (your time)">
             <span class="sl-swatch sl-asia"></span><span>Asia 00&ndash;08</span>
             <span class="sl-swatch sl-eu"></span><span>Europe 08&ndash;16</span>
             <span class="sl-swatch sl-us"></span><span>US 14&ndash;22</span>
@@ -372,7 +372,7 @@
           </div>
           <div class="chart-section" style="margin-bottom:0;">
             <h2>Day-over-Day</h2>
-            <p class="section-sub">Average trades per snapshot by day of week</p>
+            <p class="section-sub">Average trades per 5 min by day of week</p>
             <div class="chart-card">
               <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
                 <canvas id="dayChart"></canvas>
@@ -440,6 +440,7 @@
     var rawData = [];
     var currentTopN = 20;
     var snapshots = [];
+    var ROWS_PER_HOUR = 12; // the collector saves one row every 5 minutes
     var heatmap = {};
     var dayOrder = [];
     var hourlyAvg = [];
@@ -575,7 +576,7 @@
       var lastLabel = months[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear() + ' ' + pad(last.getHours()) + ':' + pad(last.getMinutes());
 
       var sub = document.getElementById('subtitleText');
-      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; Last: ' + lastLabel + ' &nbsp;|&nbsp; CEST (UTC+2) &nbsp;|&nbsp; Top ' + topN;
+      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; Last: ' + lastLabel + ' &nbsp;|&nbsp; Top ' + topN;
 
       dataReady = true;
     }
@@ -624,10 +625,11 @@
       var todayByHour = []; for (var h=0; h<24; h++) todayByHour.push(0);
       var todayHasHour = []; for (var h=0; h<24; h++) todayHasHour.push(false);
       var todaySnapsCount = 0;
+      var typicalSoFar = 0;
       snapshots.forEach(function(s) {
         var d = s.date;
         var key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayHasHour[s.hour] = true; todaySnapsCount++; }
+        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayHasHour[s.hour] = true; todaySnapsCount++; typicalSoFar += hourlyMedian[s.hour] || 0; }
       });
 
       // Cumulative trajectories: today (only up to current hour, null after) vs typical (median pooled across all days)
@@ -636,7 +638,7 @@
       for (var h=0; h<24; h++) {
         if (h <= currentHour && todaySnapsCount > 0) { tSum += todayByHour[h]; todayCum.push(tSum); }
         else { todayCum.push(null); }
-        ySum += hourlyMedian[h] || 0;
+        ySum += (hourlyMedian[h] || 0) * ROWS_PER_HOUR;
         typicalCum.push(ySum);
       }
 
@@ -651,12 +653,13 @@
         paceSubEl.textContent = 'Waiting for the first snapshot of ' + todayDayName + '.';
       } else {
         var todayAt = todayCum[lastHourWithData];
-        var typAt = typicalCum[lastHourWithData];
+        // Counts only the rows today has, so a part-finished hour compares fairly.
+        var typAt = typicalSoFar;
         var pct = typAt > 0 ? Math.round((todayAt / typAt - 1) * 100) : 0;
         var sign = pct > 0 ? '+' : '';
-        paceEl.textContent = sign + pct + '% vs typical ' + todayDayName;
+        paceEl.textContent = sign + pct + '% vs typical day';
         paceEl.className = 'brief-headline ' + (pct >= 8 ? 'pace-up' : pct <= -8 ? 'pace-down' : 'pace-flat');
-        paceSubEl.innerHTML = todaySnapsCount + ' snapshots so far &middot; through ' + pad(lastHourWithData) + ':59 CEST';
+        paceSubEl.innerHTML = todaySnapsCount + ' snapshots so far &middot; through ' + pad(lastHourWithData) + ':59 your time';
       }
 
       // Render pace chart (cumulative today vs typical)
@@ -707,7 +710,7 @@
         var peakIdx = nextValues.indexOf(maxNext);
         nextHeadlineEl.textContent = 'Peak at ' + nextLabels[peakIdx] + '  (~' + maxNext.toLocaleString() + ')';
         nextHeadlineEl.className = 'brief-headline pace-up';
-        nextSubEl.innerHTML = 'Median across past ' + todayDayName + 's at the same hour';
+        nextSubEl.innerHTML = 'Median trades per 5 min across past ' + todayDayName + 's at the same hour';
       } else {
         nextHeadlineEl.textContent = 'No baseline yet';
         nextHeadlineEl.className = 'brief-headline pace-flat';
@@ -751,19 +754,19 @@
 
       sec.innerHTML =
         '<div class="kpi-card kpi-cyan animate delay-1">' +
-          '<div class="kpi-label">Best Hour (CEST)</div>' +
+          '<div class="kpi-label">Best Hour (your time)</div>' +
           '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestHourVal.toLocaleString() + ' trades &middot; ' + spreadLabel + ' &middot; n=' + bestHourSamples + '</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + bestHourVal.toLocaleString() + ' trades per 5 min &middot; ' + spreadLabel + ' &middot; n=' + bestHourSamples + '</div>' +
         '</div>' +
         '<div class="kpi-card kpi-green animate delay-2">' +
-          '<div class="kpi-label">Best 2h Window (CEST)</div>' +
+          '<div class="kpi-label">Best 2h Window (your time)</div>' +
           '<div class="kpi-value" style="font-size:1.7rem;letter-spacing:-0.02em;">' + winLabel + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestSum.toLocaleString() + ' trades over the 2h block</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + (bestSum * ROWS_PER_HOUR).toLocaleString() + ' trades over the 2h block</div>' +
         '</div>' +
         '<div class="kpi-card kpi-magenta animate delay-3">' +
           '<div class="kpi-label">Best Day</div>' +
           '<div class="kpi-value">' + bestDay + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades/snapshot</div>' +
+          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades per 5 min</div>' +
         '</div>';
     }
 
