@@ -69,10 +69,10 @@
     .coin-up { color: #22c55e; }
     .coin-down { color: #ef4444; }
     .coin-choppy { color: #f59e0b; }
-    .coin-run { color: var(--accent); }
+    .coin-flat { color: var(--text-secondary); }
     .filters { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .runners-only { font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-    .runners-only input { accent-color: var(--accent); }
+    .filter { font-size: 0.8rem; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 6px; }
+    .filter input { width: 96px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
     .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
     .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 16px; }
     .chart-container { position: relative; height: 380px; }
@@ -93,13 +93,15 @@
     <section class="controls">
       <div class="period-toggle" id="periodToggle" role="group" aria-label="Choose the period">
         <button class="active" data-period="7d" type="button">7D</button>
-        <button data-period="today" type="button">Today</button>
+        <button data-period="1d" type="button">1D</button>
         <button data-period="12h" type="button">12H</button>
         <button data-period="4h" type="button">4H</button>
         <button data-period="2h" type="button">2H</button>
       </div>
       <div class="filters">
-        <label class="runners-only"><input type="checkbox" id="runnersOnly"> Runners only</label>
+        <label class="filter">Min trades / 5m <input type="number" id="minTrades" min="0" step="500" value="3000"></label>
+        <label class="filter">Min volume / 5m ($) <input type="number" id="minVolume" min="0" step="100000" value="500000"></label>
+        <label class="filter">Min move (%) <input type="number" id="minMove" min="0" step="5" value="0"></label>
         <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
       </div>
     </section>
@@ -107,7 +109,7 @@
     <section class="card">
       <div class="coin-table-wrap">
         <table class="coin-table">
-          <thead><tr><th>#</th><th>Coin</th><th class="num">Trades</th><th class="num">Trades / hour</th><th class="num">Volume</th><th>Price</th><th class="num">Change</th><th>Trend</th><th>3-day run</th></tr></thead>
+          <thead><tr><th>#</th><th>Coin</th><th class="num">Trades / 5m</th><th class="num">Volume / 5m</th><th>Price</th><th class="num">Change</th><th class="num">Off high</th><th class="num">Trades vs peak</th></tr></thead>
           <tbody id="coinRows"></tbody>
         </table>
       </div>
@@ -124,11 +126,10 @@
 
   <script>
     var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
-    var COIN_ROWS = 25;
+    var COIN_ROWS = 50;
     var HOUR_MS = 3600000;
-    var RUNNER_RISE = 40;
     // A list older than this means the collector has stopped.
-    var STALE_MS = { '7d': 3 * HOUR_MS, today: HOUR_MS / 2, '12h': HOUR_MS / 2, '4h': HOUR_MS / 2, '2h': HOUR_MS / 2 };
+    var STALE_MS = { '7d': 3 * HOUR_MS, '1d': HOUR_MS / 2, '12h': HOUR_MS / 2, '4h': HOUR_MS / 2, '2h': HOUR_MS / 2 };
     var currentPeriod = '7d';
     var views = {};
     var selectedCoin = null;
@@ -154,20 +155,29 @@
       return values.filter(function(v) { return v !== null; });
     }
 
-    // Straight-line moves count as a trend; a net move much smaller than the
-    // distance travelled to get there counts as choppy. More price points always
-    // backtrack more, so the bar drops with the square root of their number.
-    function priceTrend(closes) {
-      if (closes.length < 2 || !closes[0]) return { change: 0, label: '–', cls: '' };
-      var path = 0;
-      for (var i = 1; i < closes.length; i++) path += Math.abs(closes[i] - closes[i - 1]);
-      var net = closes[closes.length - 1] - closes[0];
-      var label = 'Choppy', cls = 'coin-choppy';
-      if (path > 0 && Math.abs(net) / path >= 1 / Math.sqrt(closes.length - 1)) {
-        label = net > 0 ? 'Up' : 'Down';
-        cls = net > 0 ? 'coin-up' : 'coin-down';
+    // Colours the coin by the shape of its price path inside the selected period only:
+    //   green  the net move up covers at least half of the period's high-low range,
+    //          or it hit its low first and now sits in the top third
+    //   red    the net move down covers at least half of the range,
+    //          or it hit its high first and now sits in the bottom third
+    //   grey   the range is too small to matter for this length of period
+    //   amber  anything else, which is choppy
+    // Normal price noise grows with the square root of time, so grey's cut-off
+    // does too: 1% over 2 hours, about 3.5% over a day, about 9% over a week.
+    function priceTrend(closes, hours) {
+      if (closes.length < 2 || !closes[0]) return { change: 0, offHigh: 0, cls: '' };
+      var first = closes[0], last = closes[closes.length - 1];
+      var high = Math.max.apply(null, closes), low = Math.min.apply(null, closes), range = high - low;
+      var trend = { change: (last / first - 1) * 100, offHigh: (last / high - 1) * 100, cls: 'coin-choppy' };
+      if (range / first * 100 < Math.sqrt(hours / 2)) {
+        trend.cls = 'coin-flat';
+        return trend;
       }
-      return { change: net / closes[0] * 100, label: label, cls: cls };
+      var net = (last - first) / range, position = (last - low) / range;
+      var highFirst = closes.indexOf(high) < closes.indexOf(low);
+      if (net >= 0.5 || (position >= 2 / 3 && !highFirst)) trend.cls = 'coin-up';
+      else if (net <= -0.5 || (position <= 1 / 3 && highFirst)) trend.cls = 'coin-down';
+      return trend;
     }
 
     function sparkline(closes, cls) {
@@ -216,68 +226,57 @@
       document.getElementById('subtitleText').textContent = (stale ? 'Stale: ' : '') + dateTimeLabel(view.start) + ' – ' + dateTimeLabel(view.end) + ' your time';
     }
 
+    function filterValue(id) {
+      return parseFloat(document.getElementById(id).value) || 0;
+    }
+
+    // Averages over the selected period, in the 5-minute units the filters use.
+    function coinStats(coin, view) {
+      var slots = (view.end - view.start) / 300000;
+      return {
+        tradesPer5m: coin[1] / slots,
+        volumePer5m: coin[2] / slots,
+        closes: known(coin[4]),
+        trend: priceTrend(known(coin[4]), (view.end - view.start) / HOUR_MS),
+        vsPeak: coin[3][coin[3].length - 1] / Math.max.apply(null, coin[3]) * 100
+      };
+    }
+
+    function passesFilters(stats) {
+      return stats.tradesPer5m >= filterValue('minTrades') &&
+        stats.volumePer5m >= filterValue('minVolume') &&
+        Math.abs(stats.trend.change) >= filterValue('minMove');
+    }
+
     function renderCoins() {
       var view = views[currentPeriod];
       if (!view) return;
-      var hours = (view.end - view.start) / HOUR_MS;
       var query = document.getElementById('coinSearch').value.trim().toUpperCase();
-      var runnersOnly = document.getElementById('runnersOnly').checked;
-      var runners = weekRunners();
-      var shown = [];
-      view.coins.forEach(function(c, i) {
-        if (c[0].indexOf(query) === -1 || (runnersOnly && !runners[c[0]]) || shown.length >= COIN_ROWS) return;
-        shown.push({ rank: i + 1, coin: c });
-      });
       var body = document.getElementById('coinRows');
       body.textContent = '';
-      shown.forEach(function(item) {
-        var c = item.coin, closes = known(c[4]), trend = priceTrend(closes);
+      var passing = 0, shown = 0;
+      view.coins.forEach(function(c, i) {
+        var stats = coinStats(c, view), passes = passesFilters(stats);
+        if (passes) passing++;
+        // A search looks through every coin, so one the filters hide can still be found.
+        var match = query ? c[0].indexOf(query) !== -1 : passes;
+        if (!match || shown >= COIN_ROWS) return;
+        shown++;
+        var trend = stats.trend;
         var row = document.createElement('tr');
         if (c[0] === selectedCoin) row.className = 'selected';
         row.addEventListener('click', function() { selectCoin(c[0]); });
-        coinCell(row, item.rank);
+        coinCell(row, query ? i + 1 : shown);
         coinCell(row, c[0]);
-        coinCell(row, c[1].toLocaleString(), 'num');
-        coinCell(row, Math.round(c[1] / hours).toLocaleString(), 'num');
-        coinCell(row, '$' + compactNumber(c[2]), 'num');
-        coinCell(row, '').appendChild(sparkline(closes, trend.cls));
+        coinCell(row, Math.round(stats.tradesPer5m).toLocaleString(), 'num');
+        coinCell(row, '$' + compactNumber(Math.round(stats.volumePer5m)), 'num');
+        coinCell(row, '').appendChild(sparkline(stats.closes, trend.cls));
         coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
-        coinCell(row, trend.label, trend.cls);
-        var run = runners[c[0]];
-        coinCell(row, run ? '+' + Math.round(run.rise) + '%, ' + (run.offPeak < -0.5 ? Math.round(run.offPeak) + '% off peak' : 'at peak') : '–', run ? 'coin-run' : '');
+        coinCell(row, trend.offHigh.toFixed(1) + '%', 'num');
+        coinCell(row, Math.round(stats.vsPeak) + '%', 'num');
         body.appendChild(row);
       });
-      document.getElementById('coinNote').textContent = view.coins.length + ' coins in total. Today starts at 00:00 UTC, and 7D updates hourly while the rest update every 5 minutes. Price points are ' + stepLabel(view.step) + ' apart. Up or Down means most of the price movement went one way; Choppy means it mostly cancelled out. A runner rose ' + RUNNER_RISE + '% or more within 3 days at some point in the last 7 days, measured on 2-hour closes; ' + Object.keys(runners).length + ' coins qualify.';
-    }
-
-    // The biggest low-to-high rise inside any 3 days of the week, using closes,
-    // and how far the price now sits below the high since then.
-    function findRun(closes, stepsIn3Days) {
-      var best = null;
-      for (var hi = 1; hi < closes.length; hi++) {
-        if (closes[hi] === null) continue;
-        for (var lo = Math.max(0, hi - stepsIn3Days); lo < hi; lo++) {
-          if (closes[lo] === null) continue;
-          var rise = (closes[hi] / closes[lo] - 1) * 100;
-          if (!best || rise > best.rise) best = { rise: rise, hi: hi };
-        }
-      }
-      if (!best || best.rise < RUNNER_RISE) return null;
-      var after = known(closes.slice(best.hi));
-      return { rise: best.rise, offPeak: (after[after.length - 1] / Math.max.apply(null, after) - 1) * 100 };
-    }
-
-    function weekRunners() {
-      var week = views['7d'];
-      if (!week) return {};
-      if (!week.runners) {
-        week.runners = {};
-        week.coins.forEach(function(c) {
-          var run = findRun(c[4], Math.round(72 * HOUR_MS / week.step));
-          if (run) week.runners[c[0]] = run;
-        });
-      }
-      return week.runners;
+      document.getElementById('coinNote').textContent = passing + ' of ' + view.coins.length + ' coins pass the filters, using averages over this period. 7D updates hourly and the rest every 5 minutes. Price points are ' + stepLabel(view.step) + ' apart. Trades vs peak compares the latest bar with the busiest bar in the period. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
     }
 
     function selectedCoinData(view) {
@@ -335,25 +334,23 @@
     function showPeriod() {
       var view = views[currentPeriod];
       renderHeader(view);
-      if (!selectedCoin && view.coins.length) selectedCoin = view.coins[0][0];
+      if (!selectedCoin && view.coins.length) {
+        var firstPassing = view.coins.filter(function(c) { return passesFilters(coinStats(c, view)); })[0];
+        selectedCoin = (firstPassing || view.coins[0])[0];
+      }
       renderCoins();
       buildCoinChart();
     }
 
-    function fetchView(period) {
-      if (views[period]) return Promise.resolve();
-      return fetch(API_URL + '/coins?period=' + period)
+    function loadPeriod() {
+      var period = currentPeriod;
+      var ready = views[period] ? Promise.resolve() : fetch(API_URL + '/coins?period=' + period)
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
         })
         .then(function(view) { views[period] = view; });
-    }
-
-    // Every period needs the 7-day list, which is what runners are measured on.
-    function loadPeriod() {
-      var period = currentPeriod;
-      Promise.all([fetchView(period), fetchView('7d')]).then(function() {
+      ready.then(function() {
         if (period === currentPeriod) showPeriod();
       }).catch(function(err) {
         if (period !== currentPeriod) return;
@@ -373,7 +370,9 @@
       loadPeriod();
     });
     document.getElementById('coinSearch').addEventListener('input', renderCoins);
-    document.getElementById('runnersOnly').addEventListener('change', renderCoins);
+    ['minTrades', 'minVolume', 'minMove'].forEach(function(id) {
+      document.getElementById(id).addEventListener('input', renderCoins);
+    });
 
     applyTheme(currentTheme);
     loadPeriod();

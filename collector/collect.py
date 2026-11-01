@@ -2,7 +2,7 @@
 
 Runs on a server Binance doesn't block, every 5 minutes. Each run posts two
 things to the trading-hours Worker: one {ts, tR, vR, tS} top-20 row for the
-Trading Hours page, and the Popular Coins lists for the 2h, 4h, 12h and today
+Trading Hours page, and the Popular Coins lists for the 2h, 4h, 12h and 1d
 periods. The 7d list comes from coins.py.
 
 Standard library only. Environment:
@@ -153,8 +153,7 @@ def build_views(series, slot):
         "2h": build_view(series, end - 120 * MINUTE_MS, end, SLOT_MS),
         "4h": build_view(series, end - 240 * MINUTE_MS, end, SLOT_MS),
         "12h": build_view(series, end - 720 * MINUTE_MS, end, 15 * MINUTE_MS),
-        # The day this slot belongs to, so the run just after midnight still has data.
-        "today": build_view(series, slot - slot % DAY_MS, end, 30 * MINUTE_MS),
+        "1d": build_view(series, end - DAY_MS, end, 30 * MINUTE_MS),
     }
 
 
