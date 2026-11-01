@@ -125,7 +125,7 @@
 
       <section class="card coin-detail">
         <h3 id="coinTitle">&mdash;</h3>
-        <div class="chart-container" role="img" aria-label="Price with SMMA 30 and 120 from 1-minute candles, and trade count, for the selected coin">
+        <div class="chart-container" role="img" aria-label="Price from 1-minute candles, with SMMA 30 and 120 on periods under 7 days, and trade count, for the selected coin">
           <canvas id="coinChart"></canvas>
         </div>
       </section>
@@ -308,9 +308,10 @@
     }
 
     // Returns {labels, closes, fast, slow, trades, step} for the chart.
-    function buildChartData(candles, start, showDates) {
+    // fast and slow stay empty when the chart has no SMMA lines.
+    function buildChartData(candles, start, showDates, showSmma) {
       var closes = candles.map(function(c) { return parseFloat(c[4]); });
-      var fast = smma(closes, SMMA_FAST), slow = smma(closes, SMMA_SLOW);
+      var fast = showSmma ? smma(closes, SMMA_FAST) : [], slow = showSmma ? smma(closes, SMMA_SLOW) : [];
       var first = candles.findIndex(function(c) { return c[0] >= start; });
       if (first < 0) first = candles.length;
       var count = candles.length - first;
@@ -321,8 +322,10 @@
         for (var j = i; j <= last; j++) trades += candles[j][8];
         data.labels.push(showDates ? dateTimeLabel(candles[i][0]) : timeLabel(candles[i][0]));
         data.closes.push(closes[last]);
-        data.fast.push(fast[last]);
-        data.slow.push(slow[last]);
+        if (showSmma) {
+          data.fast.push(fast[last]);
+          data.slow.push(slow[last]);
+        }
         data.trades.push(trades);
       }
       return data;
@@ -344,16 +347,14 @@
       var lineSet = function(label, data, borderColor, borderWidth) {
         return { type: 'line', label: label, data: data, yAxisID: 'price', borderColor: borderColor, backgroundColor: borderColor, borderWidth: borderWidth, pointRadius: 0, tension: 0, order: 1 };
       };
+      var datasets = [lineSet('Close', chartData.closes, color('--text'), 1.25)];
+      if (chartData.fast.length) {
+        datasets.push(lineSet('SMMA ' + SMMA_FAST, chartData.fast, color('--smma-fast'), 1.75));
+        datasets.push(lineSet('SMMA ' + SMMA_SLOW, chartData.slow, color('--smma-slow'), 1.75));
+      }
+      datasets.push({ type: 'bar', label: 'Trades', data: chartData.trades, yAxisID: 'trades', backgroundColor: color('--accent'), order: 2 });
       coinChart = new Chart(document.getElementById('coinChart'), {
-        data: {
-          labels: chartData.labels,
-          datasets: [
-            lineSet('Close', chartData.closes, color('--text'), 1.25),
-            lineSet('SMMA ' + SMMA_FAST, chartData.fast, color('--smma-fast'), 1.75),
-            lineSet('SMMA ' + SMMA_SLOW, chartData.slow, color('--smma-slow'), 1.75),
-            { type: 'bar', label: 'Trades', data: chartData.trades, yAxisID: 'trades', backgroundColor: color('--accent'), order: 2 }
-          ]
-        },
+        data: { labels: chartData.labels, datasets: datasets },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
           interaction: { mode: 'index', intersect: false },
@@ -372,6 +373,8 @@
       var view = views[currentPeriod];
       if (!view || !selectedCoin) return;
       var symbol = selectedCoin, period = currentPeriod, request = ++chartRequest;
+      // Over a week, lines this short only trace the price.
+      var showSmma = period !== '7d';
       var title = document.getElementById('coinTitle');
       title.textContent = symbol + ' — loading 1-minute candles…';
       var length = view.end - view.start, key = symbol + ':' + period, cached = candleCache[key];
@@ -380,15 +383,15 @@
         ready = Promise.resolve(cached);
       } else {
         var end = Date.now(), start = end - length;
-        ready = fetchCandles(symbol, start - WARMUP_CANDLES * MINUTE_MS, end).then(function(candles) {
+        ready = fetchCandles(symbol, showSmma ? start - WARMUP_CANDLES * MINUTE_MS : start, end).then(function(candles) {
           candleCache[key] = { at: Date.now(), start: start, candles: candles };
           return candleCache[key];
         });
       }
       ready.then(function(entry) {
         if (request !== chartRequest) return;
-        chartData = buildChartData(entry.candles, entry.start, length > 24 * HOUR_MS);
-        title.textContent = symbol + ' — 1m close, SMMA ' + SMMA_FAST + ' and ' + SMMA_SLOW + (chartData.step > 1 ? ', drawn every ' + chartData.step + ' minutes' : '');
+        chartData = buildChartData(entry.candles, entry.start, length > 24 * HOUR_MS, showSmma);
+        title.textContent = symbol + ' — 1m close' + (showSmma ? ', SMMA ' + SMMA_FAST + ' and ' + SMMA_SLOW : '') + (chartData.step > 1 ? ', drawn every ' + chartData.step + ' minutes' : '');
         drawChart();
       }).catch(function(err) {
         if (request !== chartRequest) return;
