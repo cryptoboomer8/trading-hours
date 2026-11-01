@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orion Screener — Popular Coins</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html.theme-dark {
+      --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
+      --border: rgba(0,255,255,0.08);
+      --text: #e8ecf1; --text-secondary: #6b7f99;
+      --accent: #e040fb; --positive: #00e676; --negative: #ff1744;
+      --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
+    }
+    html.theme-light {
+      --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
+      --border: rgba(0,0,0,0.08);
+      --text: #0f172a; --text-secondary: #64748b;
+      --accent: #9333ea; --positive: #059669; --negative: #e11d48;
+      --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+      transition: background 0.3s, color 0.3s; scrollbar-gutter: stable;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    .theme-toggle { position: fixed; top: 16px; right: 16px; z-index: 9999; width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; }
+    .theme-toggle:hover { background: var(--surface-hover); }
+    .bg-atmosphere { position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; position: relative; z-index: 1; }
+    .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.04em; }
+    .dashboard-header { text-align: center; margin-bottom: 32px; }
+    .dashboard-header h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.08; color: var(--accent); margin: 12px 0 8px; }
+    .subtitle { font-size: 1rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
+    .status-dot.stale { background: var(--negative); animation: none; }
+
+    .controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .period-toggle { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+    .period-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .period-toggle button:hover { color: var(--text); }
+    .period-toggle button.active { background: var(--accent); color: #fff; }
+    .coin-search { padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; }
+    .coin-table-wrap { overflow-x: auto; }
+    .coin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .coin-table th { text-align: left; font-weight: 500; font-size: 0.75rem; color: var(--text-secondary); padding: 8px 10px; }
+    .coin-table td { padding: 7px 10px; border-top: 1px solid var(--border); white-space: nowrap; }
+    .coin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .coin-table tbody tr { cursor: pointer; }
+    .coin-table tbody tr:hover, .coin-table tbody tr.selected { background: var(--surface-hover); }
+    .coin-table svg { display: block; }
+    .coin-up { color: #22c55e; }
+    .coin-down { color: #ef4444; }
+    .coin-choppy { color: #f59e0b; }
+    .coin-run { color: var(--accent); }
+    .filters { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .runners-only { font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .runners-only input { accent-color: var(--accent); }
+    .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
+    .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 16px; }
+    .chart-container { position: relative; height: 380px; }
+    @media (max-width: 768px) { .container { padding: 20px 16px; } .chart-container { height: 280px; } }
+  </style>
+</head>
+<body>
+  <div class="bg-atmosphere"></div>
+  <button class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme"><span id="themeIcon"></span></button>
+
+  <main class="container">
+    <section class="dashboard-header">
+      <a class="back-link" href="./">&larr; Back to index</a>
+      <h1>Popular Coins</h1>
+      <p class="subtitle"><span class="status-dot" id="statusDot"></span><span id="subtitleText">Loading&hellip;</span></p>
+    </section>
+
+    <section class="controls">
+      <div class="period-toggle" id="periodToggle" role="group" aria-label="Choose the period">
+        <button class="active" data-period="7d" type="button">7D</button>
+        <button data-period="today" type="button">Today</button>
+        <button data-period="12h" type="button">12H</button>
+        <button data-period="4h" type="button">4H</button>
+        <button data-period="2h" type="button">2H</button>
+      </div>
+      <div class="filters">
+        <label class="runners-only"><input type="checkbox" id="runnersOnly"> Runners only</label>
+        <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="coin-table-wrap">
+        <table class="coin-table">
+          <thead><tr><th>#</th><th>Coin</th><th class="num">Trades</th><th class="num">Trades / hour</th><th class="num">Volume</th><th>Price</th><th class="num">Change</th><th>Trend</th><th>3-day run</th></tr></thead>
+          <tbody id="coinRows"></tbody>
+        </table>
+      </div>
+      <p class="coin-note" id="coinNote"></p>
+    </section>
+
+    <section class="card coin-detail">
+      <h3 id="coinTitle">&mdash;</h3>
+      <div class="chart-container" role="img" aria-label="Trade count and closing price for the selected coin">
+        <canvas id="coinChart"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
+    var COIN_ROWS = 25;
+    var HOUR_MS = 3600000;
+    var RUNNER_RISE = 40;
+    // A list older than this means the collector has stopped.
+    var STALE_MS = { '7d': 3 * HOUR_MS, today: HOUR_MS / 2, '12h': HOUR_MS / 2, '4h': HOUR_MS / 2, '2h': HOUR_MS / 2 };
+    var currentPeriod = '7d';
+    var views = {};
+    var selectedCoin = null;
+
+    var currentTheme = localStorage.getItem('viz-theme') || 'dark';
+    function applyTheme(t) {
+      document.documentElement.className = 'theme-' + t;
+      document.getElementById('themeIcon').textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
+      localStorage.setItem('viz-theme', t);
+      currentTheme = t;
+      buildCoinChart();
+    }
+    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+
+    function compactNumber(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+      return String(n);
+    }
+
+    function known(values) {
+      return values.filter(function(v) { return v !== null; });
+    }
+
+    // Straight-line moves count as a trend; a net move much smaller than the
+    // distance travelled to get there counts as choppy. More price points always
+    // backtrack more, so the bar drops with the square root of their number.
+    function priceTrend(closes) {
+      if (closes.length < 2 || !closes[0]) return { change: 0, label: '–', cls: '' };
+      var path = 0;
+      for (var i = 1; i < closes.length; i++) path += Math.abs(closes[i] - closes[i - 1]);
+      var net = closes[closes.length - 1] - closes[0];
+      var label = 'Choppy', cls = 'coin-choppy';
+      if (path > 0 && Math.abs(net) / path >= 1 / Math.sqrt(closes.length - 1)) {
+        label = net > 0 ? 'Up' : 'Down';
+        cls = net > 0 ? 'coin-up' : 'coin-down';
+      }
+      return { change: net / closes[0] * 100, label: label, cls: cls };
+    }
+
+    function sparkline(closes, cls) {
+      var ns = 'http://www.w3.org/2000/svg', w = 90, h = 24;
+      var svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', w); svg.setAttribute('height', h); svg.setAttribute('class', cls);
+      if (closes.length < 2) return svg;
+      var lo = Math.min.apply(null, closes), hi = Math.max.apply(null, closes), range = hi - lo || 1;
+      var points = closes.map(function(c, i) {
+        return (i / (closes.length - 1) * (w - 2) + 1).toFixed(1) + ',' + (h - 2 - (c - lo) / range * (h - 4)).toFixed(1);
+      });
+      var line = document.createElementNS(ns, 'polyline');
+      line.setAttribute('points', points.join(' ')); line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', 'currentColor'); line.setAttribute('stroke-width', '1.5');
+      svg.appendChild(line);
+      return svg;
+    }
+
+    function coinCell(row, text, cls) {
+      var td = document.createElement('td');
+      td.textContent = text;
+      if (cls) td.className = cls;
+      row.appendChild(td);
+      return td;
+    }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function timeLabel(ms) {
+      var d = new Date(ms);
+      return pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function dateTimeLabel(ms) {
+      var d = new Date(ms);
+      return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + timeLabel(ms);
+    }
+
+    function stepLabel(step) {
+      return step >= HOUR_MS ? (step / HOUR_MS) + ' hours' : (step / 60000) + ' minutes';
+    }
+
+    function renderHeader(view) {
+      var stale = Date.now() - view.end > STALE_MS[currentPeriod];
+      document.getElementById('statusDot').className = 'status-dot' + (stale ? ' stale' : '');
+      document.getElementById('subtitleText').textContent = (stale ? 'Stale: ' : '') + dateTimeLabel(view.start) + ' – ' + dateTimeLabel(view.end) + ' your time';
+    }
+
+    function renderCoins() {
+      var view = views[currentPeriod];
+      if (!view) return;
+      var hours = (view.end - view.start) / HOUR_MS;
+      var query = document.getElementById('coinSearch').value.trim().toUpperCase();
+      var runnersOnly = document.getElementById('runnersOnly').checked;
+      var runners = weekRunners();
+      var shown = [];
+      view.coins.forEach(function(c, i) {
+        if (c[0].indexOf(query) === -1 || (runnersOnly && !runners[c[0]]) || shown.length >= COIN_ROWS) return;
+        shown.push({ rank: i + 1, coin: c });
+      });
+      var body = document.getElementById('coinRows');
+      body.textContent = '';
+      shown.forEach(function(item) {
+        var c = item.coin, closes = known(c[4]), trend = priceTrend(closes);
+        var row = document.createElement('tr');
+        if (c[0] === selectedCoin) row.className = 'selected';
+        row.addEventListener('click', function() { selectCoin(c[0]); });
+        coinCell(row, item.rank);
+        coinCell(row, c[0]);
+        coinCell(row, c[1].toLocaleString(), 'num');
+        coinCell(row, Math.round(c[1] / hours).toLocaleString(), 'num');
+        coinCell(row, '$' + compactNumber(c[2]), 'num');
+        coinCell(row, '').appendChild(sparkline(closes, trend.cls));
+        coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
+        coinCell(row, trend.label, trend.cls);
+        var run = runners[c[0]];
+        coinCell(row, run ? '+' + Math.round(run.rise) + '%, ' + (run.offPeak < -0.5 ? Math.round(run.offPeak) + '% off peak' : 'at peak') : '–', run ? 'coin-run' : '');
+        body.appendChild(row);
+      });
+      document.getElementById('coinNote').textContent = view.coins.length + ' coins in total. Today starts at 00:00 UTC, and 7D updates hourly while the rest update every 5 minutes. Price points are ' + stepLabel(view.step) + ' apart. Up or Down means most of the price movement went one way; Choppy means it mostly cancelled out. A runner rose ' + RUNNER_RISE + '% or more within 3 days at some point in the last 7 days, measured on 2-hour closes; ' + Object.keys(runners).length + ' coins qualify.';
+    }
+
+    // The biggest low-to-high rise inside any 3 days of the week, using closes,
+    // and how far the price now sits below the high since then.
+    function findRun(closes, stepsIn3Days) {
+      var best = null;
+      for (var hi = 1; hi < closes.length; hi++) {
+        if (closes[hi] === null) continue;
+        for (var lo = Math.max(0, hi - stepsIn3Days); lo < hi; lo++) {
+          if (closes[lo] === null) continue;
+          var rise = (closes[hi] / closes[lo] - 1) * 100;
+          if (!best || rise > best.rise) best = { rise: rise, hi: hi };
+        }
+      }
+      if (!best || best.rise < RUNNER_RISE) return null;
+      var after = known(closes.slice(best.hi));
+      return { rise: best.rise, offPeak: (after[after.length - 1] / Math.max.apply(null, after) - 1) * 100 };
+    }
+
+    function weekRunners() {
+      var week = views['7d'];
+      if (!week) return {};
+      if (!week.runners) {
+        week.runners = {};
+        week.coins.forEach(function(c) {
+          var run = findRun(c[4], Math.round(72 * HOUR_MS / week.step));
+          if (run) week.runners[c[0]] = run;
+        });
+      }
+      return week.runners;
+    }
+
+    function selectedCoinData(view) {
+      return view.coins.filter(function(c) { return c[0] === selectedCoin; })[0];
+    }
+
+    function buildCoinChart() {
+      var view = views[currentPeriod];
+      if (typeof Chart === 'undefined' || !view || !selectedCoin) return;
+      var title = document.getElementById('coinTitle');
+      var old = document.getElementById('coinChart');
+      var canvas = document.createElement('canvas');
+      canvas.id = 'coinChart';
+      old.parentNode.replaceChild(canvas, old);
+      var coin = selectedCoinData(view);
+      if (!coin) {
+        title.textContent = selectedCoin + ' — no trades in this period';
+        return;
+      }
+      title.textContent = selectedCoin + ' — trades and closing price per ' + stepLabel(view.step);
+      var s = getComputedStyle(document.documentElement);
+      var text = s.getPropertyValue('--text').trim(), secondary = s.getPropertyValue('--text-secondary').trim(), accent = s.getPropertyValue('--accent').trim();
+      var overDays = view.end - view.start > 24 * HOUR_MS;
+      var labels = coin[3].map(function(_, i) {
+        var ms = view.start + i * view.step;
+        return overDays ? dateTimeLabel(ms) : timeLabel(ms);
+      });
+      new Chart(canvas, {
+        data: {
+          labels: labels,
+          datasets: [
+            { type: 'line', label: 'Close', data: coin[4], yAxisID: 'price', borderColor: text, borderWidth: 2, pointRadius: 0, tension: 0, spanGaps: false },
+            { type: 'bar', label: 'Trades', data: coin[3], yAxisID: 'trades', backgroundColor: accent, borderRadius: 2 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' } },
+          scales: {
+            x: { ticks: { color: secondary, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
+            trades: { position: 'left', beginAtZero: true, ticks: { color: secondary, callback: function(v) { return compactNumber(v); } }, grid: { display: false } },
+            price: { position: 'right', ticks: { color: secondary }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function selectCoin(symbol) {
+      selectedCoin = symbol;
+      renderCoins();
+      buildCoinChart();
+    }
+
+    function showPeriod() {
+      var view = views[currentPeriod];
+      renderHeader(view);
+      if (!selectedCoin && view.coins.length) selectedCoin = view.coins[0][0];
+      renderCoins();
+      buildCoinChart();
+    }
+
+    function fetchView(period) {
+      if (views[period]) return Promise.resolve();
+      return fetch(API_URL + '/coins?period=' + period)
+        .then(function(r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function(view) { views[period] = view; });
+    }
+
+    // Every period needs the 7-day list, which is what runners are measured on.
+    function loadPeriod() {
+      var period = currentPeriod;
+      Promise.all([fetchView(period), fetchView('7d')]).then(function() {
+        if (period === currentPeriod) showPeriod();
+      }).catch(function(err) {
+        if (period !== currentPeriod) return;
+        document.getElementById('coinRows').textContent = '';
+        document.getElementById('subtitleText').textContent = 'Failed to load';
+        document.getElementById('statusDot').className = 'status-dot stale';
+        document.getElementById('coinNote').textContent = 'Failed to load coins: ' + err.message;
+      });
+    }
+
+    document.getElementById('periodToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || btn.dataset.period === currentPeriod) return;
+      currentPeriod = btn.dataset.period;
+      document.querySelectorAll('#periodToggle button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      loadPeriod();
+    });
+    document.getElementById('coinSearch').addEventListener('input', renderCoins);
+    document.getElementById('runnersOnly').addEventListener('change', renderCoins);
+
+    applyTheme(currentTheme);
+    loadPeriod();
+  </script>
+</body>
+</html>

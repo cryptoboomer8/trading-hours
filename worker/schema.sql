@@ -5,11 +5,7 @@ CREATE TABLE IF NOT EXISTS rows (
   symbols TEXT
 );
 
-CREATE TABLE IF NOT EXISTS coin_days (
-  symbol TEXT NOT NULL,
-  day TEXT NOT NULL,
-  trades INTEGER NOT NULL,
-  volume INTEGER NOT NULL,
-  close REAL NOT NULL,
-  PRIMARY KEY (symbol, day)
-) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS coin_views (
+  period TEXT PRIMARY KEY,
+  data TEXT NOT NULL
+);

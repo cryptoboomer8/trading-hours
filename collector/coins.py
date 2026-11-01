@@ -1,51 +1,32 @@
-"""Record each coin's daily trade count, volume and closing price.
+"""Record the 7-day Popular Coins list from hourly candles.
 
-Runs hourly next to collect.py, refreshing yesterday and today so that today's
-partial totals stay current and yesterday's end up complete.
+Runs hourly next to collect.py, which covers the shorter periods.
 
-Usage: coins.py [--days N]   (N days back including today, default 2)
+Usage: coins.py [--dry-run]   (--dry-run prints the list size, writes nothing)
 """
 
+import json
 import sys
 import time
-import urllib.error
-import urllib.parse
-from datetime import datetime, timezone
 
-from collect import MIN_SUCCESS_SHARE, active_symbols, binance_get, post
+from collect import DAY_MS, MINUTE_MS, active_symbols, build_view, post, read_candles
 
-
-def collect_days(days):
-    """Return {day: [[symbol, trades, volume, close]]}, or raise."""
-    symbols = active_symbols()
-    by_day = {}
-    failed = 0
-    # Sequential on purpose: this spreads the requests across the run.
-    for symbol in symbols:
-        try:
-            candles = binance_get(
-                f"/fapi/v1/klines?symbol={urllib.parse.quote(symbol)}&interval=1d&limit={days}"
-            )
-        except (urllib.error.URLError, TimeoutError, ValueError):
-            failed += 1
-            continue
-        for c in candles:
-            day = datetime.fromtimestamp(c[0] / 1000, timezone.utc).strftime("%Y-%m-%d")
-            by_day.setdefault(day, []).append([symbol, int(c[8]), round(float(c[7])), float(c[4])])
-
-    if (len(symbols) - failed) / len(symbols) < MIN_SUCCESS_SHARE:
-        raise RuntimeError(f"{failed} of {len(symbols)} symbols failed")
-    return by_day
+HOUR_MS = 60 * MINUTE_MS
+WEEK_HOURS = 7 * DAY_MS // HOUR_MS
 
 
 def main():
-    days = int(sys.argv[sys.argv.index("--days") + 1]) if "--days" in sys.argv else 2
     start = time.monotonic()
-    by_day = collect_days(days)
+    now_ms = int(time.time() * 1000)
+    end = now_ms - now_ms % HOUR_MS
+    series = read_candles(active_symbols(), "1h", WEEK_HOURS, end - HOUR_MS)
+    view = build_view(series, end - 7 * DAY_MS, end, 2 * HOUR_MS)
     print(f"collected in {time.monotonic() - start:.0f}s")
-    for day in sorted(by_day):
-        result = post("/coins", {"day": day, "coins": by_day[day]})
-        print(f"{day}: {result['coins']} coins")
+    if "--dry-run" in sys.argv:
+        print(len(view["coins"]), "coins", len(json.dumps(view, separators=(",", ":"))), "bytes")
+        return
+    post("/coins?period=7d", view)
+    print(f"saved {len(view['coins'])} coins")
 
 
 if __name__ == "__main__":

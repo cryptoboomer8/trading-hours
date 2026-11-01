@@ -1,15 +1,16 @@
-"""Record the top-20 Binance futures pairs by 5-minute trade count.
+"""Record 5-minute trade counts for every Binance futures pair.
 
-Runs on a server Binance doesn't block, every 5 minutes. Each run posts one
-{ts, tR, vR, tS} row to the trading-hours Worker, which stores it and handles the
-rolling window.
+Runs on a server Binance doesn't block, every 5 minutes. Each run posts two
+things to the trading-hours Worker: one {ts, tR, vR, tS} top-20 row for the
+Trading Hours page, and the Popular Coins lists for the 2h, 4h, 12h and today
+periods. The 7d list comes from coins.py.
 
 Standard library only. Environment:
   ORION_WRITE_SECRET  the Worker's WRITE_SECRET
   ORION_API_URL       defaults to the deployed Worker
-  HEALTHCHECK_URL     optional, pinged after each saved row
+  HEALTHCHECK_URL     optional, pinged after each saved run
 
-Usage: collect.py [--dry-run]   (--dry-run prints the row, writes nothing)
+Usage: collect.py [--dry-run]   (--dry-run prints the row and list sizes, writes nothing)
 """
 
 import json
@@ -24,7 +25,10 @@ from datetime import datetime, timezone
 BINANCE = "https://fapi.binance.com"
 API_URL = "https://trading-hours.cryptoboomer.workers.dev"
 USER_AGENT = "orion-collector"
-SLOT_MS = 5 * 60 * 1000
+MINUTE_MS = 60 * 1000
+SLOT_MS = 5 * MINUTE_MS
+DAY_MS = 24 * 60 * MINUTE_MS
+SLOTS_PER_DAY = DAY_MS // SLOT_MS
 TOP_N = 20
 # Refuse to record a row if this share of symbols failed: a top-20 built from
 # partial data looks valid but is wrong.
@@ -40,7 +44,7 @@ class BinanceBackoff(Exception):
 
 
 def request(url, headers=None, body=None, timeout=20):
-    data = json.dumps(body).encode() if body is not None else None
+    data = json.dumps(body, separators=(",", ":")).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT, **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read() or b"null"), resp.headers
@@ -84,53 +88,100 @@ def post(path, body):
     return result
 
 
-def collect_row(now_ms):
-    """Return the row for the last closed 5-minute candle, or raise."""
-    symbols = active_symbols()
-
-    slot = now_ms - now_ms % SLOT_MS - SLOT_MS
-    candles = []
+def read_candles(symbols, interval, limit, last_open_ms):
+    """Return {symbol: [(open_ms, trades, volume, close)]} ending at last_open_ms, or raise."""
+    series = {}
     failed = 0
     # Sequential on purpose: this spreads the requests across the run.
     for symbol in symbols:
         try:
             rows = binance_get(
-                f"/fapi/v1/klines?symbol={urllib.parse.quote(symbol)}&interval=5m&startTime={slot}&limit=1"
+                f"/fapi/v1/klines?symbol={urllib.parse.quote(symbol)}&interval={interval}&endTime={last_open_ms}&limit={limit}"
             )
         except BinanceBackoff:
             raise
         except (urllib.error.URLError, TimeoutError, ValueError):
             failed += 1
             continue
-        if rows and rows[0][0] == slot:
-            candles.append((int(rows[0][8]), round(float(rows[0][7])), symbol))
+        if rows and rows[-1][0] == last_open_ms:
+            series[symbol] = [(c[0], int(c[8]), round(float(c[7])), float(c[4])) for c in rows]
         else:
             failed += 1
 
     if (len(symbols) - failed) / len(symbols) < MIN_SUCCESS_SHARE:
         raise RuntimeError(f"{failed} of {len(symbols)} symbols failed")
+    return series
 
+
+def build_row(series, slot):
+    """Return the top-20 row for one 5-minute slot."""
+    candles = [(rows[-1][1], rows[-1][2], symbol) for symbol, rows in series.items()]
     candles.sort(key=lambda c: c[0], reverse=True)
     top = candles[:TOP_N]
     ts = datetime.fromtimestamp(slot / 1000, timezone.utc).isoformat()
     return {"ts": ts, "tR": [c[0] for c in top], "vR": [c[1] for c in top], "tS": [c[2] for c in top]}
 
 
+def build_view(series, start, end, step):
+    """Return one period's coin list, busiest first, with trades and closes per step.
+
+    Each coin is [symbol, trades, volume, [trades per step], [close per step]].
+    A step before the coin was listed has 0 trades and a null close.
+    """
+    steps = (end - start + step - 1) // step
+    coins = []
+    for symbol, rows in series.items():
+        trades = [0] * steps
+        closes = [None] * steps
+        volume = 0
+        for open_ms, count, vol, close in rows:
+            if start <= open_ms < end:
+                i = (open_ms - start) // step
+                trades[i] += count
+                closes[i] = float(f"{close:.6g}")
+                volume += vol
+        if sum(trades) > 0:
+            coins.append([symbol, sum(trades), volume, trades, closes])
+    coins.sort(key=lambda c: c[1], reverse=True)
+    return {"start": start, "end": end, "step": step, "coins": coins}
+
+
+def build_views(series, slot):
+    """Return {period: view} for every period 5-minute candles can cover."""
+    end = slot + SLOT_MS
+    return {
+        "2h": build_view(series, end - 120 * MINUTE_MS, end, SLOT_MS),
+        "4h": build_view(series, end - 240 * MINUTE_MS, end, SLOT_MS),
+        "12h": build_view(series, end - 720 * MINUTE_MS, end, 15 * MINUTE_MS),
+        # The day this slot belongs to, so the run just after midnight still has data.
+        "today": build_view(series, slot - slot % DAY_MS, end, 30 * MINUTE_MS),
+    }
+
+
 def main():
     dry_run = "--dry-run" in sys.argv
     start = time.monotonic()
-    row = collect_row(int(time.time() * 1000))
+    now_ms = int(time.time() * 1000)
+    slot = now_ms - now_ms % SLOT_MS - SLOT_MS
+    series = read_candles(active_symbols(), "5m", SLOTS_PER_DAY, slot)
+    row = build_row(series, slot)
+    views = build_views(series, slot)
     print(f"collected in {time.monotonic() - start:.0f}s")
     if dry_run:
         print(json.dumps(row))
+        for period, view in views.items():
+            print(period, len(view["coins"]), "coins", len(json.dumps(view, separators=(",", ":"))), "bytes")
         return
     result = post("/rows", row)
     print(f"{row['ts']} added={result['added']}: top trades {row['tR'][0]}")
+    for period, view in views.items():
+        post(f"/coins?period={period}", view)
+    print(f"saved coin lists for {len(views)} periods")
     ping_healthcheck()
 
 
 def ping_healthcheck():
-    """Tell the monitor this run saved its row. Never fails the run itself."""
+    """Tell the monitor this run saved its data. Never fails the run itself."""
     url = os.environ.get("HEALTHCHECK_URL")
     if not url:
         return

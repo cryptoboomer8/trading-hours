@@ -1,25 +1,24 @@
 /**
- * Stores the trade data behind the Trading Hours page.
+ * Stores the trade data behind the Trading Hours and Popular Coins pages.
  *
  *   POST /rows           add one {ts, tR, vR, tS} top-20 row (needs the write secret)
  *   GET  /rows           every top-20 row in the rolling window, oldest first
- *   POST /coins          replace one day's {day, coins: [[symbol, trades, volume, close]]}
- *                        (needs the write secret)
- *   GET  /coins?days=N   [symbol, trades, volume, [closes]] over the last N days, busiest first
- *   GET  /coins/history?symbol=X  [day, trades, volume, close] for one coin, oldest first
+ *   POST /coins?period=P replace one period's coin list (needs the write secret)
+ *   GET  /coins?period=P {start, end, step, coins: [[symbol, trades, volume, [trades], [closes]]]},
+ *                        busiest first, for P = 7d, today, 12h, 4h or 2h
  *
- * Each write also deletes data that has left the window.
+ * Each new row also deletes rows that have left the window.
  */
 
 const RETENTION_DAYS = 31;
 const TOP_N = 20;
-const MAX_COINS = 2000;
+const COIN_PERIODS = new Set(["7d", "today", "12h", "4h", "2h"]);
+// D1's limit for one value is 2,000,000 bytes.
+const MAX_COIN_BYTES = 1_900_000;
 const READ_CACHE_MS = 60_000;
-const COIN_CACHE_MS = 300_000;
 const CORS = { "Access-Control-Allow-Origin": "*" };
 // Timestamps are stored in this exact form so they sort as text.
 const TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/;
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 let cached = null;
 const coinCache = new Map();
@@ -27,11 +26,6 @@ const coinCache = new Map();
 function cutoff() {
   const d = new Date(Date.now() - RETENTION_DAYS * 86_400_000);
   return d.toISOString().replace(/\.\d+Z$/, "+00:00");
-}
-
-// The first day of a window that ends today.
-function firstDay(days) {
-  return new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10);
 }
 
 function isCounts(a) {
@@ -44,20 +38,6 @@ function isSymbol(s) {
 
 function isSymbols(a, length) {
   return Array.isArray(a) && a.length === length && a.every(isSymbol);
-}
-
-function isCoin(c) {
-  return (
-    Array.isArray(c) &&
-    c.length === 4 &&
-    isSymbol(c[0]) &&
-    Number.isInteger(c[1]) &&
-    c[1] >= 0 &&
-    Number.isInteger(c[2]) &&
-    c[2] >= 0 &&
-    Number.isFinite(c[3]) &&
-    c[3] >= 0
-  );
 }
 
 async function secretMatches(given, expected) {
@@ -115,59 +95,30 @@ async function readRows(env) {
   });
 }
 
-async function addCoins(request, env) {
+// The list is stored and served as text: parsing it could use up the Worker's CPU limit.
+async function saveCoins(url, request, env) {
   if (!(await authorized(request, env))) return new Response("Unauthorized", { status: 401 });
-  const data = await readJson(request);
-  if (!data || !DAY_RE.test(data.day) || !Array.isArray(data.coins) || data.coins.length > MAX_COINS || !data.coins.every(isCoin)) {
-    return new Response("Invalid coins", { status: 400 });
-  }
-  // One statement per day rather than one per coin keeps the Worker's CPU time down.
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT OR REPLACE INTO coin_days (symbol, day, trades, volume, close)
-       SELECT value->>0, ?, value->>1, value->>2, value->>3 FROM json_each(?)`
-    ).bind(data.day, JSON.stringify(data.coins)),
-    env.DB.prepare("DELETE FROM coin_days WHERE day < ?").bind(firstDay(RETENTION_DAYS)),
-  ]);
-  coinCache.clear();
-  return Response.json({ day: data.day, coins: data.coins.length });
-}
-
-async function coinResponse(key, build) {
-  let entry = coinCache.get(key);
-  if (!entry || Date.now() - entry.at > COIN_CACHE_MS) {
-    entry = { at: Date.now(), body: await build() };
-    coinCache.set(key, entry);
-  }
-  return new Response(entry.body, {
-    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-  });
+  const period = url.searchParams.get("period");
+  if (!COIN_PERIODS.has(period)) return new Response("Invalid period", { status: 400 });
+  const body = await request.text();
+  if (!body.startsWith("{") || body.length > MAX_COIN_BYTES) return new Response("Invalid coins", { status: 400 });
+  await env.DB.prepare("INSERT OR REPLACE INTO coin_views (period, data) VALUES (?, ?)").bind(period, body).run();
+  coinCache.delete(period);
+  return Response.json({ period, bytes: body.length });
 }
 
 async function readCoins(url, env) {
-  const days = parseInt(url.searchParams.get("days"), 10);
-  if (!(days >= 1 && days <= RETENTION_DAYS)) return new Response("Invalid days", { status: 400 });
-  return coinResponse(`coins:${days}`, async () => {
-    const rows = await env.DB.prepare(
-      `SELECT symbol, SUM(trades), SUM(volume), group_concat(close)
-       FROM (SELECT * FROM coin_days WHERE day >= ? ORDER BY symbol, day)
-       GROUP BY symbol ORDER BY 2 DESC`
-    )
-      .bind(firstDay(days))
-      .raw();
-    // The closes are already comma-separated numbers, so join the text rather than parse it.
-    return "[" + rows.map((r) => `[${JSON.stringify(r[0])},${r[1]},${r[2]},[${r[3]}]]`).join(",") + "]";
-  });
-}
-
-async function readCoinHistory(url, env) {
-  const symbol = url.searchParams.get("symbol");
-  if (!isSymbol(symbol)) return new Response("Invalid symbol", { status: 400 });
-  return coinResponse(`history:${symbol}`, async () => {
-    const rows = await env.DB.prepare("SELECT day, trades, volume, close FROM coin_days WHERE symbol = ? ORDER BY day")
-      .bind(symbol)
-      .raw();
-    return JSON.stringify(rows);
+  const period = url.searchParams.get("period");
+  if (!COIN_PERIODS.has(period)) return new Response("Invalid period", { status: 400, headers: CORS });
+  let entry = coinCache.get(period);
+  if (!entry || Date.now() - entry.at > READ_CACHE_MS) {
+    const body = await env.DB.prepare("SELECT data FROM coin_views WHERE period = ?").bind(period).first("data");
+    if (body === null) return new Response("No data yet", { status: 404, headers: CORS });
+    entry = { at: Date.now(), body };
+    coinCache.set(period, entry);
+  }
+  return new Response(entry.body, {
+    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "public, max-age=60" },
   });
 }
 
@@ -181,10 +132,9 @@ export default {
     }
     if (url.pathname === "/coins") {
       if (request.method === "GET") return readCoins(url, env);
-      if (request.method === "POST") return addCoins(request, env);
+      if (request.method === "POST") return saveCoins(url, request, env);
       return new Response("Method not allowed", { status: 405 });
     }
-    if (url.pathname === "/coins/history" && request.method === "GET") return readCoinHistory(url, env);
     return new Response("Not found", { status: 404 });
   },
 };
