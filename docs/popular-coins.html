@@ -77,6 +77,7 @@
     .coin-down, .thin-volume { color: #ef4444; }
     .coin-choppy { color: #f59e0b; }
     .coin-flat { color: var(--text-secondary); }
+    .market-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); font-size: 0.65rem; font-weight: 600; letter-spacing: 0.04em; line-height: 1.5; vertical-align: 1px; }
     .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
     .coin-detail { position: sticky; top: 16px; }
     .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 12px; }
@@ -167,6 +168,16 @@
     var MIN_VOLUME_PER_5M = 500000;
     var highCaps = {};
     var tradfi = {};
+    // Binance's underlyingType for TradFi pairs, shown as [badge, tooltip].
+    var MARKETS = {
+      EQUITY: ['US', 'US stock or ETF, NYSE or Nasdaq'],
+      KR_EQUITY: ['KR', 'Korean stock, Korea Exchange in Seoul'],
+      HK_EQUITY: ['HK', 'Hong Kong stock or ETF, HKEX'],
+      CN_EQUITY: ['CN', 'Chinese stock, Shanghai or Shenzhen'],
+      COMMODITY: ['CMDTY', 'Commodity'],
+      FX: ['FX', 'Currency pair'],
+      PREMARKET: ['PRE-IPO', 'Company not yet listed on a stock exchange']
+    };
     var currentMarket = 'all';
     var candleCache = {};
     var selectedCoin = null;
@@ -246,6 +257,14 @@
       return svg;
     }
 
+    function marketBadge(symbol) {
+      var badge = document.createElement('span');
+      badge.className = 'market-badge';
+      badge.textContent = tradfi[symbol][0];
+      badge.title = tradfi[symbol][1];
+      return badge;
+    }
+
     function coinCell(row, text, cls) {
       var td = document.createElement('td');
       td.textContent = text;
@@ -307,7 +326,8 @@
         if (c[0] === selectedCoin) row.className = 'selected';
         row.addEventListener('click', function() { selectCoin(c[0]); });
         coinCell(row, list.indexOf(c) + 1 || view.coins.indexOf(c) + 1);
-        coinCell(row, c[0]);
+        var name = coinCell(row, c[0]);
+        if (tradfi[c[0]]) name.appendChild(marketBadge(c[0]));
         coinCell(row, Math.round(c[1] / slots).toLocaleString(), 'num');
         volumeCell(row, Math.round(c[2] / slots));
         RECENT_PERIODS.forEach(function(p) {
@@ -319,7 +339,7 @@
         coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
         body.appendChild(row);
       });
-      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. A red volume is under $500K per 5 minutes. High cap means a crypto market cap of $1B or more, from CoinGecko. TradFi covers the stock, ETF and commodity perpetuals that averaged 100,000 trades a day over the last week; the rest are left out. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
+      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. A red volume is under $500K per 5 minutes. High cap means a crypto market cap of $1B or more, from CoinGecko. A badge marks a stock, ETF or commodity and its home market: US, KR, HK, CN or CMDTY. TradFi covers the stock, ETF and commodity perpetuals that averaged 100,000 trades a day over the last week; the rest are left out. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
     }
 
     function smma(closes, length) {
@@ -589,7 +609,8 @@
         return r.json();
       })
       .then(function(data) {
-        data.symbols.forEach(function(s) { tradfi[s] = true; });
+        var types = data.types || {};
+        data.symbols.forEach(function(s) { tradfi[s] = MARKETS[types[s]] || ['TRADFI', 'Stock, ETF or commodity']; });
       })
       .catch(function() {
         setMarket('all');

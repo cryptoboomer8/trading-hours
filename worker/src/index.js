@@ -7,7 +7,8 @@
  *   GET  /coins?period=P {start, end, step, coins: [[symbol, trades, volume, [closes]]]},
  *                        busiest first, for P = 7d, 1d, 12h, 6h, 4h, 2h or 1h;
  *                        P = highcap gives {symbols: [high-cap pairs]};
- *                        P = tradfi gives {symbols: [TradFi pairs], active: [those in the lists]}
+ *                        P = tradfi gives {symbols: [TradFi pairs], active: [those in the lists],
+ *                        types: {pair: Binance underlyingType}}
  *
  * Each new row also deletes rows that have left the window.
  */

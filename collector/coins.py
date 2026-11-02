@@ -74,7 +74,7 @@ def main():
         post("/coins?period=7d", view)
         print(f"saved {len(view['coins'])} coins")
         if len(tradfi_series) >= TRADFI_MIN_READ_SHARE * len(tradfi):
-            post("/coins?period=tradfi", {"symbols": tradfi, "active": active})
+            post("/coins?period=tradfi", {"symbols": list(tradfi), "active": active, "types": tradfi})
             print(f"saved {len(active)} of {len(tradfi)} TradFi pairs as active")
         else:
             print(f"TradFi list not updated: only {len(tradfi_series)} of {len(tradfi)} read")

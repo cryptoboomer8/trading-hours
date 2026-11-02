@@ -69,11 +69,15 @@ def binance_get(path):
 
 
 def trading_contracts():
-    """Return (crypto perpetuals, TradFi perpetuals) that are trading now."""
+    """Return the crypto perpetuals and TradFi perpetuals that are trading now.
+
+    Crypto is a list of symbols. TradFi is {symbol: Binance's underlyingType},
+    such as EQUITY (US), KR_EQUITY, HK_EQUITY, CN_EQUITY or COMMODITY.
+    """
     info = binance_get("/fapi/v1/exchangeInfo")
     trading = [s for s in info["symbols"] if s.get("status") == "TRADING"]
     crypto = [s["symbol"] for s in trading if s.get("contractType") == "PERPETUAL"]
-    tradfi = [s["symbol"] for s in trading if s.get("contractType") == "TRADIFI_PERPETUAL"]
+    tradfi = {s["symbol"]: s.get("underlyingType") for s in trading if s.get("contractType") == "TRADIFI_PERPETUAL"}
     if len(crypto) < MIN_SYMBOLS:
         raise RuntimeError(f"only {len(crypto)} symbols from exchangeInfo")
     return crypto, tradfi
