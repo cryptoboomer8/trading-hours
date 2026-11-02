@@ -72,7 +72,7 @@
     .coin-table tbody tr:hover, .coin-table tbody tr.selected { background: var(--surface-hover); }
     .coin-table svg { display: block; }
     .coin-up { color: #22c55e; }
-    .coin-down { color: #ef4444; }
+    .coin-down, .thin-volume { color: #ef4444; }
     .coin-choppy { color: #f59e0b; }
     .coin-flat { color: var(--text-secondary); }
     .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
@@ -156,6 +156,7 @@
     var views = {};
     var RECENT_PERIODS = ['1h', '2h'];
     var recentVolume = {};
+    var MIN_VOLUME_PER_5M = 500000;
     var highCaps = {};
     var candleCache = {};
     var selectedCoin = null;
@@ -233,6 +234,11 @@
       return td;
     }
 
+    // Average volume per 5 minutes, red when it is below the liquidity floor.
+    function volumeCell(row, volume) {
+      return coinCell(row, '$' + compactNumber(volume), 'num' + (volume < MIN_VOLUME_PER_5M ? ' thin-volume' : ''));
+    }
+
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
     function timeLabel(ms) {
@@ -275,16 +281,17 @@
         coinCell(row, list.indexOf(c) + 1 || view.coins.indexOf(c) + 1);
         coinCell(row, c[0]);
         coinCell(row, Math.round(c[1] / slots).toLocaleString(), 'num');
-        coinCell(row, '$' + compactNumber(Math.round(c[2] / slots)), 'num');
+        volumeCell(row, Math.round(c[2] / slots));
         RECENT_PERIODS.forEach(function(p) {
           var volumes = recentVolume[p];
-          coinCell(row, volumes ? '$' + compactNumber(volumes[c[0]] || 0) : '–', 'num');
+          if (volumes) volumeCell(row, volumes[c[0]] || 0);
+          else coinCell(row, '–', 'num');
         });
         coinCell(row, '').appendChild(sparkline(closes, trend.cls));
         coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
         body.appendChild(row);
       });
-      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. High cap means a market cap of $1B or more, from CoinGecko. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
+      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. A red volume is under $500K per 5 minutes. High cap means a market cap of $1B or more, from CoinGecko. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
     }
 
     function smma(closes, length) {
