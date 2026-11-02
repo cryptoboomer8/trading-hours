@@ -78,14 +78,12 @@
     .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
     .coin-detail { position: sticky; top: 16px; }
     .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 12px; }
-    .chart-container { position: relative; height: calc((100vh - 222px) * 0.72); min-height: 320px; }
-    .volume-container { position: relative; height: calc((100vh - 222px) * 0.28); min-height: 130px; margin-top: 12px; }
+    .chart-container { position: relative; height: calc(100vh - 210px); min-height: 420px; }
 
     @media (max-width: 1100px) {
       .workspace { grid-template-columns: minmax(0, 1fr); }
       .coin-detail { position: static; }
-      .chart-container { height: 360px; }
-      .volume-container { height: 150px; }
+      .chart-container { height: 420px; }
       .container { padding: 20px 16px; }
     }
   </style>
@@ -127,11 +125,8 @@
 
       <section class="card coin-detail">
         <h3 id="coinTitle">&mdash;</h3>
-        <div class="chart-container" role="img" aria-label="Price from 1-minute candles, with SMMA 30 and 120 on periods under 7 days, for the selected coin">
+        <div class="chart-container" role="img" aria-label="Price from 1-minute candles, with SMMA 30 and 120 on periods under 7 days, and volume in USDT, for the selected coin">
           <canvas id="coinChart"></canvas>
-        </div>
-        <div class="volume-container" role="img" aria-label="Volume in USDT as bars, with trade count as a line, for the selected coin">
-          <canvas id="volumeChart"></canvas>
         </div>
       </section>
     </div>
@@ -167,9 +162,7 @@
     var selectedCoin = null;
     var chartData = null;
     var coinChart = null;
-    var volumeChart = null;
     var chartRequest = 0;
-    var AXIS_WIDTH = 64;
     var STATE_KEY = 'popular-coins-state';
 
     var currentTheme = localStorage.getItem('viz-theme') || 'dark';
@@ -328,7 +321,7 @@
       return Promise.all(requests).then(function(pages) { return [].concat.apply([], pages); });
     }
 
-    // Returns {labels, closes, fast, slow, trades, volumes, step} for the charts.
+    // Returns {labels, closes, fast, slow, volumes, step} for the chart.
     // Volume is the quote volume, so it is in USDT rather than contracts.
     // fast and slow stay empty when the chart has no SMMA lines.
     function buildChartData(candles, start, showDates, showSmma) {
@@ -338,20 +331,16 @@
       if (first < 0) first = candles.length;
       var count = candles.length - first;
       var step = CHART_STEPS.filter(function(s) { return count / s <= MAX_CHART_POINTS; })[0] || CHART_STEPS[CHART_STEPS.length - 1];
-      var data = { labels: [], closes: [], fast: [], slow: [], trades: [], volumes: [], step: step };
+      var data = { labels: [], closes: [], fast: [], slow: [], volumes: [], step: step };
       for (var i = first; i < candles.length; i += step) {
-        var last = Math.min(i + step, candles.length) - 1, trades = 0, volume = 0;
-        for (var j = i; j <= last; j++) {
-          trades += candles[j][8];
-          volume += parseFloat(candles[j][7]);
-        }
+        var last = Math.min(i + step, candles.length) - 1, volume = 0;
+        for (var j = i; j <= last; j++) volume += parseFloat(candles[j][7]);
         data.labels.push(showDates ? dateTimeLabel(candles[i][0]) : timeLabel(candles[i][0]));
         data.closes.push(closes[last]);
         if (showSmma) {
           data.fast.push(fast[last]);
           data.slow.push(slow[last]);
         }
-        data.trades.push(trades);
         data.volumes.push(volume);
       }
       return data;
@@ -359,68 +348,39 @@
 
     function clearChart() {
       if (coinChart) coinChart.destroy();
-      if (volumeChart) volumeChart.destroy();
       coinChart = null;
-      volumeChart = null;
       chartData = null;
-    }
-
-    // Both panels give their side axes the same widths, so their x positions line up.
-    function fixedWidth(width) {
-      return function(axis) { axis.width = width; };
     }
 
     function drawChart() {
       if (typeof Chart === 'undefined' || !chartData) return;
       if (coinChart) coinChart.destroy();
-      if (volumeChart) volumeChart.destroy();
       var s = getComputedStyle(document.documentElement);
       var color = function(name) { return s.getPropertyValue(name).trim(); };
       var secondary = color('--text-secondary');
-      var options = function(scales) {
-        return {
-          responsive: true, maintainAspectRatio: false, animation: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'top', align: 'start' } },
-          scales: scales
-        };
+      var maxVolume = Math.max.apply(null, chartData.volumes);
+      var lineSet = function(label, data, borderColor, borderWidth) {
+        return { type: 'line', label: label, data: data, yAxisID: 'price', borderColor: borderColor, backgroundColor: borderColor, borderWidth: borderWidth, pointRadius: 0, tension: 0, order: 1 };
       };
-      var xAxis = function(showTicks) {
-        return { ticks: { display: showTicks, color: secondary, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } };
-      };
-      var lineSet = function(label, data, axis, borderColor, borderWidth) {
-        return { type: 'line', label: label, data: data, yAxisID: axis, borderColor: borderColor, backgroundColor: borderColor, borderWidth: borderWidth, pointRadius: 0, tension: 0, order: 1 };
-      };
-
-      var datasets = [lineSet('Close', chartData.closes, 'price', color('--text'), 1.25)];
+      var datasets = [lineSet('Close', chartData.closes, color('--text'), 1.25)];
       if (chartData.fast.length) {
-        datasets.push(lineSet('SMMA ' + SMMA_FAST, chartData.fast, 'price', color('--smma-fast'), 1.75));
-        datasets.push(lineSet('SMMA ' + SMMA_SLOW, chartData.slow, 'price', color('--smma-slow'), 1.75));
+        datasets.push(lineSet('SMMA ' + SMMA_FAST, chartData.fast, color('--smma-fast'), 1.75));
+        datasets.push(lineSet('SMMA ' + SMMA_SLOW, chartData.slow, color('--smma-slow'), 1.75));
       }
-      var priceOptions = options({
-        x: xAxis(false),
-        price: { position: 'right', afterFit: fixedWidth(AXIS_WIDTH), ticks: { color: secondary }, grid: { display: false } }
-      });
-      priceOptions.layout = { padding: { left: AXIS_WIDTH } };
+      datasets.push({ type: 'bar', label: 'Volume (USDT)', data: chartData.volumes, yAxisID: 'volume', backgroundColor: color('--accent') + '99', order: 2 });
       coinChart = new Chart(document.getElementById('coinChart'), {
         data: { labels: chartData.labels, datasets: datasets },
-        options: priceOptions
-      });
-
-      var axisTicks = { color: secondary, maxTicksLimit: 4, callback: function(v) { return compactNumber(v); } };
-      volumeChart = new Chart(document.getElementById('volumeChart'), {
-        data: {
-          labels: chartData.labels,
-          datasets: [
-            lineSet('Trades', chartData.trades, 'trades', color('--text'), 1.25),
-            { type: 'bar', label: 'Volume (USDT)', data: chartData.volumes, yAxisID: 'volume', backgroundColor: color('--accent') + '99', order: 2 }
-          ]
-        },
-        options: options({
-          x: xAxis(true),
-          volume: { position: 'left', beginAtZero: true, afterFit: fixedWidth(AXIS_WIDTH), ticks: Object.assign({}, axisTicks, { callback: function(v) { return '$' + compactNumber(v); } }), grid: { display: false } },
-          trades: { position: 'right', beginAtZero: true, afterFit: fixedWidth(AXIS_WIDTH), ticks: axisTicks, grid: { display: false } }
-        })
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' } },
+          scales: {
+            x: { ticks: { color: secondary, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
+            // Keeps the bars in the bottom quarter, clear of the price lines.
+            volume: { position: 'left', beginAtZero: true, max: maxVolume * 4, ticks: { color: secondary, callback: function(v) { return v <= maxVolume ? '$' + compactNumber(v) : null; } }, grid: { display: false } },
+            price: { position: 'right', ticks: { color: secondary }, grid: { display: false } }
+          }
+        }
       });
     }
 
