@@ -116,7 +116,7 @@
       <section class="card">
         <div class="coin-table-wrap">
           <table class="coin-table">
-            <thead><tr><th>#</th><th>Coin</th><th class="num">Trades / 5m</th><th class="num">Volume / 5m</th><th>Price</th><th class="num">Change</th></tr></thead>
+            <thead><tr><th>#</th><th>Coin</th><th class="num">Trades / 5m</th><th class="num">Volume / 5m</th><th class="num" title="Average volume per 5 minutes over the last hour">Vol / 5m 1H</th><th class="num" title="Average volume per 5 minutes over the last 2 hours">Vol / 5m 2H</th><th>Price</th><th class="num">Change</th></tr></thead>
             <tbody id="coinRows"></tbody>
           </table>
         </div>
@@ -154,6 +154,8 @@
 
     var currentPeriod = '7d';
     var views = {};
+    var RECENT_PERIODS = ['1h', '2h'];
+    var recentVolume = {};
     var highCaps = {};
     var candleCache = {};
     var selectedCoin = null;
@@ -274,11 +276,15 @@
         coinCell(row, c[0]);
         coinCell(row, Math.round(c[1] / slots).toLocaleString(), 'num');
         coinCell(row, '$' + compactNumber(Math.round(c[2] / slots)), 'num');
+        RECENT_PERIODS.forEach(function(p) {
+          var volumes = recentVolume[p];
+          coinCell(row, volumes ? '$' + compactNumber(volumes[c[0]] || 0) : '–', 'num');
+        });
         coinCell(row, '').appendChild(sparkline(closes, trend.cls));
         coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
         body.appendChild(row);
       });
-      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. High cap means a market cap of $1B or more, from CoinGecko. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
+      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. High cap means a market cap of $1B or more, from CoinGecko. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
     }
 
     function smma(closes, length) {
@@ -417,15 +423,31 @@
       loadChart();
     }
 
-    function loadPeriod() {
-      var period = currentPeriod;
-      var ready = views[period] ? Promise.resolve() : fetch(API_URL + '/coins?period=' + period)
+    function fetchView(period) {
+      if (views[period]) return Promise.resolve(views[period]);
+      return fetch(API_URL + '/coins?period=' + period)
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
         })
-        .then(function(view) { views[period] = view; });
-      ready.then(function() {
+        .then(function(view) { views[period] = view; return view; });
+    }
+
+    // Average volume per 5 minutes over the last 1 and 2 hours, for every coin.
+    function loadRecentVolume() {
+      RECENT_PERIODS.forEach(function(p) {
+        fetchView(p).then(function(view) {
+          var slots = (view.end - view.start) / (5 * MINUTE_MS), volumes = {};
+          view.coins.forEach(function(c) { volumes[c[0]] = Math.round(c[2] / slots); });
+          recentVolume[p] = volumes;
+          renderCoins();
+        }).catch(function() {});
+      });
+    }
+
+    function loadPeriod() {
+      var period = currentPeriod;
+      fetchView(period).then(function() {
         if (period === currentPeriod) showPeriod();
       }).catch(function(err) {
         if (period !== currentPeriod) return;
@@ -466,6 +488,7 @@
 
     applyTheme(currentTheme);
     loadHighCaps();
+    loadRecentVolume();
     loadPeriod();
   </script>
 </body>
