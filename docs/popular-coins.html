@@ -16,6 +16,7 @@
       --text: #e8ecf1; --text-secondary: #6b7f99;
       --accent: #e040fb; --positive: #00e676; --negative: #ff1744;
       --smma-fast: #ffab00; --smma-slow: #00e5ff;
+      --session: rgba(255,255,255,0.07);
       --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
     }
     html.theme-light {
@@ -24,6 +25,7 @@
       --text: #0f172a; --text-secondary: #64748b;
       --accent: #9333ea; --positive: #059669; --negative: #e11d48;
       --smma-fast: #d97706; --smma-slow: #0891b2;
+      --session: rgba(15,23,42,0.07);
       --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
     }
 
@@ -114,6 +116,7 @@
         <button data-market="tradfi" type="button" title="Stocks, ETFs and commodities">TradFi</button>
       </div>
       <label class="cap-filter"><input type="checkbox" id="hideHighCaps"> Hide high caps</label>
+      <label class="cap-filter" title="Shades the NYSE and Nasdaq regular session on the chart: 9:30 to 16:00 New York time, weekdays, without market holidays"><input type="checkbox" id="usSession"> US session</label>
       <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
     </section>
 
@@ -171,6 +174,15 @@
     var coinChart = null;
     var chartRequest = 0;
     var STATE_KEY = 'popular-coins-state';
+    // NYSE and Nasdaq calendar, by New York date. Extend these each year from
+    // nyse.com/markets/hours-calendars.
+    var US_HOLIDAYS = [
+      '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+      '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24'
+    ];
+    // These days close at 13:00 New York time.
+    var US_EARLY_CLOSES = ['2026-11-27', '2026-12-24', '2027-11-26'];
+    var NY_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 
     var currentTheme = localStorage.getItem('viz-theme') || 'dark';
     function applyTheme(t) {
@@ -346,10 +358,11 @@
       if (first < 0) first = candles.length;
       var count = candles.length - first;
       var step = CHART_STEPS.filter(function(s) { return count / s <= MAX_CHART_POINTS; })[0] || CHART_STEPS[CHART_STEPS.length - 1];
-      var data = { labels: [], closes: [], fast: [], slow: [], volumes: [], step: step };
+      var data = { labels: [], times: [], closes: [], fast: [], slow: [], volumes: [], step: step };
       for (var i = first; i < candles.length; i += step) {
         var last = Math.min(i + step, candles.length) - 1, volume = 0;
         for (var j = i; j <= last; j++) volume += parseFloat(candles[j][7]);
+        data.times.push(candles[i][0]);
         data.labels.push(showDates ? dateTimeLabel(candles[i][0]) : timeLabel(candles[i][0]));
         data.closes.push(closes[last]);
         if (showSmma) {
@@ -366,6 +379,58 @@
       coinChart = null;
       chartData = null;
     }
+
+    // The New York wall-clock time at ms, written as if it were UTC.
+    function newYorkWallMs(ms) {
+      var p = {};
+      NY_PARTS.formatToParts(new Date(ms)).forEach(function(x) { p[x.type] = +x.value; });
+      return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute);
+    }
+
+    function newYorkToMs(year, month, day, hour, minute) {
+      var guess = Date.UTC(year, month, day, hour, minute);
+      return guess - (newYorkWallMs(guess) - guess);
+    }
+
+    // Returns [[open, close]] in ms for each US regular session touching start..end.
+    function usSessions(start, end) {
+      var sessions = [], first = new Date(newYorkWallMs(start - 24 * HOUR_MS));
+      for (var k = 0; ; k++) {
+        var day = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), first.getUTCDate() + k));
+        var y = day.getUTCFullYear(), m = day.getUTCMonth(), d = day.getUTCDate();
+        var open = newYorkToMs(y, m, d, 9, 30);
+        if (open > end) break;
+        var key = y + '-' + pad(m + 1) + '-' + pad(d), weekday = day.getUTCDay();
+        if (weekday === 0 || weekday === 6 || US_HOLIDAYS.indexOf(key) !== -1) continue;
+        var close = newYorkToMs(y, m, d, US_EARLY_CLOSES.indexOf(key) !== -1 ? 13 : 16, 0);
+        if (close > start) sessions.push([open, close]);
+      }
+      return sessions;
+    }
+
+    // The x pixel for a time, between the chart's points.
+    function timeToPixel(chart, times, t) {
+      var n = times.length, i = 0;
+      if (t <= times[0]) return chart.scales.x.getPixelForValue(0);
+      if (t >= times[n - 1]) return chart.scales.x.getPixelForValue(n - 1);
+      while (times[i + 1] < t) i++;
+      return chart.scales.x.getPixelForValue(i + (t - times[i]) / (times[i + 1] - times[i]));
+    }
+
+    var sessionShade = {
+      id: 'sessionShade',
+      beforeDatasetsDraw: function(chart, args, options) {
+        if (!options.show || !chartData || chartData.times.length < 2) return;
+        var times = chartData.times, area = chart.chartArea, ctx = chart.ctx;
+        ctx.save();
+        ctx.fillStyle = options.color;
+        usSessions(times[0], times[times.length - 1] + chartData.step * MINUTE_MS).forEach(function(session) {
+          var left = timeToPixel(chart, times, session[0]), right = timeToPixel(chart, times, session[1]);
+          if (right > left) ctx.fillRect(left, area.top, right - left, area.bottom - area.top);
+        });
+        ctx.restore();
+      }
+    };
 
     function drawChart() {
       if (typeof Chart === 'undefined' || !chartData) return;
@@ -385,10 +450,14 @@
       datasets.push({ type: 'bar', label: 'Volume (USDT)', data: chartData.volumes, yAxisID: 'volume', backgroundColor: color('--accent') + '99', order: 2 });
       coinChart = new Chart(document.getElementById('coinChart'), {
         data: { labels: chartData.labels, datasets: datasets },
+        plugins: [sessionShade],
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
           interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' } },
+          plugins: {
+            legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' },
+            sessionShade: { show: document.getElementById('usSession').checked, color: color('--session') }
+          },
           scales: {
             x: { ticks: { color: secondary, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
             // Keeps the bars in the bottom quarter, clear of the price lines.
@@ -444,6 +513,7 @@
           period: currentPeriod,
           market: currentMarket,
           hideHighCaps: document.getElementById('hideHighCaps').checked,
+          usSession: document.getElementById('usSession').checked,
           search: document.getElementById('coinSearch').value,
           coin: selectedCoin
         }));
@@ -460,6 +530,7 @@
       }
       if (['all', 'crypto', 'tradfi'].indexOf(state.market) !== -1) setMarket(state.market);
       document.getElementById('hideHighCaps').checked = state.hideHighCaps === true;
+      document.getElementById('usSession').checked = state.usSession === true;
       if (typeof state.search === 'string') document.getElementById('coinSearch').value = state.search;
       if (typeof state.coin === 'string') selectedCoin = state.coin;
     }
@@ -562,6 +633,7 @@
     });
     document.getElementById('coinSearch').addEventListener('input', function() { saveState(); renderCoins(); });
     document.getElementById('hideHighCaps').addEventListener('change', function() { saveState(); renderCoins(); });
+    document.getElementById('usSession').addEventListener('change', function() { saveState(); drawChart(); });
 
     restoreState();
     applyTheme(currentTheme);
