@@ -108,6 +108,11 @@
         <button data-period="4h" type="button">4H</button>
         <button data-period="2h" type="button">2H</button>
       </div>
+      <div class="period-toggle" id="marketToggle" role="group" aria-label="Choose the market">
+        <button class="active" data-market="all" type="button">All</button>
+        <button data-market="crypto" type="button">Crypto</button>
+        <button data-market="tradfi" type="button" title="Stocks, ETFs and commodities">TradFi</button>
+      </div>
       <label class="cap-filter"><input type="checkbox" id="hideHighCaps"> Hide high caps</label>
       <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
     </section>
@@ -158,6 +163,8 @@
     var recentVolume = {};
     var MIN_VOLUME_PER_5M = 500000;
     var highCaps = {};
+    var tradfi = {};
+    var currentMarket = 'all';
     var candleCache = {};
     var selectedCoin = null;
     var chartData = null;
@@ -260,7 +267,15 @@
 
     function visibleCoins(view) {
       var hide = document.getElementById('hideHighCaps').checked;
-      return view.coins.filter(function(c) { return !hide || !highCaps[c[0]]; });
+      return view.coins.filter(function(c) {
+        if (currentMarket !== 'all' && (currentMarket === 'tradfi') !== !!tradfi[c[0]]) return false;
+        return !hide || !highCaps[c[0]];
+      });
+    }
+
+    function setMarket(market) {
+      currentMarket = market;
+      document.querySelectorAll('#marketToggle button').forEach(function(b) { b.classList.toggle('active', b.dataset.market === market); });
     }
 
     function renderCoins() {
@@ -292,7 +307,7 @@
         coinCell(row, (trend.change >= 0 ? '+' : '') + trend.change.toFixed(1) + '%', 'num ' + trend.cls);
         body.appendChild(row);
       });
-      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. A red volume is under $500K per 5 minutes. High cap means a market cap of $1B or more, from CoinGecko. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
+      document.getElementById('coinNote').textContent = 'Top ' + Math.min(COIN_ROWS, list.length) + ' of ' + list.length + ' coins by trades, averaged over this period. The 1H and 2H volume columns always cover the last 1 and 2 hours, whatever the period. A red volume is under $500K per 5 minutes. High cap means a crypto market cap of $1B or more, from CoinGecko. TradFi covers the stock, ETF and commodity perpetuals that averaged 100,000 trades a day over the last week; the rest are left out. 7D updates hourly and the rest every 5 minutes. Colours only look at this period: green or red means a mostly one-way move, or one that reversed and now sits in the top or bottom third of its range; amber is choppy; grey means the range is small for this length of period.';
     }
 
     function smma(closes, length) {
@@ -427,6 +442,7 @@
       try {
         localStorage.setItem(STATE_KEY, JSON.stringify({
           period: currentPeriod,
+          market: currentMarket,
           hideHighCaps: document.getElementById('hideHighCaps').checked,
           search: document.getElementById('coinSearch').value,
           coin: selectedCoin
@@ -442,6 +458,7 @@
         currentPeriod = state.period;
         document.querySelectorAll('#periodToggle button').forEach(function(b) { b.classList.toggle('active', b === button); });
       }
+      if (['all', 'crypto', 'tradfi'].indexOf(state.market) !== -1) setMarket(state.market);
       document.getElementById('hideHighCaps').checked = state.hideHighCaps === true;
       if (typeof state.search === 'string') document.getElementById('coinSearch').value = state.search;
       if (typeof state.coin === 'string') selectedCoin = state.coin;
@@ -482,7 +499,7 @@
 
     function loadPeriod() {
       var period = currentPeriod;
-      fetchView(period).then(function() {
+      Promise.all([fetchView(period), tradfiReady]).then(function() {
         if (period === currentPeriod) showPeriod();
       }).catch(function(err) {
         if (period !== currentPeriod) return;
@@ -492,6 +509,22 @@
         document.getElementById('coinNote').textContent = 'Failed to load coins: ' + err.message;
       });
     }
+
+    // Resolves once the TradFi list is in, or has failed, so the first coin
+    // picked for the chart respects the market filter.
+    var tradfiReady = fetch(API_URL + '/coins?period=tradfi')
+      .then(function(r) {
+        if (!r.ok) throw new Error('Server returned ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        data.symbols.forEach(function(s) { tradfi[s] = true; });
+      })
+      .catch(function() {
+        setMarket('all');
+        document.querySelectorAll('#marketToggle button').forEach(function(b) { b.disabled = true; });
+        document.getElementById('marketToggle').title = 'The TradFi list could not be loaded';
+      });
 
     function loadHighCaps() {
       var box = document.getElementById('hideHighCaps');
@@ -519,6 +552,13 @@
       btn.classList.add('active');
       saveState();
       loadPeriod();
+    });
+    document.getElementById('marketToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || btn.disabled || btn.dataset.market === currentMarket) return;
+      setMarket(btn.dataset.market);
+      saveState();
+      renderCoins();
     });
     document.getElementById('coinSearch').addEventListener('input', function() { saveState(); renderCoins(); });
     document.getElementById('hideHighCaps').addEventListener('change', function() { saveState(); renderCoins(); });

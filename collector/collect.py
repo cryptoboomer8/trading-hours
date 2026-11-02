@@ -5,6 +5,10 @@ things to the trading-hours Worker: one {ts, tR, vR, tS} top-20 row for the
 Trading Hours page, and the Popular Coins lists for the 1h, 2h, 4h, 6h, 12h and 1d
 periods. The 7d list comes from coins.py.
 
+The top-20 row counts crypto pairs only. The coin lists also include the
+TradFi perpetuals (stocks, ETFs, commodities) that coins.py marked as active,
+so the run stays short.
+
 Standard library only. Environment:
   ORION_WRITE_SECRET  the Worker's WRITE_SECRET
   ORION_API_URL       defaults to the deployed Worker
@@ -64,16 +68,30 @@ def binance_get(path):
     return payload
 
 
-def active_symbols():
+def trading_contracts():
+    """Return (crypto perpetuals, TradFi perpetuals) that are trading now."""
     info = binance_get("/fapi/v1/exchangeInfo")
-    symbols = [
-        s["symbol"]
-        for s in info["symbols"]
-        if s.get("status") == "TRADING" and s.get("contractType") == "PERPETUAL"
-    ]
-    if len(symbols) < MIN_SYMBOLS:
-        raise RuntimeError(f"only {len(symbols)} symbols from exchangeInfo")
-    return symbols
+    trading = [s for s in info["symbols"] if s.get("status") == "TRADING"]
+    crypto = [s["symbol"] for s in trading if s.get("contractType") == "PERPETUAL"]
+    tradfi = [s["symbol"] for s in trading if s.get("contractType") == "TRADIFI_PERPETUAL"]
+    if len(crypto) < MIN_SYMBOLS:
+        raise RuntimeError(f"only {len(crypto)} symbols from exchangeInfo")
+    return crypto, tradfi
+
+
+def active_symbols():
+    return trading_contracts()[0]
+
+
+def active_tradfi(trading):
+    """Return the TradFi pairs coins.py last marked active, or none if that list is unavailable."""
+    try:
+        saved, _ = request(os.environ.get("ORION_API_URL", API_URL) + "/coins?period=tradfi")
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        print(f"TradFi list unavailable, crypto only: {e}")
+        return []
+    trading = set(trading)
+    return [s for s in saved.get("active", []) if s in trading]
 
 
 def post(path, body):
@@ -88,8 +106,11 @@ def post(path, body):
     return result
 
 
-def read_candles(symbols, interval, limit, last_open_ms):
-    """Return {symbol: [(open_ms, trades, volume, close)]} ending at last_open_ms, or raise."""
+def read_candles(symbols, interval, limit, last_open_ms, min_share=MIN_SUCCESS_SHARE):
+    """Return {symbol: [(open_ms, trades, volume, close)]} ending at last_open_ms.
+
+    Raises if fewer than min_share of the symbols could be read.
+    """
     series = {}
     failed = 0
     # Sequential on purpose: this spreads the requests across the run.
@@ -108,7 +129,7 @@ def read_candles(symbols, interval, limit, last_open_ms):
         else:
             failed += 1
 
-    if (len(symbols) - failed) / len(symbols) < MIN_SUCCESS_SHARE:
+    if symbols and (len(symbols) - failed) / len(symbols) < min_share:
         raise RuntimeError(f"{failed} of {len(symbols)} symbols failed")
     return series
 
@@ -164,10 +185,13 @@ def main():
     start = time.monotonic()
     now_ms = int(time.time() * 1000)
     slot = now_ms - now_ms % SLOT_MS - SLOT_MS
-    series = read_candles(active_symbols(), "5m", SLOTS_PER_DAY, slot)
+    crypto, tradfi = trading_contracts()
+    series = read_candles(crypto, "5m", SLOTS_PER_DAY, slot)
     row = build_row(series, slot)
-    views = build_views(series, slot)
-    print(f"collected in {time.monotonic() - start:.0f}s")
+    # A missing TradFi pair only drops it from the lists, so no minimum share.
+    tradfi_series = read_candles(active_tradfi(tradfi), "5m", SLOTS_PER_DAY, slot, min_share=0)
+    views = build_views({**series, **tradfi_series}, slot)
+    print(f"collected {len(series)} crypto and {len(tradfi_series)} TradFi pairs in {time.monotonic() - start:.0f}s")
     if dry_run:
         print(json.dumps(row))
         for period, view in views.items():
