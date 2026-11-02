@@ -16,7 +16,8 @@
       --text: #e8ecf1; --text-secondary: #6b7f99;
       --accent: #e040fb; --positive: #00e676; --negative: #ff1744;
       --smma-fast: #ffab00; --smma-slow: #00e5ff;
-      --session: rgba(255,255,255,0.07);
+      --session-us: rgba(255,255,255,0.08); --session-kr: rgba(68,138,255,0.14);
+      --session-hk: rgba(0,230,118,0.10); --session-cn: rgba(255,82,82,0.12);
       --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
     }
     html.theme-light {
@@ -25,7 +26,8 @@
       --text: #0f172a; --text-secondary: #64748b;
       --accent: #9333ea; --positive: #059669; --negative: #e11d48;
       --smma-fast: #d97706; --smma-slow: #0891b2;
-      --session: rgba(15,23,42,0.07);
+      --session-us: rgba(15,23,42,0.08); --session-kr: rgba(37,99,235,0.12);
+      --session-hk: rgba(5,150,105,0.12); --session-cn: rgba(225,29,72,0.10);
       --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
     }
 
@@ -62,6 +64,11 @@
     .coin-search { padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; }
     .cap-filter { font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .cap-filter input { accent-color: var(--accent); }
+    .session-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--text-secondary); }
+    .session-toggle button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .session-toggle button:hover { color: var(--text); }
+    .session-toggle button.active { color: var(--text); border-color: var(--text-secondary); }
+    .session-toggle .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--text-secondary); }
 
     .workspace { display: grid; grid-template-columns: minmax(620px, 1fr) minmax(0, 2fr); gap: 20px; align-items: start; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
@@ -117,7 +124,13 @@
         <button data-market="tradfi" type="button" title="Stocks, ETFs and commodities">TradFi</button>
       </div>
       <label class="cap-filter"><input type="checkbox" id="hideHighCaps"> Hide high caps</label>
-      <label class="cap-filter" title="Shades the NYSE and Nasdaq regular session on the chart: 9:30 to 16:00 New York time, weekdays, without market holidays"><input type="checkbox" id="usSession"> US session</label>
+      <div class="session-toggle" id="sessionToggle" role="group" aria-label="Shade exchange sessions on the chart">
+        Sessions
+        <button type="button" data-session="us" aria-pressed="false" title="NYSE and Nasdaq: 9:30 to 16:00 New York time, weekdays, without US market holidays"><span class="swatch" style="background: var(--session-us)"></span>US</button>
+        <button type="button" data-session="kr" aria-pressed="false" title="Korea Exchange: 9:00 to 15:30 Seoul time, weekdays. Korean holidays are not left out."><span class="swatch" style="background: var(--session-kr)"></span>KR</button>
+        <button type="button" data-session="hk" aria-pressed="false" title="HKEX: 9:30 to 12:00 and 13:00 to 16:00 Hong Kong time, weekdays. Hong Kong holidays are not left out."><span class="swatch" style="background: var(--session-hk)"></span>HK</button>
+        <button type="button" data-session="cn" aria-pressed="false" title="Shanghai and Shenzhen: 9:30 to 11:30 and 13:00 to 15:00 Beijing time, weekdays. Chinese holidays are not left out."><span class="swatch" style="background: var(--session-cn)"></span>CN</button>
+      </div>
       <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
     </section>
 
@@ -193,6 +206,16 @@
     ];
     // These days close at 13:00 New York time.
     var US_EARLY_CLOSES = ['2026-11-27', '2026-12-24', '2027-11-26'];
+    // Asian sessions as [open hour, open minute, close hour, close minute] in UTC.
+    // None of these markets moves its clocks, and each session falls on the
+    // same date in UTC as locally.
+    var ASIAN_SESSIONS = {
+      kr: [[0, 0, 6, 30]],
+      hk: [[1, 30, 4, 0], [5, 0, 8, 0]],
+      cn: [[1, 30, 3, 30], [5, 0, 7, 0]]
+    };
+    var SESSION_ORDER = ['us', 'kr', 'hk', 'cn'];
+    var shownSessions = [];
     var NY_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 
     var currentTheme = localStorage.getItem('viz-theme') || 'dark';
@@ -428,6 +451,35 @@
       return sessions;
     }
 
+    // Returns [[open, close]] in ms for one Asian market's weekday sessions touching start..end.
+    function asianSessions(market, start, end) {
+      var sessions = [], first = new Date(start - 24 * HOUR_MS);
+      for (var k = 0; ; k++) {
+        var day = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), first.getUTCDate() + k);
+        if (day > end) break;
+        var weekday = new Date(day).getUTCDay();
+        if (weekday === 0 || weekday === 6) continue;
+        ASIAN_SESSIONS[market].forEach(function(r) {
+          var open = day + (r[0] * 60 + r[1]) * MINUTE_MS, close = day + (r[2] * 60 + r[3]) * MINUTE_MS;
+          if (close > start && open < end) sessions.push([open, close]);
+        });
+      }
+      return sessions;
+    }
+
+    function marketSessions(market, start, end) {
+      return market === 'us' ? usSessions(start, end) : asianSessions(market, start, end);
+    }
+
+    function setSessions(list) {
+      shownSessions = SESSION_ORDER.filter(function(m) { return list.indexOf(m) !== -1; });
+      document.querySelectorAll('#sessionToggle button').forEach(function(b) {
+        var on = shownSessions.indexOf(b.dataset.session) !== -1;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on);
+      });
+    }
+
     // The x pixel for a time, between the chart's points.
     function timeToPixel(chart, times, t) {
       var n = times.length, i = 0;
@@ -440,13 +492,16 @@
     var sessionShade = {
       id: 'sessionShade',
       beforeDatasetsDraw: function(chart, args, options) {
-        if (!options.show || !chartData || chartData.times.length < 2) return;
+        if (!options.markets.length || !chartData || chartData.times.length < 2) return;
         var times = chartData.times, area = chart.chartArea, ctx = chart.ctx;
+        var start = times[0], end = times[times.length - 1] + chartData.step * MINUTE_MS;
         ctx.save();
-        ctx.fillStyle = options.color;
-        usSessions(times[0], times[times.length - 1] + chartData.step * MINUTE_MS).forEach(function(session) {
-          var left = timeToPixel(chart, times, session[0]), right = timeToPixel(chart, times, session[1]);
-          if (right > left) ctx.fillRect(left, area.top, right - left, area.bottom - area.top);
+        options.markets.forEach(function(market) {
+          ctx.fillStyle = options.colors[market];
+          marketSessions(market, start, end).forEach(function(session) {
+            var left = timeToPixel(chart, times, session[0]), right = timeToPixel(chart, times, session[1]);
+            if (right > left) ctx.fillRect(left, area.top, right - left, area.bottom - area.top);
+          });
         });
         ctx.restore();
       }
@@ -476,7 +531,10 @@
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' },
-            sessionShade: { show: document.getElementById('usSession').checked, color: color('--session') }
+            sessionShade: {
+              markets: shownSessions,
+              colors: { us: color('--session-us'), kr: color('--session-kr'), hk: color('--session-hk'), cn: color('--session-cn') }
+            }
           },
           scales: {
             x: { ticks: { color: secondary, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
@@ -533,7 +591,7 @@
           period: currentPeriod,
           market: currentMarket,
           hideHighCaps: document.getElementById('hideHighCaps').checked,
-          usSession: document.getElementById('usSession').checked,
+          sessions: shownSessions,
           search: document.getElementById('coinSearch').value,
           coin: selectedCoin
         }));
@@ -550,7 +608,8 @@
       }
       if (['all', 'crypto', 'tradfi'].indexOf(state.market) !== -1) setMarket(state.market);
       document.getElementById('hideHighCaps').checked = state.hideHighCaps === true;
-      document.getElementById('usSession').checked = state.usSession === true;
+      // Older saves kept only the US session as usSession.
+      setSessions(Array.isArray(state.sessions) ? state.sessions : state.usSession === true ? ['us'] : []);
       if (typeof state.search === 'string') document.getElementById('coinSearch').value = state.search;
       if (typeof state.coin === 'string') selectedCoin = state.coin;
     }
@@ -654,7 +713,14 @@
     });
     document.getElementById('coinSearch').addEventListener('input', function() { saveState(); renderCoins(); });
     document.getElementById('hideHighCaps').addEventListener('change', function() { saveState(); renderCoins(); });
-    document.getElementById('usSession').addEventListener('change', function() { saveState(); drawChart(); });
+    document.getElementById('sessionToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var market = btn.dataset.session;
+      setSessions(shownSessions.indexOf(market) === -1 ? shownSessions.concat(market) : shownSessions.filter(function(m) { return m !== market; }));
+      saveState();
+      drawChart();
+    });
 
     restoreState();
     applyTheme(currentTheme);
