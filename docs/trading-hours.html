@@ -138,10 +138,11 @@
     .kpi-value { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; }
     .kpi-detail { position: absolute; inset: 0; display: flex; align-items: center; padding: 20px 24px; background: var(--surface); color: var(--text); font-size: 0.85rem; line-height: 1.5; opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
     .kpi-card:hover .kpi-detail, .kpi-card:focus .kpi-detail { opacity: 1; }
-    .kpi-cyan .kpi-value { color: var(--accent); }
-    .kpi-magenta .kpi-value { color: var(--accent-secondary); }
-    .kpi-green .kpi-value { color: var(--positive); }
-    .kpi-amber .kpi-value { color: var(--warning); }
+    .kpi-row { display: flex; align-items: baseline; gap: 14px; margin-top: 6px; }
+    .kpi-metric { flex: 0 0 64px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); }
+    .kpi-row .kpi-value { font-size: 1.75rem; line-height: 1.2; white-space: nowrap; }
+    .kpi-row.trades .kpi-value { color: var(--accent); }
+    .kpi-row.volume .kpi-value { color: var(--accent-secondary); }
 
     /* Session brief */
     .session-brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-bottom: 48px; position: relative; z-index: 1; }
@@ -198,7 +199,7 @@
     @media (max-width: 375px) {
       body { overflow-x: hidden; }
       .chart-container { height: 280px; }
-      .kpi-card .kpi-value { font-size: 1.8rem; }
+      .kpi-card .kpi-row .kpi-value { font-size: 1.5rem; }
     }
   </style>
 </head>
@@ -389,8 +390,6 @@
     var dayMedian = {};
     var dayVolAvg = {};
     var dayVolMedian = {};
-    var bestHour = 0, bestHourVal = 0, bestHourStd = 0, bestHourSamples = 0;
-    var bestDay = '', bestDayVal = 0;
     var currentMetric = 'trades';
     var currentStat = 'median';
     var currentWindowDays = 31;
@@ -498,14 +497,6 @@
         dayVolAvg[d] = Math.round(vols.reduce(function(a,b){return a+b;},0) / vols.length);
         dayVolMedian[d] = Math.round(quantile(vols.slice().sort(function(a,b){return a-b;}), 0.5));
       });
-
-      // Best hour / day / peak / quiet — driven by current stat selection
-      var hourlyForBest = currentStat === 'median' ? hourlyMedian : hourlyAvg;
-      var dayForBest = currentStat === 'median' ? dayMedian : dayAvg;
-      bestHour = 0; bestHourVal = 0; bestHourStd = 0; bestHourSamples = 0;
-      hourlyForBest.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; bestHourStd = hourlyStd[i]; bestHourSamples = hourlySamples[i]; } });
-      bestDay = dayOrder[0]; bestDayVal = 0;
-      dayOrder.forEach(function(d) { if (dayForBest[d] > bestDayVal) { bestDayVal = dayForBest[d]; bestDay = d; } });
 
       // Subtitle uses the most recent snapshot timestamp
       var last = snapshots[snapshots.length - 1].date;
@@ -654,33 +645,58 @@
       var statName = isMedian ? 'Median' : 'Average';
       var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
       var fullDays = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+      function money(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + Math.round(v / 1e3) + 'K'; }
+      function count(v) { return Math.round(v).toLocaleString(); }
 
+      function bestIndex(arr) {
+        var best = 0;
+        arr.forEach(function(v, i) { if ((v || 0) > (arr[best] || 0)) best = i; });
+        return best;
+      }
       // Best two consecutive hours, wrapping past midnight
-      var hourlyForWindow = isMedian ? hourlyMedian : hourlyAvg;
-      var bestStart = 0, bestSum = -1;
-      for (var hi = 0; hi < 24; hi++) {
-        var sum = (hourlyForWindow[hi] || 0) + (hourlyForWindow[(hi + 1) % 24] || 0);
-        if (sum > bestSum) { bestSum = sum; bestStart = hi; }
+      function bestWindow(arr) {
+        var start = 0, sum = -1;
+        for (var h = 0; h < 24; h++) {
+          var t = (arr[h] || 0) + (arr[(h + 1) % 24] || 0);
+          if (t > sum) { sum = t; start = h; }
+        }
+        return { start: start, avg: sum / 2 };
+      }
+      function bestOfDays(map) {
+        var best = dayOrder[0];
+        dayOrder.forEach(function(d) { if ((map[d] || 0) > (map[best] || 0)) best = d; });
+        return best;
       }
 
-      var spread = isMedian
-        ? ' Half of the 5-minute readings in that hour fall between ' + hourlyP25[bestHour].toLocaleString() + ' and ' + hourlyP75[bestHour].toLocaleString() + '.'
-        : ' Standard deviation ' + bestHourStd.toLocaleString() + '.';
-      function card(n, label, value, detail) {
-        return '<div class="kpi-card kpi-cyan animate delay-' + n + '" tabindex="0" aria-label="' + label + ': ' + value + '. ' + detail + '">' +
+      var tr = isMedian ? hourlyMedian : hourlyAvg;
+      var vo = isMedian ? hourlyVolMedian : hourlyVolAvg;
+      var trDay = isMedian ? dayMedian : dayAvg;
+      var voDay = isMedian ? dayVolMedian : dayVolAvg;
+      var hT = bestIndex(tr), hV = bestIndex(vo);
+      var wT = bestWindow(tr), wV = bestWindow(vo);
+      var dT = bestOfDays(trDay), dV = bestOfDays(voDay);
+      function win(w) { return pad(w.start) + ':00 – ' + pad((w.start + 2) % 24) + ':00'; }
+
+      function row(kind, name, value) {
+        return '<div class="kpi-row ' + kind + '"><span class="kpi-metric">' + name + '</span><span class="kpi-value">' + value + '</span></div>';
+      }
+      function card(label, volValue, tradeValue, detail) {
+        return '<div class="kpi-card" tabindex="0" aria-label="' + label + ': by volume ' + volValue + ', by trades ' + tradeValue + '. ' + detail + '">' +
           '<span class="kpi-info" aria-hidden="true">i</span>' +
           '<div class="kpi-label">' + label + '</div>' +
-          '<div class="kpi-value">' + value + '</div>' +
+          row('volume', 'Volume', volValue) +
+          row('trades', 'Trades', tradeValue) +
           '<div class="kpi-detail" aria-hidden="true">' + detail + '</div>' +
         '</div>';
       }
+      var per = statName.toLowerCase() + ' per 5 min';
       sec.innerHTML =
-        card(1, 'Best hour by trades', pad(bestHour) + ':00',
-          statName + ' ' + bestHourVal.toLocaleString() + ' trades per 5 min in the ' + pad(bestHour) + ':00 hour, your time, across all days in the period.' + spread) +
-        card(2, 'Best 2 hours by trades', pad(bestStart) + ':00 – ' + pad((bestStart + 2) % 24) + ':00',
-          statName + ' ' + Math.round(bestSum / 2).toLocaleString() + ' trades per 5 min across the busiest two hours in a row, your time.') +
-        card(3, 'Best day by trades', bestDay,
-          statName + ' ' + bestDayVal.toLocaleString() + ' trades per 5 min on ' + fullDays[bestDay] + 's, all 24 hours pooled.');
+        card('Best hour', pad(hV) + ':00', pad(hT) + ':00',
+          'Volume peaks in the ' + pad(hV) + ':00 hour at ' + money(vo[hV]) + ' ' + per + ', trades in the ' + pad(hT) + ':00 hour at ' + count(tr[hT]) + '. Your time, across all days in the period.') +
+        card('Best 2 hours', win(wV), win(wT),
+          'The busiest two hours in a row: ' + money(wV.avg) + ' volume ' + per + ' from ' + win(wV) + ', and ' + count(wT.avg) + ' trades from ' + win(wT) + '. Your time.') +
+        card('Best day', dV, dT,
+          'Most volume on ' + fullDays[dV] + 's at ' + money(voDay[dV]) + ' ' + per + ', most trades on ' + fullDays[dT] + 's at ' + count(trDay[dT]) + '. All 24 hours pooled.');
     }
 
     // === HEATMAP ===
