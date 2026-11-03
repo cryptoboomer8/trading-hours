@@ -180,10 +180,8 @@
     .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
     .chart-container { position: relative; height: 380px; }
 
-    .dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px; position: relative; z-index: 1; }
 
     @media (max-width: 768px) {
-      .dual-grid { grid-template-columns: 1fr; }
       .container { padding: 20px 16px; }
       .kpi-grid { grid-template-columns: 1fr; }
       .heatmap-wrap { padding: 16px; }
@@ -310,33 +308,22 @@
 
         <!-- HOURLY AVERAGE CHART -->
         <section class="chart-section" data-reveal>
-          <h2>Average Activity by Hour</h2>
-          <p class="section-sub">Aggregated across all days &mdash; which hours consistently produce the most activity</p>
+          <h2>Activity by Hour</h2>
+          <p class="section-sub">Top-20 trades per 5 min as bars (left axis) and USDT volume per 5 min as the line (right axis), by hour of day across all days. Where the line sits well below the bars, the market is busy but thin: many small trades.</p>
           <div class="chart-card">
-            <div class="chart-container" role="img" aria-label="Bar chart showing average total trades by hour of day across all snapshots">
+            <div class="chart-container" role="img" aria-label="Bar chart of trades by hour of day with a line for volume">
               <canvas id="hourlyChart"></canvas>
             </div>
           </div>
         </section>
 
-        <!-- DUAL: Volume by hour + Day comparison -->
-        <section class="dual-grid" data-reveal>
-          <div class="chart-section" style="margin-bottom:0;">
-            <h2>Volume by Hour</h2>
-            <p class="section-sub">Average top-20 volume ($) by hour of day</p>
-            <div class="chart-card">
-              <div class="chart-container" role="img" aria-label="Bar chart showing average volume in dollars by hour of day">
-                <canvas id="volumeHourChart"></canvas>
-              </div>
-            </div>
-          </div>
-          <div class="chart-section" style="margin-bottom:0;">
-            <h2>Day-over-Day</h2>
-            <p class="section-sub">Average trades per 5 min by day of week</p>
-            <div class="chart-card">
-              <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
-                <canvas id="dayChart"></canvas>
-              </div>
+        <!-- DAY COMPARISON -->
+        <section class="chart-section" data-reveal>
+          <h2>Day-over-Day</h2>
+          <p class="section-sub">Average trades per 5 min by day of week</p>
+          <div class="chart-card">
+            <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
+              <canvas id="dayChart"></canvas>
             </div>
           </div>
         </section>
@@ -1026,32 +1013,47 @@
         ? { upper: hourlyP75, lower: hourlyP25, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' }
         : { data: hourlyStd, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' };
 
+      var volLine = isDark ? 'rgba(224,64,251,1)' : 'rgba(147,51,234,1)';
+      function moneyLabel(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; }
       var ctx1 = resetCanvas('hourlyChart');
       if (ctx1) {
-        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trade activity by hour');
+        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trades and volume by hour');
         new Chart(ctx1, {
           type: 'bar',
           plugins: [usSessionPlugin, errorBarsPlugin],
-          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Trades',data:hourlyData,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex; if (isMedian) { return ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')'; } return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:ebOpts,usSession:{hours:HOURS_OF_DAY}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
-        });
-      }
-
-      var volColors = hourlyVolAvg.map(function(v) {
-        var sorted = hourlyVolAvg.slice().sort(function(a,b){return b-a;});
-        if (v >= sorted[0]) return 'rgba(224,64,251,1)';
-        if (v >= sorted[1]) return 'rgba(224,64,251,0.75)';
-        if (v >= sorted[2]) return 'rgba(224,64,251,0.55)';
-        return isDark ? 'rgba(224,64,251,0.2)' : 'rgba(147,51,234,0.2)';
-      });
-      var ctx2 = resetCanvas('volumeHourChart');
-      if (ctx2) {
-        ctx2.setAttribute('role','img'); ctx2.setAttribute('aria-label','Volume by hour');
-        new Chart(ctx2, {
-          type: 'bar',
-          plugins: [usSessionPlugin],
-          data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Volume',data:hourlyVolData,backgroundColor:volColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K') + '  ' + statLabel;}}},legend:{display:false},usSession:{hours:HOURS_OF_DAY}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
+          data: {
+            labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}),
+            datasets: [
+              { label: statLabel + ' trades', data: hourlyData, backgroundColor: hourColors, borderRadius: 4, borderSkipped: false, yAxisID: 'y', order: 2 },
+              { type: 'line', label: statLabel + ' volume', data: hourlyVolData, yAxisID: 'y1', order: 1, borderColor: volLine, backgroundColor: volLine, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.3 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { display: true, position: 'bottom', labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12, generateLabels: function() {
+                return [
+                  { text: 'Trades per 5 min (bars, ' + statLabel + ')', fillStyle: c.accent, strokeStyle: c.accent, lineWidth: 0, fontColor: c.textSecondary },
+                  { text: 'Volume per 5 min (line, ' + statLabel + ')', fillStyle: volLine, strokeStyle: volLine, lineWidth: 0, fontColor: c.textSecondary }
+                ];
+              } }, onClick: function() {} },
+              tooltip: { enabled: true, padding: 12, cornerRadius: 8, callbacks: { label: function(ctx) {
+                var i = ctx.dataIndex;
+                if (ctx.datasetIndex === 1) return 'Volume ' + moneyLabel(ctx.raw) + ' ' + statLabel;
+                if (isMedian) return 'Trades ' + ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')';
+                return 'Trades ' + ctx.raw.toLocaleString() + ' avg  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';
+              } } },
+              errorBars: ebOpts,
+              usSession: { hours: HOURS_OF_DAY }
+            },
+            layout: { padding: 10 },
+            scales: {
+              x: { ticks: { color: c.textSecondary, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+              y: { beginAtZero: true, title: { display: true, text: 'Trades', color: c.textSecondary, font: { size: 11 } }, ticks: { color: c.textSecondary, font: { size: 11 }, callback: function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;} }, grid: { color: c.gridLine } },
+              y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Volume', color: volLine, font: { size: 11 } }, ticks: { color: volLine, font: { size: 11 }, callback: moneyLabel }, grid: { display: false } }
+            }
+          }
         });
       }
 
