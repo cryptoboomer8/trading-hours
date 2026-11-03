@@ -22,6 +22,8 @@
       --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
       --glow-green: rgba(0,230,118,0.12);
       --grid-line: rgba(0,229,255,0.04);
+      --us-pre: 148,163,184; --us-main: 0,230,118; --us-lunch: 255,171,0;
+      --us-afternoon: 68,138,255; --us-post: 224,64,251;
     }
     html.theme-light {
       --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
@@ -32,6 +34,8 @@
       --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
       --glow-green: rgba(5,150,105,0.06);
       --grid-line: rgba(0,0,0,0.06);
+      --us-pre: 100,116,139; --us-main: 5,150,105; --us-lunch: 217,119,6;
+      --us-afternoon: 37,99,235; --us-post: 147,51,234;
     }
 
     body {
@@ -116,11 +120,10 @@
     .topn-hint { font-size: 0.8rem; }
     #topNSlider { flex: 1; min-width: 220px; accent-color: var(--accent); height: 4px; }
     .session-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); }
+    .session-legend strong { color: var(--text); font-weight: 600; }
     .sl-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
-    .sl-asia { background: rgba(147,51,234,0.22); }
-    .sl-eu { background: rgba(0,229,255,0.22); }
-    .sl-us { background: rgba(0,230,118,0.22); }
-    .sl-overlap { background: rgba(255,171,0,0.30); }
+    .heatmap-table .us-strip td { height: 8px; padding: 0; border-radius: 2px; }
+    .heatmap-table .us-strip th { font-size: 0.65rem; padding: 0 12px 0 0; }
     .stat-toggle { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; }
     .stat-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
     .stat-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
@@ -253,12 +256,7 @@
             </div>
             <span class="topn-hint text-secondary" id="windowHint"></span>
           </div>
-          <div class="session-legend" aria-label="Trading sessions (your time)">
-            <span class="sl-swatch sl-asia"></span><span>Asia 00&ndash;08</span>
-            <span class="sl-swatch sl-eu"></span><span>Europe 08&ndash;16</span>
-            <span class="sl-swatch sl-us"></span><span>US 14&ndash;22</span>
-            <span class="sl-swatch sl-overlap"></span><span>EU&thinsp;&times;&thinsp;US 14&ndash;16</span>
-          </div>
+          <div class="session-legend" id="usLegend" aria-label="US session phases in your time"></div>
         </section>
 
         <!-- KPIs -->
@@ -564,6 +562,7 @@
     function rebuildAll() {
       processData(rowsInWindow(), currentTopN);
       updateWindowHint();
+      renderUsLegend();
       buildKPIs();
       buildSessionBrief();
       buildHeatmap();
@@ -629,6 +628,7 @@
       if (ctxP) {
         new Chart(ctxP, {
           type: 'line',
+          plugins: [usSessionPlugin],
           data: {
             labels: Array.from({length:24}, function(_,i){return pad(i)+':00';}),
             datasets: [
@@ -638,7 +638,7 @@
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString()); } } } },
+            plugins: { usSession: { hours: HOURS_OF_DAY, edge: true }, legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString()); } } } },
             layout: { padding: 6 },
             scales: { x: { ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
           }
@@ -646,9 +646,10 @@
       }
 
       // Next 5 hours: median trades for THIS weekday at next 5 wall-clock hours; fall back to pooled median when the weekday cell has no samples
-      var nextLabels = []; var nextValues = []; var nextSources = [];
+      var nextLabels = []; var nextValues = []; var nextSources = []; var nextHours = [];
       for (var i=1; i<=5; i++) {
         var h = (currentHour + i) % 24;
+        nextHours.push(h);
         nextLabels.push(pad(h) + ':00');
         var cell = heatmap[todayDayName] && heatmap[todayDayName][h];
         if (cell && cell.count > 0) {
@@ -683,10 +684,11 @@
       if (ctxN) {
         new Chart(ctxN, {
           type: 'bar',
+          plugins: [usSessionPlugin],
           data: { labels: nextLabels, datasets: [{ label: 'Median trades', data: nextValues, backgroundColor: nextColors, borderRadius: 4, borderSkipped: false }] },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.raw.toLocaleString() + ' median trades  (' + nextSources[ctx.dataIndex] + ')'; } } } },
+            plugins: { usSession: { hours: nextHours }, legend: { display: false }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.raw.toLocaleString() + ' median trades  (' + nextSources[ctx.dataIndex] + ')'; } } } },
             layout: { padding: 6 },
             scales: { x: { ticks: { color: c.textSecondary, font: { size: 11, weight: '600' } }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
           }
@@ -774,7 +776,10 @@
       }
       var range = maxVal - minVal || 1;
 
-      var html = '<thead><tr><th class="day-label"></th>';
+      var segs = usSegments();
+      var html = '<thead><tr class="us-strip"><th class="day-label" title="US session phases, see the legend at the top">US</th>';
+      for (var h=0; h<24; h++) html += '<td style="' + hourStripStyle(h, segs) + '"></td>';
+      html += '</tr><tr><th class="day-label"></th>';
       for (var h=0; h<24; h++) html += '<th>' + (h < 10 ? '0' : '') + h + '</th>';
       html += '</tr></thead><tbody>';
 
@@ -858,28 +863,101 @@
       parent.replaceChild(canvas, old); return canvas;
     }
 
-    // Chart.js plugin: draw trading-session bands behind bars (hourly chart)
-    var sessionBandsPlugin = {
-      id: 'sessionBands',
-      beforeDatasetsDraw: function(chart) {
-        var yScale = chart.scales.y;
-        var bars = chart.getDatasetMeta(0).data;
-        if (!yScale || bars.length < 2) return;
-        var halfWidth = (bars[1].x - bars[0].x) / 2;
-        var bands = [
-          { from: 0,  to: 8,  color: 'rgba(147,51,234,0.10)' },  // Asia 00-08
-          { from: 8,  to: 16, color: 'rgba(0,229,255,0.10)' },   // Europe 08-16
-          { from: 14, to: 22, color: 'rgba(0,230,118,0.10)' },   // US 14-22
-          { from: 14, to: 16, color: 'rgba(255,171,0,0.16)' }    // EU×US overlap
-        ];
+    // US session phases in New York time, as [from, to) in hours.
+    var US_PHASES = [
+      { key: 'pre', label: 'Pre', from: 4, to: 9.5, title: 'Pre-market, 4:00 to 9:30 New York' },
+      { key: 'main', label: 'Main', from: 9.5, to: 11.5, title: 'Opening hours, 9:30 to 11:30 New York' },
+      { key: 'lunch', label: 'Lunch', from: 11.5, to: 13.5, title: 'Lunch break, 11:30 to 13:30 New York' },
+      { key: 'afternoon', label: 'Afternoon', from: 13.5, to: 16, title: 'Afternoon into the close, 13:30 to 16:00 New York' },
+      { key: 'post', label: 'Post', from: 16, to: 20, title: 'After-hours, 16:00 to 20:00 New York' }
+    ];
+    var HOURS_OF_DAY = Array.from({ length: 24 }, function(_, i) { return i; });
+
+    // Hours to add to New York time to get the viewer's time, as of today.
+    // It is usually 6 for Europe, but 5 for a few weeks a year when only one side has changed clocks.
+    function nyShiftHours() {
+      var now = new Date(), p = {};
+      new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+        .formatToParts(now).forEach(function(x) { p[x.type] = x.value; });
+      var nyOffset = Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - now.getTime()) / 900000) * 15;
+      return (-now.getTimezoneOffset() - nyOffset) / 60;
+    }
+
+    // The phases in the viewer's hours of the day, split where they cross midnight.
+    function usSegments() {
+      var shift = nyShiftHours(), out = [];
+      US_PHASES.forEach(function(ph) {
+        var from = ((ph.from + shift) % 24 + 24) % 24, to = from + ph.to - ph.from;
+        if (to <= 24) out.push({ key: ph.key, from: from, to: to });
+        else { out.push({ key: ph.key, from: from, to: 24 }); out.push({ key: ph.key, from: 0, to: to - 24 }); }
+      });
+      return out;
+    }
+
+    function usColor(key, alpha) {
+      return 'rgba(' + getComputedStyle(document.documentElement).getPropertyValue('--us-' + key).trim() + ',' + alpha + ')';
+    }
+
+    function clockLabel(h) {
+      h = ((h % 24) + 24) % 24;
+      var hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+      return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    }
+
+    function renderUsLegend() {
+      var el = document.getElementById('usLegend');
+      if (!el) return;
+      var shift = nyShiftHours();
+      el.innerHTML = '<strong>US session, your time</strong>' + US_PHASES.map(function(ph) {
+        return '<span title="' + ph.title + '"><span class="sl-swatch" style="background:' + usColor(ph.key, 0.5) + '"></span>' +
+          ph.label + ' ' + clockLabel(ph.from + shift) + '&ndash;' + clockLabel(ph.to + shift) + '</span>';
+      }).join('');
+    }
+
+    // CSS background for one heatmap hour: the phases covering it, side by side.
+    function hourStripStyle(h, segs) {
+      var parts = [];
+      segs.forEach(function(sg) {
+        var a = Math.max(h, sg.from), b = Math.min(h + 1, sg.to);
+        if (b > a) parts.push({ key: sg.key, a: (a - h) * 100, b: (b - h) * 100 });
+      });
+      if (!parts.length) return '';
+      parts.sort(function(x, y) { return x.a - y.a; });
+      var stops = [], pos = 0;
+      parts.forEach(function(pt) {
+        if (pt.a > pos) stops.push('transparent ' + pos + '%', 'transparent ' + pt.a + '%');
+        var col = usColor(pt.key, 0.55);
+        stops.push(col + ' ' + pt.a + '%', col + ' ' + pt.b + '%');
+        pos = pt.b;
+      });
+      if (pos < 100) stops.push('transparent ' + pos + '%', 'transparent 100%');
+      return 'background:linear-gradient(to right,' + stops.join(',') + ')';
+    }
+
+    // Chart.js plugin: shades the US phases behind the data. options.hours gives
+    // the hour of the day each x label starts, and each label covers one hour:
+    // centred on it for bars, or from it to the next label when options.edge is set (line charts).
+    var usSessionPlugin = {
+      id: 'usSession',
+      beforeDatasetsDraw: function(chart, args, opts) {
+        var hours = opts && opts.hours, x = chart.scales.x, area = chart.chartArea;
+        if (!hours || !hours.length || !x) return;
+        var width = hours.length > 1 ? x.getPixelForValue(1) - x.getPixelForValue(0) : area.right - area.left;
+        var segs = usSegments(), colors = {};
+        US_PHASES.forEach(function(ph) { colors[ph.key] = usColor(ph.key, 0.14); });
         var ctx = chart.ctx;
         ctx.save();
-        bands.forEach(function(b) {
-          if (b.to - 1 >= bars.length || b.from >= bars.length) return;
-          var x1 = bars[b.from].x - halfWidth;
-          var x2 = bars[b.to - 1].x + halfWidth;
-          ctx.fillStyle = b.color;
-          ctx.fillRect(x1, yScale.top, x2 - x1, yScale.bottom - yScale.top);
+        ctx.beginPath();
+        ctx.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
+        ctx.clip();
+        hours.forEach(function(h, i) {
+          var left = x.getPixelForValue(i) - (opts.edge ? 0 : width / 2);
+          segs.forEach(function(sg) {
+            var a = Math.max(h, sg.from), b = Math.min(h + 1, sg.to);
+            if (b <= a) return;
+            ctx.fillStyle = colors[sg.key];
+            ctx.fillRect(left + (a - h) * width, area.top, (b - a) * width, area.bottom - area.top);
+          });
         });
         ctx.restore();
       }
@@ -953,9 +1031,9 @@
         ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trade activity by hour');
         new Chart(ctx1, {
           type: 'bar',
-          plugins: [sessionBandsPlugin, errorBarsPlugin],
+          plugins: [usSessionPlugin, errorBarsPlugin],
           data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Trades',data:hourlyData,backgroundColor:hourColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex; if (isMedian) { return ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')'; } return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:ebOpts}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){var i=ctx.dataIndex; if (isMedian) { return ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')'; } return ctx.raw.toLocaleString()+' avg trades  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';}}},legend:{display:false},errorBars:ebOpts,usSession:{hours:HOURS_OF_DAY}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
         });
       }
 
@@ -971,8 +1049,9 @@
         ctx2.setAttribute('role','img'); ctx2.setAttribute('aria-label','Volume by hour');
         new Chart(ctx2, {
           type: 'bar',
+          plugins: [usSessionPlugin],
           data: { labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), datasets: [{label:statLabel + ' Volume',data:hourlyVolData,backgroundColor:volColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K') + '  ' + statLabel;}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
+          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return '$'+(ctx.raw>=1e6?(ctx.raw/1e6).toFixed(1)+'M':(ctx.raw/1e3).toFixed(0)+'K') + '  ' + statLabel;}}},legend:{display:false},usSession:{hours:HOURS_OF_DAY}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:10},callback:function(v){return v>=1e6?'$'+(v/1e6).toFixed(0)+'M':'$'+(v/1e3).toFixed(0)+'K';}},grid:{color:c.gridLine}}} }
         });
       }
 
@@ -995,6 +1074,7 @@
 
     function onThemeChange() {
       chartsBuilt = false;
+      renderUsLegend();
       buildHeatmap();
       buildSessionBrief();
       buildCharts();
