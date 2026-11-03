@@ -179,6 +179,8 @@
     .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; transition: box-shadow 0.2s ease; }
     .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
     .chart-container { position: relative; height: 380px; }
+    .chart-help { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; margin-top: 14px; max-width: 920px; }
+    .chart-help strong { color: var(--text); font-weight: 600; }
 
 
     @media (max-width: 768px) {
@@ -273,6 +275,7 @@
             <div class="chart-container" style="height:200px;">
               <canvas id="paceChart"></canvas>
             </div>
+            <p class="chart-help">The running total of trades since midnight, your time, for the coins chosen above. The <strong>dashed line</strong> is a typical day, built from the median of each hour. When the <strong>blue line</strong> runs above it, today is busier than usual; the headline gives the gap so far. The shading marks the US session phases.</p>
           </div>
           <div class="brief-card brief-next">
             <div class="brief-head">
@@ -285,6 +288,7 @@
             <div class="chart-container" style="height:200px;">
               <canvas id="nextHoursChart"></canvas>
             </div>
+            <p class="chart-help">The median trades per 5 minutes in each of the next five hours, taken from past days that fall on the same weekday as today. The <strong>bright bar</strong> is the busiest hour coming up. Where a weekday has no data for an hour yet, the median of all days stands in. The shading marks the US session phases.</p>
           </div>
         </section>
 
@@ -303,28 +307,31 @@
               <div class="legend-bar" id="legendBar"></div>
               <span>High</span>
             </div>
+            <p class="chart-help">Each cell is the median (or mean) of trades or volume per 5 minutes, whichever is selected above, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells have fewer than four days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend above.</p>
           </div>
         </section>
 
         <!-- HOURLY AVERAGE CHART -->
         <section class="chart-section" data-reveal>
           <h2>Activity by Hour</h2>
-          <p class="section-sub">Top-20 trades per 5 min as bars (left axis) and USDT volume per 5 min as the line (right axis), by hour of day across all days. Where the line sits well below the bars, the market is busy but thin: many small trades.</p>
+          <p class="section-sub">Volume and trades per 5 min by hour of day, across all days in the period</p>
           <div class="chart-card">
             <div class="chart-container" role="img" aria-label="Bar chart of trades by hour of day with a line for volume">
               <canvas id="hourlyChart"></canvas>
             </div>
+            <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis); the three brightest are the busiest hours. The <strong>line</strong> is the number of trades per 5 minutes (right axis). Both axes start at zero, so compare their shapes: where the line sits high but the bars are low, there are lots of trades but little money behind them, which means small trades and a thin market. Where the bars rise with the line, the size is there too. The shading marks the US session phases in your time. Hover an hour for both numbers.</p>
           </div>
         </section>
 
         <!-- DAY COMPARISON -->
         <section class="chart-section" data-reveal>
           <h2>Day-over-Day</h2>
-          <p class="section-sub">Average trades per 5 min by day of week</p>
+          <p class="section-sub">Volume and trades per 5 min by day of week, across all days in the period</p>
           <div class="chart-card">
             <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
               <canvas id="dayChart"></canvas>
             </div>
+            <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis), with the brightest bar the day with the most volume. The <strong>line</strong> is trades per 5 minutes (right axis). Each day pools all 24 hours, so it tells you which days are busier overall, not when during the day. A weekday whose line holds up while its bar drops has activity but less money behind it.</p>
           </div>
         </section>
 
@@ -400,6 +407,8 @@
     var hourlySamples = [];   // sample count per hour
     var dayAvg = {};
     var dayMedian = {};
+    var dayVolAvg = {};
+    var dayVolMedian = {};
     var bestHour = 0, bestHourVal = 0, bestHourStd = 0, bestHourSamples = 0;
     var bestDay = '', bestDayVal = 0;
     var peakSnap = null, quietSnap = null;
@@ -498,12 +507,16 @@
       }
 
       // Day stats
-      dayAvg = {}; dayMedian = {};
+      dayAvg = {}; dayMedian = {}; dayVolAvg = {}; dayVolMedian = {};
       dayOrder.forEach(function(d) {
-        var vals = snapshots.filter(function(s){return s.day===d;}).map(function(s){return s.totalTrades;});
-        if (!vals.length) { dayAvg[d] = 0; dayMedian[d] = 0; return; }
+        var daySnaps = snapshots.filter(function(s){return s.day===d;});
+        var vals = daySnaps.map(function(s){return s.totalTrades;});
+        var vols = daySnaps.map(function(s){return s.totalVol;});
+        if (!vals.length) { dayAvg[d] = 0; dayMedian[d] = 0; dayVolAvg[d] = 0; dayVolMedian[d] = 0; return; }
         dayAvg[d] = Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length);
         dayMedian[d] = Math.round(quantile(vals.slice().sort(function(a,b){return a-b;}), 0.5));
+        dayVolAvg[d] = Math.round(vols.reduce(function(a,b){return a+b;},0) / vols.length);
+        dayVolMedian[d] = Math.round(quantile(vols.slice().sort(function(a,b){return a-b;}), 0.5));
       });
 
       // Best hour / day / peak / quiet — driven by current stat selection
@@ -960,70 +973,68 @@
       var hourlyVolData = isMedian ? hourlyVolMedian : hourlyVolAvg;
       var statLabel = isMedian ? 'median' : 'avg';
 
-      var hourColors = hourlyData.map(function(v) {
-        var sorted = hourlyData.slice().sort(function(a,b){return b-a;});
-        if (v >= sorted[0]) return 'rgba(0,229,255,1)';
-        if (v >= sorted[1]) return 'rgba(0,229,255,0.75)';
-        if (v >= sorted[2]) return 'rgba(0,229,255,0.55)';
-        return isDark ? 'rgba(0,229,255,0.2)' : 'rgba(8,145,178,0.2)';
-      });
-
-      var volLine = isDark ? 'rgba(224,64,251,1)' : 'rgba(147,51,234,1)';
+      var tradeLine = c.accent;
+      var volRgb = isDark ? '224,64,251' : '147,51,234';
       function moneyLabel(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; }
-      var ctx1 = resetCanvas('hourlyChart');
-      if (ctx1) {
-        ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trades and volume by hour');
-        new Chart(ctx1, {
+      function countLabel(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; }
+
+      // Volume bars on the left axis with a trades line on the right. The `top`
+      // highest volume bars are drawn bright.
+      function comboChart(id, aria, labels, vols, trades, top, extra) {
+        var ctx = resetCanvas(id);
+        if (!ctx) return;
+        ctx.setAttribute('role', 'img'); ctx.setAttribute('aria-label', aria);
+        var ranked = vols.slice().sort(function(a, b) { return b - a; });
+        var colors = vols.map(function(v) {
+          var rank = ranked.indexOf(v);
+          var alpha = rank === 0 ? 1 : rank < top ? 0.7 : 0.28;
+          return 'rgba(' + volRgb + ',' + alpha + ')';
+        });
+        var plugins = { legend: { display: true, position: 'bottom', onClick: function() {}, labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12, generateLabels: function() {
+          return [
+            { text: 'Volume per 5 min (bars, ' + statLabel + ')', fillStyle: 'rgba(' + volRgb + ',1)', strokeStyle: 'rgba(' + volRgb + ',1)', lineWidth: 0, fontColor: c.textSecondary },
+            { text: 'Trades per 5 min (line, ' + statLabel + ')', fillStyle: tradeLine, strokeStyle: tradeLine, lineWidth: 0, fontColor: c.textSecondary }
+          ];
+        } } },
+          tooltip: { enabled: true, padding: 12, cornerRadius: 8, callbacks: { label: function(item) {
+            if (item.datasetIndex === 0) return 'Volume ' + moneyLabel(item.raw) + ' ' + statLabel;
+            return extra.tradeLabel ? extra.tradeLabel(item) : 'Trades ' + item.raw.toLocaleString() + ' ' + statLabel;
+          } } } };
+        if (extra.hours) plugins.usSession = { hours: extra.hours };
+        new Chart(ctx, {
           type: 'bar',
-          plugins: [usSessionPlugin],
-          data: {
-            labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}),
-            datasets: [
-              { label: statLabel + ' trades', data: hourlyData, backgroundColor: hourColors, borderRadius: 4, borderSkipped: false, yAxisID: 'y', order: 2 },
-              { type: 'line', label: statLabel + ' volume', data: hourlyVolData, yAxisID: 'y1', order: 1, borderColor: volLine, backgroundColor: volLine, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.3 }
-            ]
-          },
+          plugins: extra.hours ? [usSessionPlugin] : [],
+          data: { labels: labels, datasets: [
+            { label: statLabel + ' volume', data: vols, backgroundColor: colors, borderRadius: 4, borderSkipped: false, yAxisID: 'y', order: 2 },
+            { type: 'line', label: statLabel + ' trades', data: trades, yAxisID: 'y1', order: 1, borderColor: tradeLine, backgroundColor: tradeLine, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.3 }
+          ] },
           options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: {
-              legend: { display: true, position: 'bottom', labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12, generateLabels: function() {
-                return [
-                  { text: 'Trades per 5 min (bars, ' + statLabel + ')', fillStyle: c.accent, strokeStyle: c.accent, lineWidth: 0, fontColor: c.textSecondary },
-                  { text: 'Volume per 5 min (line, ' + statLabel + ')', fillStyle: volLine, strokeStyle: volLine, lineWidth: 0, fontColor: c.textSecondary }
-                ];
-              } }, onClick: function() {} },
-              tooltip: { enabled: true, padding: 12, cornerRadius: 8, callbacks: { label: function(ctx) {
-                var i = ctx.dataIndex;
-                if (ctx.datasetIndex === 1) return 'Volume ' + moneyLabel(ctx.raw) + ' ' + statLabel;
-                if (isMedian) return 'Trades ' + ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')';
-                return 'Trades ' + ctx.raw.toLocaleString() + ' avg  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';
-              } } },
-              usSession: { hours: HOURS_OF_DAY }
-            },
+            plugins: plugins,
             layout: { padding: 10 },
             scales: {
-              x: { ticks: { color: c.textSecondary, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
-              y: { beginAtZero: true, title: { display: true, text: 'Trades', color: c.textSecondary, font: { size: 11 } }, ticks: { color: c.textSecondary, font: { size: 11 }, callback: function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;} }, grid: { color: c.gridLine } },
-              y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Volume', color: volLine, font: { size: 11 } }, ticks: { color: volLine, font: { size: 11 }, callback: moneyLabel }, grid: { display: false } }
+              x: { ticks: { color: c.textSecondary, font: extra.xFont || { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+              y: { beginAtZero: true, title: { display: true, text: 'Volume', color: 'rgba(' + volRgb + ',1)', font: { size: 11 } }, ticks: { color: 'rgba(' + volRgb + ',1)', font: { size: 11 }, callback: moneyLabel }, grid: { color: c.gridLine } },
+              y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Trades', color: tradeLine, font: { size: 11 } }, ticks: { color: tradeLine, font: { size: 11 }, callback: countLabel }, grid: { display: false } }
             }
           }
         });
       }
 
-      var dayColors = dayOrder.map(function(d) {
-        return d === bestDay ? (isDark ? 'rgba(0,229,255,1)' : 'rgba(8,145,178,1)') : (isDark ? 'rgba(0,229,255,0.3)' : 'rgba(8,145,178,0.3)');
-      });
-      var dayValues = dayOrder.map(function(d){return isMedian ? dayMedian[d] : dayAvg[d];});
-      var ctx3 = resetCanvas('dayChart');
-      if (ctx3) {
-        ctx3.setAttribute('role','img'); ctx3.setAttribute('aria-label','Trades by day');
-        new Chart(ctx3, {
-          type: 'bar',
-          data: { labels: dayOrder, datasets: [{label:statLabel + ' Trades/Snapshot',data:dayValues,backgroundColor:dayColors,borderRadius:4,borderSkipped:false}] },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{tooltip:{enabled:true,padding:12,cornerRadius:8,callbacks:{label:function(ctx){return ctx.raw.toLocaleString()+' ' + statLabel + ' trades';}}},legend:{display:false}}, layout:{padding:10}, scales:{x:{ticks:{color:c.textSecondary,font:{size:12,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.textSecondary,font:{size:11},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}},grid:{color:c.gridLine}}} }
+      comboChart('hourlyChart', 'Volume and trades by hour of day',
+        Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), hourlyVolData, hourlyData, 3, {
+          hours: HOURS_OF_DAY,
+          tradeLabel: function(item) {
+            var i = item.dataIndex;
+            if (isMedian) return 'Trades ' + item.raw.toLocaleString() + ' median, middle half of days ' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + '  (n=' + (hourlySamples[i]||0) + ')';
+            return 'Trades ' + item.raw.toLocaleString() + ' avg  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';
+          }
         });
-      }
+
+      comboChart('dayChart', 'Volume and trades by day of week', dayOrder,
+        dayOrder.map(function(d){return isMedian ? dayVolMedian[d] : dayVolAvg[d];}),
+        dayOrder.map(function(d){return isMedian ? dayMedian[d] : dayAvg[d];}), 1, { xFont: { size: 12, weight: '600' } });
 
       chartsBuilt = true;
     }
