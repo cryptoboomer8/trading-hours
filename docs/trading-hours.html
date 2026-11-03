@@ -242,7 +242,7 @@
               <button data-stat="mean" type="button">Mean</button>
               <button class="active" data-stat="median" type="button">Median</button>
             </div>
-            <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; spread shown as IQR</span>
+            <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; hover a bar for its spread</span>
           </div>
           <div class="topn-row">
             <span class="topn-label">Period</span>
@@ -950,46 +950,6 @@
       }
     };
 
-    // Chart.js plugin: draw vertical error bars on each bar.
-    // Accepts either { data: [...std] } for symmetric ±std, or
-    // { upper: [...absUpper], lower: [...absLower] } for asymmetric whiskers.
-    var errorBarsPlugin = {
-      id: 'errorBars',
-      afterDatasetsDraw: function(chart, args, opts) {
-        if (!opts) return;
-        var hasAsym = opts.upper && opts.lower;
-        if (!hasAsym && !opts.data) return;
-        var meta = chart.getDatasetMeta(0);
-        var scale = chart.scales.y;
-        var ctx = chart.ctx;
-        ctx.save();
-        ctx.strokeStyle = opts.color || 'rgba(255,255,255,0.55)';
-        ctx.lineWidth = 1.5;
-        meta.data.forEach(function(bar, i) {
-          var val = chart.data.datasets[0].data[i];
-          if (!val) return;
-          var topVal, botVal;
-          if (hasAsym) {
-            topVal = opts.upper[i]; botVal = opts.lower[i];
-            if (topVal == null || botVal == null) return;
-          } else {
-            var std = opts.data[i];
-            if (!std || std <= 0) return;
-            topVal = val + std; botVal = Math.max(0, val - std);
-          }
-          var top = scale.getPixelForValue(topVal);
-          var bottom = scale.getPixelForValue(Math.max(0, botVal));
-          var x = bar.x;
-          ctx.beginPath();
-          ctx.moveTo(x, top); ctx.lineTo(x, bottom);
-          ctx.moveTo(x - 4, top); ctx.lineTo(x + 4, top);
-          ctx.moveTo(x - 4, bottom); ctx.lineTo(x + 4, bottom);
-          ctx.stroke();
-        });
-        ctx.restore();
-      }
-    };
-
     function buildCharts() {
       if (typeof Chart === 'undefined' || snapshots.length === 0) return;
       var c = getChartColors();
@@ -1008,11 +968,6 @@
         return isDark ? 'rgba(0,229,255,0.2)' : 'rgba(8,145,178,0.2)';
       });
 
-      // Error bar config: ±std around mean, or [p25, p75] around median
-      var ebOpts = isMedian
-        ? { upper: hourlyP75, lower: hourlyP25, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' }
-        : { data: hourlyStd, color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)' };
-
       var volLine = isDark ? 'rgba(224,64,251,1)' : 'rgba(147,51,234,1)';
       function moneyLabel(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; }
       var ctx1 = resetCanvas('hourlyChart');
@@ -1020,7 +975,7 @@
         ctx1.setAttribute('role','img'); ctx1.setAttribute('aria-label','Trades and volume by hour');
         new Chart(ctx1, {
           type: 'bar',
-          plugins: [usSessionPlugin, errorBarsPlugin],
+          plugins: [usSessionPlugin],
           data: {
             labels: Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}),
             datasets: [
@@ -1044,7 +999,6 @@
                 if (isMedian) return 'Trades ' + ctx.raw.toLocaleString() + ' median  [' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + ']  (n=' + (hourlySamples[i]||0) + ')';
                 return 'Trades ' + ctx.raw.toLocaleString() + ' avg  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';
               } } },
-              errorBars: ebOpts,
               usSession: { hours: HOURS_OF_DAY }
             },
             layout: { padding: 10 },
