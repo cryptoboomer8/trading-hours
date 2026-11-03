@@ -130,11 +130,14 @@
 
     /* KPI Grid */
     .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
-    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
+    .kpi-card { position: relative; overflow: hidden; cursor: help; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
+    .kpi-card:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .kpi-card .kpi-info { position: absolute; top: 14px; right: 16px; width: 18px; height: 18px; border: 1px solid var(--text-secondary); border-radius: 50%; color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; line-height: 16px; text-align: center; }
     .kpi-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 20px rgba(0,0,0,0.15); }
     .kpi-label { font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
     .kpi-value { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; }
-    .kpi-detail { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; }
+    .kpi-detail { position: absolute; inset: 0; display: flex; align-items: center; padding: 20px 24px; background: var(--surface); color: var(--text); font-size: 0.85rem; line-height: 1.5; opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
+    .kpi-card:hover .kpi-detail, .kpi-card:focus .kpi-detail { opacity: 1; }
     .kpi-cyan .kpi-value { color: var(--accent); }
     .kpi-magenta .kpi-value { color: var(--accent-secondary); }
     .kpi-green .kpi-value { color: var(--positive); }
@@ -166,6 +169,7 @@
     .heatmap-cell.empty { background: var(--surface-hover); opacity: 0.3; }
     .heatmap-table th.now { color: var(--accent); }
     .heatmap-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
+    .brief-headline.volume { color: var(--accent-secondary); }
 
     .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: center; }
     .heatmap-legend span { font-size: 0.75rem; color: var(--text-secondary); }
@@ -238,7 +242,7 @@
           <div class="topn-row">
             <label for="topNSlider" class="topn-label">Top&nbsp;<span id="topNValue">20</span>&nbsp;coins</label>
             <input type="range" id="topNSlider" min="1" max="20" step="1" value="20" aria-label="Select how many top coins to include (1 to 20)">
-            <span class="topn-hint text-secondary">Drag to narrow focus &mdash; all metrics update live</span>
+            <span class="topn-hint text-secondary">Coins ranked by trade count; volume is the volume of those same coins</span>
           </div>
           <div class="topn-row">
             <span class="topn-label">Aggregation</span>
@@ -277,14 +281,27 @@
             <div class="chart-container" style="height:240px;">
               <canvas id="paceChart"></canvas>
             </div>
-            <p class="chart-help">The running total of trades since midnight, your time, for the coins chosen above. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day built from the median of each hour. Weekdays are compared with weekdays and weekends with weekends, because weekends run at about half the volume: Monday is set against Friday, Saturday against last Sunday. The headline compares today with that day up to the same time of day, and the line below it with a typical day. The shading marks the US session phases.</p>
+            <p class="chart-help">Trades per 5 minutes in each hour, your time. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day (the median of each hour). Weekdays are compared with weekdays and weekends with weekends, since weekends run at about half the volume: Monday against Friday, Saturday against last Sunday. The headline adds up today so far against that day up to the same time; the line below it does the same against a typical day. The shading marks the US session phases.</p>
+          </div>
+          <div class="brief-card">
+            <div class="brief-head">
+              <div>
+                <div class="brief-label">Volume and trades by weekday</div>
+                <div class="brief-headline volume" id="dayHeadline">&mdash;</div>
+              </div>
+              <div class="brief-sub" id="daySub"></div>
+            </div>
+            <div class="chart-container" style="height:240px;" role="img" aria-label="Bar chart of volume by weekday with a line for trades">
+              <canvas id="dayChart"></canvas>
+            </div>
+            <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis), with the brightest bar the day with the most volume. The <strong>line</strong> is trades per 5 minutes (right axis). Each day pools all 24 hours, so this shows which days are busier overall, not when during the day. A day whose line holds up while its bar drops has activity but less money behind it, as on weekends.</p>
           </div>
         </section>
 
         <!-- HEATMAP -->
         <section class="heatmap-section animate delay-3">
           <h2>Activity Heatmap</h2>
-          <p class="section-sub">Total top-20 trade count by day and hour &mdash; hover for details</p>
+          <p class="section-sub" id="heatmapSub">Trades per 5 min by weekday and hour, your time &mdash; hover for details</p>
           <div class="metric-toggle" id="metricToggle">
             <button class="active" data-metric="trades">Trades</button>
             <button data-metric="volume">Volume</button>
@@ -296,7 +313,7 @@
               <div class="legend-bar" id="legendBar"></div>
               <span>High</span>
             </div>
-            <p class="chart-help">Each cell is the median (or mean) of trades or volume per 5 minutes, whichever is selected above, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> Today and the current hour are highlighted, and the outlined cell is now, so reading along the row to the right shows what usually comes next. The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells have fewer than four days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend above.</p>
+            <p class="chart-help">Each cell is the median (or mean) of trades or volume per 5 minutes, whichever is selected above, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> Today and the current hour are highlighted, and the outlined cell is now, so reading along the row to the right shows what usually comes next. The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells rest on fewer than three days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend above.</p>
           </div>
         </section>
 
@@ -305,22 +322,10 @@
           <h2>Activity by Hour</h2>
           <p class="section-sub">Volume and trades per 5 min by hour of day, across all days in the period</p>
           <div class="chart-card">
-            <div class="chart-container" role="img" aria-label="Bar chart of trades by hour of day with a line for volume">
+            <div class="chart-container" role="img" aria-label="Bar chart of volume by hour of day with a line for trades">
               <canvas id="hourlyChart"></canvas>
             </div>
             <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis); the three brightest are the busiest hours. The <strong>line</strong> is the number of trades per 5 minutes (right axis). Both axes start at zero, so compare their shapes: where the line sits high but the bars are low, there are lots of trades but little money behind them, which means small trades and a thin market. Where the bars rise with the line, the size is there too. The shading marks the US session phases in your time. Hover an hour for both numbers.</p>
-          </div>
-        </section>
-
-        <!-- DAY COMPARISON -->
-        <section class="chart-section" data-reveal>
-          <h2>Day-over-Day</h2>
-          <p class="section-sub">Volume and trades per 5 min by day of week, across all days in the period</p>
-          <div class="chart-card">
-            <div class="chart-container" role="img" aria-label="Bar chart comparing average trades per snapshot across days of the week">
-              <canvas id="dayChart"></canvas>
-            </div>
-            <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis), with the brightest bar the day with the most volume. The <strong>line</strong> is trades per 5 minutes (right axis). Each day pools all 24 hours, so it tells you which days are busier overall, not when during the day. A weekday whose line holds up while its bar drops has activity but less money behind it.</p>
           </div>
         </section>
 
@@ -357,20 +362,6 @@
       document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); revealObserver.observe(el); });
     }
 
-    // === Counter ===
-    function animateCounters() {
-      document.querySelectorAll('[data-count]').forEach(function(el) {
-        if (el.dataset.counted) return; el.dataset.counted = '1';
-        var target = parseFloat(el.dataset.count), prefix = el.dataset.prefix || '', suffix = el.dataset.suffix || '';
-        var start = performance.now(), duration = 1200;
-        (function tick(now) {
-          var p = Math.min((now - start) / duration, 1), eased = 1 - Math.pow(1 - p, 3);
-          el.textContent = prefix + Math.round(target * eased).toLocaleString() + suffix;
-          if (p < 1) requestAnimationFrame(tick);
-        })(start);
-      });
-    }
-
     // === Download PNG ===
     async function downloadImage() {
       var menu = document.querySelector('.viz-menu'); menu.style.display = 'none';
@@ -400,7 +391,6 @@
     var dayVolMedian = {};
     var bestHour = 0, bestHourVal = 0, bestHourStd = 0, bestHourSamples = 0;
     var bestDay = '', bestDayVal = 0;
-    var peakSnap = null, quietSnap = null;
     var currentMetric = 'trades';
     var currentStat = 'median';
     var currentWindowDays = 31;
@@ -438,15 +428,16 @@
 
       // Build heatmap with per-cell sample lists (for std dev + median + IQR)
       heatmap = {};
-      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0, tradeSamples: [], volSamples: [] }; });
+      dayOrder.forEach(function(d) { heatmap[d] = {}; for (var h=0; h<24; h++) heatmap[d][h] = { trades: 0, vol: 0, count: 0, tradeSamples: [], volSamples: [], days: {} }; });
       snapshots.forEach(function(s) {
         var cell = heatmap[s.day] && heatmap[s.day][s.hour];
-        if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; cell.tradeSamples.push(s.totalTrades); cell.volSamples.push(s.totalVol); }
+        if (cell) { cell.trades += s.totalTrades; cell.vol += s.totalVol; cell.count++; cell.tradeSamples.push(s.totalTrades); cell.volSamples.push(s.totalVol); cell.days[s.date.toDateString()] = true; }
       });
       // Compute per-cell std (trades), medians (trades + volume), and IQR (trades)
       dayOrder.forEach(function(d) {
         for (var h=0; h<24; h++) {
           var c = heatmap[d][h];
+          c.dayCount = Object.keys(c.days).length;
           if (c.count > 0) {
             var sortedT = c.tradeSamples.slice().sort(function(a,b){return a-b;});
             var sortedV = c.volSamples.slice().sort(function(a,b){return a-b;});
@@ -515,8 +506,6 @@
       hourlyForBest.forEach(function(v,i) { if (v > bestHourVal) { bestHourVal = v; bestHour = i; bestHourStd = hourlyStd[i]; bestHourSamples = hourlySamples[i]; } });
       bestDay = dayOrder[0]; bestDayVal = 0;
       dayOrder.forEach(function(d) { if (dayForBest[d] > bestDayVal) { bestDayVal = dayForBest[d]; bestDay = d; } });
-      peakSnap = snapshots.reduce(function(a,b) { return a.totalTrades > b.totalTrades ? a : b; });
-      quietSnap = snapshots.reduce(function(a,b) { return a.totalTrades < b.totalTrades ? a : b; });
 
       // Subtitle uses the most recent snapshot timestamp
       var last = snapshots[snapshots.length - 1].date;
@@ -585,14 +574,14 @@
       var kindName = weekend ? 'weekend day' : 'weekday';
       document.getElementById('paceLabel').innerHTML = 'Today&rsquo;s pace vs ' + prevName + ' and a typical ' + kindName;
 
-      // Per-hour totals for today and the comparison day, keyed by minute of day for matching.
-      var todayByHour = [], prevByHour = [], kindSamples = [];
-      for (var h = 0; h < 24; h++) { todayByHour.push(0); prevByHour.push(0); kindSamples.push([]); }
+      // Per-hour totals and row counts for today and the comparison day, keyed by minute of day for matching.
+      var todayByHour = [], prevByHour = [], todayRowsPerHour = [], prevRowsPerHour = [], kindSamples = [];
+      for (var h = 0; h < 24; h++) { todayByHour.push(0); prevByHour.push(0); todayRowsPerHour.push(0); prevRowsPerHour.push(0); kindSamples.push([]); }
       var todayRows = [], prevByMinute = {};
       snapshots.forEach(function(s) {
         var key = dayKey(s.date), minute = s.hour * 60 + s.date.getMinutes();
-        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayRows.push({ minute: minute, hour: s.hour, trades: s.totalTrades }); }
-        else if (key === prevKey) { prevByHour[s.hour] += s.totalTrades; prevByMinute[minute] = s.totalTrades; }
+        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayRowsPerHour[s.hour]++; todayRows.push({ minute: minute, hour: s.hour, trades: s.totalTrades }); }
+        else if (key === prevKey) { prevByHour[s.hour] += s.totalTrades; prevRowsPerHour[s.hour]++; prevByMinute[minute] = s.totalTrades; }
         if (isWeekend(s.dayIdx) === weekend) kindSamples[s.hour].push(s.totalTrades);
       });
       var kindMedian = kindSamples.map(function(v) { return v.length ? quantile(v.slice().sort(function(a, b) { return a - b; }), 0.5) : 0; });
@@ -606,13 +595,12 @@
       });
       var todayTotal = todayRows.reduce(function(a, r) { return a + r.trades; }, 0);
 
-      var todayCum = [], prevCum = [], typicalCum = [];
-      var tSum = 0, pSum = 0, ySum = 0, hasPrev = Object.keys(prevByMinute).length > 0;
+      // Trades per 5 minutes in each hour, so the lines match Activity by Hour.
+      var todayLine = [], prevLine = [], typicalLine = [];
       for (var h = 0; h < 24; h++) {
-        tSum += todayByHour[h]; pSum += prevByHour[h]; ySum += kindMedian[h] * ROWS_PER_HOUR;
-        todayCum.push(todayRows.length && h <= lastHour ? tSum : null);
-        prevCum.push(hasPrev ? pSum : null);
-        typicalCum.push(ySum);
+        todayLine.push(todayRowsPerHour[h] ? Math.round(todayByHour[h] / todayRowsPerHour[h]) : null);
+        prevLine.push(prevRowsPerHour[h] ? Math.round(prevByHour[h] / prevRowsPerHour[h]) : null);
+        typicalLine.push(Math.round(kindMedian[h]));
       }
 
       function pctText(a, b) {
@@ -642,17 +630,17 @@
           data: {
             labels: Array.from({length:24}, function(_,i){return pad(i)+':00';}),
             datasets: [
-              { label: 'Typical ' + kindName + ' (median)', data: typicalCum, borderColor: c.textSecondary, borderDash: [4,4], borderWidth: 2, fill: false, pointRadius: 0, tension: 0.25 },
-              { label: prevName + ' (' + prev.getDate() + '.' + (prev.getMonth() + 1) + '.)', data: prevCum, borderColor: c.warning, borderWidth: 2, fill: false, pointRadius: 0, tension: 0.2 },
-              { label: 'Today', data: todayCum, borderColor: c.accent, borderWidth: 2.5, fill: true, backgroundColor: isDark ? 'rgba(0,229,255,0.10)' : 'rgba(8,145,178,0.10)', pointRadius: 2, pointBackgroundColor: c.accent, tension: 0.2, spanGaps: false }
+              { label: 'Typical ' + kindName + ' (median)', data: typicalLine, borderColor: c.textSecondary, borderDash: [4,4], borderWidth: 2, fill: false, pointRadius: 0, tension: 0.25 },
+              { label: prevName + ' (' + prev.getDate() + '.' + (prev.getMonth() + 1) + '.)', data: prevLine, borderColor: c.warning, borderWidth: 2, fill: false, pointRadius: 0, tension: 0.2 },
+              { label: 'Today', data: todayLine, borderColor: c.accent, borderWidth: 2.5, fill: false, pointRadius: 2, pointBackgroundColor: c.accent, tension: 0.2, spanGaps: false }
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { usSession: { hours: HOURS_OF_DAY, edge: true }, legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString()); } } } },
+            plugins: { usSession: { hours: HOURS_OF_DAY }, legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString() + ' trades per 5 min'); } } } },
             layout: { padding: 6 },
-            scales: { x: { ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
+            scales: { x: { offset: true, ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
           }
         });
       }
@@ -661,44 +649,47 @@
     // === BUILD KPIs ===
     function buildKPIs() {
       var sec = document.getElementById('kpiSection');
-      if (!sec || !peakSnap) return;
-      var statName = currentStat === 'median' ? 'Median' : 'Avg';
-      var spreadLabel = currentStat === 'median'
-        ? 'IQR ' + (hourlyP75[bestHour] - hourlyP25[bestHour]).toLocaleString()
-        : '\u03C3 ' + bestHourStd.toLocaleString();
+      if (!sec || !snapshots.length) return;
+      var isMedian = currentStat === 'median';
+      var statName = isMedian ? 'Median' : 'Average';
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var fullDays = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
 
-      // Best 2-consecutive-hour window (wraps midnight)
-      var hourlyForWindow = currentStat === 'median' ? hourlyMedian : hourlyAvg;
+      // Best two consecutive hours, wrapping past midnight
+      var hourlyForWindow = isMedian ? hourlyMedian : hourlyAvg;
       var bestStart = 0, bestSum = -1;
       for (var hi = 0; hi < 24; hi++) {
-        var nxt = (hi + 1) % 24;
-        var sum = (hourlyForWindow[hi] || 0) + (hourlyForWindow[nxt] || 0);
+        var sum = (hourlyForWindow[hi] || 0) + (hourlyForWindow[(hi + 1) % 24] || 0);
         if (sum > bestSum) { bestSum = sum; bestStart = hi; }
       }
-      var winEnd = (bestStart + 2) % 24;
-      var winLabel = (bestStart < 10 ? '0' : '') + bestStart + ':00 \u2013 ' + (winEnd < 10 ? '0' : '') + winEnd + ':00';
 
-      sec.innerHTML =
-        '<div class="kpi-card kpi-cyan animate delay-1">' +
-          '<div class="kpi-label">Best Hour (your time)</div>' +
-          '<div class="kpi-value">' + (bestHour < 10 ? '0' : '') + bestHour + ':00</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestHourVal.toLocaleString() + ' trades per 5 min &middot; ' + spreadLabel + ' &middot; n=' + bestHourSamples + '</div>' +
-        '</div>' +
-        '<div class="kpi-card kpi-green animate delay-2">' +
-          '<div class="kpi-label">Best 2h Window (your time)</div>' +
-          '<div class="kpi-value" style="font-size:1.7rem;letter-spacing:-0.02em;">' + winLabel + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + (bestSum * ROWS_PER_HOUR).toLocaleString() + ' trades over the 2h block</div>' +
-        '</div>' +
-        '<div class="kpi-card kpi-magenta animate delay-3">' +
-          '<div class="kpi-label">Best Day</div>' +
-          '<div class="kpi-value">' + bestDay + '</div>' +
-          '<div class="kpi-detail">' + statName + ' ' + bestDayVal.toLocaleString() + ' trades per 5 min</div>' +
+      var spread = isMedian
+        ? ' Half of the 5-minute readings in that hour fall between ' + hourlyP25[bestHour].toLocaleString() + ' and ' + hourlyP75[bestHour].toLocaleString() + '.'
+        : ' Standard deviation ' + bestHourStd.toLocaleString() + '.';
+      function card(n, label, value, detail) {
+        return '<div class="kpi-card kpi-cyan animate delay-' + n + '" tabindex="0" aria-label="' + label + ': ' + value + '. ' + detail + '">' +
+          '<span class="kpi-info" aria-hidden="true">i</span>' +
+          '<div class="kpi-label">' + label + '</div>' +
+          '<div class="kpi-value">' + value + '</div>' +
+          '<div class="kpi-detail" aria-hidden="true">' + detail + '</div>' +
         '</div>';
+      }
+      sec.innerHTML =
+        card(1, 'Best hour by trades', pad(bestHour) + ':00',
+          statName + ' ' + bestHourVal.toLocaleString() + ' trades per 5 min in the ' + pad(bestHour) + ':00 hour, your time, across all days in the period.' + spread) +
+        card(2, 'Best 2 hours by trades', pad(bestStart) + ':00 – ' + pad((bestStart + 2) % 24) + ':00',
+          statName + ' ' + Math.round(bestSum / 2).toLocaleString() + ' trades per 5 min across the busiest two hours in a row, your time.') +
+        card(3, 'Best day by trades', bestDay,
+          statName + ' ' + bestDayVal.toLocaleString() + ' trades per 5 min on ' + fullDays[bestDay] + 's, all 24 hours pooled.');
     }
 
     // === HEATMAP ===
     function getHeatColor(intensity) {
       var isDark = document.documentElement.classList.contains('theme-dark');
+      if (currentMetric === 'volume') {
+        var from = isDark ? [13, 21, 32] : [240, 244, 248], to = isDark ? [224, 64, 251] : [147, 51, 234];
+        return 'rgb(' + from.map(function(f, k) { return Math.round(f + intensity * (to[k] - f)); }).join(',') + ')';
+      }
       if (isDark) {
         var r = Math.round(13 + intensity * (0 - 13));
         var g = Math.round(21 + intensity * (229 - 21));
@@ -738,6 +729,7 @@
       }
       var range = maxVal - minVal || 1;
 
+      document.getElementById('heatmapSub').innerHTML = (currentMetric === 'trades' ? 'Trades' : 'USDT volume') + ' per 5 min by weekday and hour, your time &mdash; hover for details';
       var segs = usSegments();
       var now = new Date(), nowDay = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()], nowHour = now.getHours();
       var html = '<thead><tr class="us-strip"><th class="day-label" title="US session phases, see the legend at the top">US</th>';
@@ -759,7 +751,8 @@
             var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
             var display = currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
             // Confidence: dim cells with low sample counts
-            var opacity = c.count >= 4 ? 1 : (c.count === 3 ? 0.9 : (c.count === 2 ? 0.75 : 0.55));
+            // Dim cells that rest on few days.
+            var opacity = c.dayCount >= 3 ? 1 : (c.dayCount === 2 ? 0.75 : 0.55);
             var statWord = useMedian ? 'median' : 'avg';
             var valStr = currentMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString();
             var spread;
@@ -770,7 +763,7 @@
             } else {
               spread = '';
             }
-            var tip = d + ' ' + h + ':00 \u2014 ' + statWord + ' ' + valStr + '  (n=' + c.count + spread + ')';
+            var tip = d + ' ' + h + ':00 \u2014 ' + statWord + ' ' + valStr + '  (' + c.dayCount + (c.dayCount === 1 ? ' day' : ' days') + spread + ')';
             html += '<td class="heatmap-cell' + (d === nowDay && h === nowHour ? ' now' : '') + '" style="background:' + bg + ';color:' + textColor + ';opacity:' + opacity + '" title="' + tip + '">' +
               '<div class="cell-val">' + display + '</div></td>';
           }
@@ -813,7 +806,6 @@
 
     var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
     // === CHARTS ===
-    var chartsBuilt = false;
 
     function getChartColors() {
       var s = getComputedStyle(document.documentElement);
@@ -990,7 +982,7 @@
           hours: HOURS_OF_DAY,
           tradeLabel: function(item) {
             var i = item.dataIndex;
-            if (isMedian) return 'Trades ' + item.raw.toLocaleString() + ' median, middle half of days ' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + '  (n=' + (hourlySamples[i]||0) + ')';
+            if (isMedian) return 'Trades ' + item.raw.toLocaleString() + ' median, half of the 5-min readings between ' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + '  (n=' + (hourlySamples[i]||0) + ')';
             return 'Trades ' + item.raw.toLocaleString() + ' avg  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';
           }
         });
@@ -999,11 +991,15 @@
         dayOrder.map(function(d){return isMedian ? dayVolMedian[d] : dayVolAvg[d];}),
         dayOrder.map(function(d){return isMedian ? dayMedian[d] : dayAvg[d];}), 1, { xFont: { size: 12, weight: '600' } });
 
-      chartsBuilt = true;
+      var dayVols = isMedian ? dayVolMedian : dayVolAvg, dayTrades = isMedian ? dayMedian : dayAvg;
+      var topVol = dayOrder.reduce(function(a, b) { return dayVols[b] > dayVols[a] ? b : a; });
+      var topTrades = dayOrder.reduce(function(a, b) { return dayTrades[b] > dayTrades[a] ? b : a; });
+      document.getElementById('dayHeadline').textContent = 'Most volume: ' + topVol;
+      document.getElementById('daySub').textContent = 'Most trades: ' + topTrades;
+
     }
 
     function onThemeChange() {
-      chartsBuilt = false;
       renderUsLegend();
       buildHeatmap();
       buildSessionBrief();
