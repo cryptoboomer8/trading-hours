@@ -164,6 +164,8 @@
     .heatmap-cell:hover { transform: scale(1.15); z-index: 2; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
     .heatmap-cell .cell-val { font-size: 0.7rem; font-weight: 700; }
     .heatmap-cell.empty { background: var(--surface-hover); opacity: 0.3; }
+    .heatmap-table th.now { color: var(--accent); }
+    .heatmap-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
 
     .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: center; }
     .heatmap-legend span { font-size: 0.75rem; color: var(--text-secondary); }
@@ -267,28 +269,15 @@
           <div class="brief-card brief-pace">
             <div class="brief-head">
               <div>
-                <div class="brief-label">Today&rsquo;s pace vs typical</div>
+                <div class="brief-label" id="paceLabel">Today&rsquo;s pace</div>
                 <div class="brief-headline" id="paceHeadline">&mdash;</div>
               </div>
               <div class="brief-sub" id="paceSub" aria-live="polite"></div>
             </div>
-            <div class="chart-container" style="height:200px;">
+            <div class="chart-container" style="height:240px;">
               <canvas id="paceChart"></canvas>
             </div>
-            <p class="chart-help">The running total of trades since midnight, your time, for the coins chosen above. The <strong>dashed line</strong> is a typical day, built from the median of each hour. When the <strong>blue line</strong> runs above it, today is busier than usual; the headline gives the gap so far. The shading marks the US session phases.</p>
-          </div>
-          <div class="brief-card brief-next">
-            <div class="brief-head">
-              <div>
-                <div class="brief-label">Next 5 hours &mdash; <span id="nextDayName">today</span></div>
-                <div class="brief-headline" id="nextHeadline">&mdash;</div>
-              </div>
-              <div class="brief-sub" id="nextSub"></div>
-            </div>
-            <div class="chart-container" style="height:200px;">
-              <canvas id="nextHoursChart"></canvas>
-            </div>
-            <p class="chart-help">The median trades per 5 minutes in each of the next five hours, taken from past days that fall on the same weekday as today. The <strong>bright bar</strong> is the busiest hour coming up. Where a weekday has no data for an hour yet, the median of all days stands in. The shading marks the US session phases.</p>
+            <p class="chart-help">The running total of trades since midnight, your time, for the coins chosen above. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day built from the median of each hour. Weekdays are compared with weekdays and weekends with weekends, because weekends run at about half the volume: Monday is set against Friday, Saturday against last Sunday. The headline compares today with that day up to the same time of day, and the line below it with a typical day. The shading marks the US session phases.</p>
           </div>
         </section>
 
@@ -307,7 +296,7 @@
               <div class="legend-bar" id="legendBar"></div>
               <span>High</span>
             </div>
-            <p class="chart-help">Each cell is the median (or mean) of trades or volume per 5 minutes, whichever is selected above, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells have fewer than four days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend above.</p>
+            <p class="chart-help">Each cell is the median (or mean) of trades or volume per 5 minutes, whichever is selected above, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> Today and the current hour are highlighted, and the outlined cell is now, so reading along the row to the right shows what usually comes next. The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells have fewer than four days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend above.</p>
           </div>
         </section>
 
@@ -570,6 +559,18 @@
     }
 
     // === SESSION BRIEF ===
+    function dayKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function isWeekend(dayIdx) { return dayIdx === 0 || dayIdx === 6; }
+
+    // The last earlier day of the same kind: Monday compares with Friday,
+    // Saturday with the previous Sunday, any other day with the day before.
+    function comparisonDay(now) {
+      for (var back = 1; back <= 7; back++) {
+        var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+        if (isWeekend(d.getDay()) === isWeekend(now.getDay())) return d;
+      }
+    }
+
     function buildSessionBrief() {
       if (typeof Chart === 'undefined' || snapshots.length === 0) return;
       var c = getChartColors();
@@ -578,52 +579,61 @@
       var pad = function(n){return n<10?'0'+n:''+n;};
 
       var now = new Date();
-      var todayKey = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
-      var currentHour = now.getHours();
-      var todayDayName = dayNames[now.getDay()];
+      var weekend = isWeekend(now.getDay());
+      var todayKey = dayKey(now), currentHour = now.getHours();
+      var prev = comparisonDay(now), prevKey = dayKey(prev), prevName = dayNames[prev.getDay()];
+      var kindName = weekend ? 'weekend day' : 'weekday';
+      document.getElementById('paceLabel').innerHTML = 'Today&rsquo;s pace vs ' + prevName + ' and a typical ' + kindName;
 
-      // Today's snapshots and per-hour totals (sums duplicates within the hour)
-      var todayByHour = []; for (var h=0; h<24; h++) todayByHour.push(0);
-      var todayHasHour = []; for (var h=0; h<24; h++) todayHasHour.push(false);
-      var todaySnapsCount = 0;
-      var typicalSoFar = 0;
+      // Per-hour totals for today and the comparison day, keyed by minute of day for matching.
+      var todayByHour = [], prevByHour = [], kindSamples = [];
+      for (var h = 0; h < 24; h++) { todayByHour.push(0); prevByHour.push(0); kindSamples.push([]); }
+      var todayRows = [], prevByMinute = {};
       snapshots.forEach(function(s) {
-        var d = s.date;
-        var key = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayHasHour[s.hour] = true; todaySnapsCount++; typicalSoFar += hourlyMedian[s.hour] || 0; }
+        var key = dayKey(s.date), minute = s.hour * 60 + s.date.getMinutes();
+        if (key === todayKey) { todayByHour[s.hour] += s.totalTrades; todayRows.push({ minute: minute, hour: s.hour, trades: s.totalTrades }); }
+        else if (key === prevKey) { prevByHour[s.hour] += s.totalTrades; prevByMinute[minute] = s.totalTrades; }
+        if (isWeekend(s.dayIdx) === weekend) kindSamples[s.hour].push(s.totalTrades);
       });
+      var kindMedian = kindSamples.map(function(v) { return v.length ? quantile(v.slice().sort(function(a, b) { return a - b; }), 0.5) : 0; });
 
-      // Cumulative trajectories: today (only up to current hour, null after) vs typical (median pooled across all days)
-      var todayCum = []; var typicalCum = [];
-      var tSum = 0, ySum = 0;
-      for (var h=0; h<24; h++) {
-        if (h <= currentHour && todaySnapsCount > 0) { tSum += todayByHour[h]; todayCum.push(tSum); }
-        else { todayCum.push(null); }
-        ySum += (hourlyMedian[h] || 0) * ROWS_PER_HOUR;
+      // Compare only the 5-minute slots both days have, and against a typical day for the same slots.
+      var todaySum = 0, prevSum = 0, matched = 0, typicalSoFar = 0, lastHour = -1;
+      todayRows.forEach(function(r) {
+        typicalSoFar += kindMedian[r.hour];
+        lastHour = Math.max(lastHour, r.hour);
+        if (r.minute in prevByMinute) { todaySum += r.trades; prevSum += prevByMinute[r.minute]; matched++; }
+      });
+      var todayTotal = todayRows.reduce(function(a, r) { return a + r.trades; }, 0);
+
+      var todayCum = [], prevCum = [], typicalCum = [];
+      var tSum = 0, pSum = 0, ySum = 0, hasPrev = Object.keys(prevByMinute).length > 0;
+      for (var h = 0; h < 24; h++) {
+        tSum += todayByHour[h]; pSum += prevByHour[h]; ySum += kindMedian[h] * ROWS_PER_HOUR;
+        todayCum.push(todayRows.length && h <= lastHour ? tSum : null);
+        prevCum.push(hasPrev ? pSum : null);
         typicalCum.push(ySum);
       }
 
-      // Pace headline: today's cumulative through last hour with data, vs typical at same hour
-      var lastHourWithData = -1;
-      for (var h=currentHour; h>=0; h--) { if (todayHasHour[h]) { lastHourWithData = h; break; } }
+      function pctText(a, b) {
+        var pct = b > 0 ? Math.round((a / b - 1) * 100) : 0;
+        return { pct: pct, text: (pct > 0 ? '+' : '') + pct + '%' };
+      }
       var paceEl = document.getElementById('paceHeadline');
       var paceSubEl = document.getElementById('paceSub');
-      if (lastHourWithData < 0) {
+      if (!todayRows.length) {
         paceEl.textContent = 'No data yet for today';
         paceEl.className = 'brief-headline pace-flat';
-        paceSubEl.textContent = 'Waiting for the first snapshot of ' + todayDayName + '.';
+        paceSubEl.textContent = 'Waiting for the first snapshot.';
       } else {
-        var todayAt = todayCum[lastHourWithData];
-        // Counts only the rows today has, so a part-finished hour compares fairly.
-        var typAt = typicalSoFar;
-        var pct = typAt > 0 ? Math.round((todayAt / typAt - 1) * 100) : 0;
-        var sign = pct > 0 ? '+' : '';
-        paceEl.textContent = sign + pct + '% vs typical day';
-        paceEl.className = 'brief-headline ' + (pct >= 8 ? 'pace-up' : pct <= -8 ? 'pace-down' : 'pace-flat');
-        paceSubEl.innerHTML = todaySnapsCount + ' snapshots so far &middot; through ' + pad(lastHourWithData) + ':59 your time';
+        var vsTypical = pctText(todayTotal, typicalSoFar);
+        var head = matched ? pctText(todaySum, prevSum) : vsTypical;
+        paceEl.textContent = head.text + (matched ? ' vs ' + prevName : ' vs typical ' + kindName);
+        paceEl.className = 'brief-headline ' + (head.pct >= 8 ? 'pace-up' : head.pct <= -8 ? 'pace-down' : 'pace-flat');
+        paceSubEl.innerHTML = (matched ? vsTypical.text + ' vs a typical ' + kindName : 'No data for ' + prevName) +
+          '<br>through ' + pad(lastHour) + ':59 your time';
       }
 
-      // Render pace chart (cumulative today vs typical)
       var ctxP = resetCanvas('paceChart');
       if (ctxP) {
         new Chart(ctxP, {
@@ -632,65 +642,17 @@
           data: {
             labels: Array.from({length:24}, function(_,i){return pad(i)+':00';}),
             datasets: [
-              { label: 'Typical (median)', data: typicalCum, borderColor: c.textSecondary, borderDash: [4,4], borderWidth: 2, fill: false, pointRadius: 0, tension: 0.25 },
-              { label: 'Today',            data: todayCum,   borderColor: c.accent,        borderWidth: 2.5, fill: true, backgroundColor: isDark ? 'rgba(0,229,255,0.10)' : 'rgba(8,145,178,0.10)', pointRadius: 2, pointBackgroundColor: c.accent, tension: 0.2, spanGaps: false }
+              { label: 'Typical ' + kindName + ' (median)', data: typicalCum, borderColor: c.textSecondary, borderDash: [4,4], borderWidth: 2, fill: false, pointRadius: 0, tension: 0.25 },
+              { label: prevName + ' (' + prev.getDate() + '.' + (prev.getMonth() + 1) + '.)', data: prevCum, borderColor: c.warning, borderWidth: 2, fill: false, pointRadius: 0, tension: 0.2 },
+              { label: 'Today', data: todayCum, borderColor: c.accent, borderWidth: 2.5, fill: true, backgroundColor: isDark ? 'rgba(0,229,255,0.10)' : 'rgba(8,145,178,0.10)', pointRadius: 2, pointBackgroundColor: c.accent, tension: 0.2, spanGaps: false }
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
             plugins: { usSession: { hours: HOURS_OF_DAY, edge: true }, legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : Math.round(ctx.raw).toLocaleString()); } } } },
             layout: { padding: 6 },
             scales: { x: { ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
-          }
-        });
-      }
-
-      // Next 5 hours: median trades for THIS weekday at next 5 wall-clock hours; fall back to pooled median when the weekday cell has no samples
-      var nextLabels = []; var nextValues = []; var nextSources = []; var nextHours = [];
-      for (var i=1; i<=5; i++) {
-        var h = (currentHour + i) % 24;
-        nextHours.push(h);
-        nextLabels.push(pad(h) + ':00');
-        var cell = heatmap[todayDayName] && heatmap[todayDayName][h];
-        if (cell && cell.count > 0) {
-          nextValues.push(Math.round(cell.tradeMedian));
-          nextSources.push('day n=' + cell.count);
-        } else {
-          nextValues.push(Math.round(hourlyMedian[h] || 0));
-          nextSources.push('all-day median');
-        }
-      }
-      var maxNext = Math.max.apply(null, nextValues);
-      var nextColors = nextValues.map(function(v){
-        if (v === maxNext && v > 0) return c.accent;
-        return isDark ? 'rgba(0,229,255,0.35)' : 'rgba(8,145,178,0.35)';
-      });
-
-      document.getElementById('nextDayName').textContent = todayDayName;
-      var nextHeadlineEl = document.getElementById('nextHeadline');
-      var nextSubEl = document.getElementById('nextSub');
-      if (maxNext > 0) {
-        var peakIdx = nextValues.indexOf(maxNext);
-        nextHeadlineEl.textContent = 'Peak at ' + nextLabels[peakIdx] + '  (~' + maxNext.toLocaleString() + ')';
-        nextHeadlineEl.className = 'brief-headline pace-up';
-        nextSubEl.innerHTML = 'Median trades per 5 min across past ' + todayDayName + 's at the same hour';
-      } else {
-        nextHeadlineEl.textContent = 'No baseline yet';
-        nextHeadlineEl.className = 'brief-headline pace-flat';
-        nextSubEl.textContent = 'Need more data for ' + todayDayName + '.';
-      }
-
-      var ctxN = resetCanvas('nextHoursChart');
-      if (ctxN) {
-        new Chart(ctxN, {
-          type: 'bar',
-          plugins: [usSessionPlugin],
-          data: { labels: nextLabels, datasets: [{ label: 'Median trades', data: nextValues, backgroundColor: nextColors, borderRadius: 4, borderSkipped: false }] },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { usSession: { hours: nextHours }, legend: { display: false }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.raw.toLocaleString() + ' median trades  (' + nextSources[ctx.dataIndex] + ')'; } } } },
-            layout: { padding: 6 },
-            scales: { x: { ticks: { color: c.textSecondary, font: { size: 11, weight: '600' } }, grid: { display: false } }, y: { ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v){ return v>=1000?(v/1000).toFixed(0)+'K':v; } }, grid: { color: c.gridLine } } }
           }
         });
       }
@@ -777,14 +739,15 @@
       var range = maxVal - minVal || 1;
 
       var segs = usSegments();
+      var now = new Date(), nowDay = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()], nowHour = now.getHours();
       var html = '<thead><tr class="us-strip"><th class="day-label" title="US session phases, see the legend at the top">US</th>';
       for (var h=0; h<24; h++) html += '<td style="' + hourStripStyle(h, segs) + '"></td>';
       html += '</tr><tr><th class="day-label"></th>';
-      for (var h=0; h<24; h++) html += '<th>' + (h < 10 ? '0' : '') + h + '</th>';
+      for (var h=0; h<24; h++) html += '<th' + (h === nowHour ? ' class="now"' : '') + '>' + (h < 10 ? '0' : '') + h + '</th>';
       html += '</tr></thead><tbody>';
 
       dayOrder.forEach(function(d) {
-        html += '<tr><th class="day-label">' + d + '</th>';
+        html += '<tr><th class="day-label' + (d === nowDay ? ' now' : '') + '">' + d + '</th>';
         for (var h=0; h<24; h++) {
           var c = heatmap[d][h];
           if (c.count === 0) {
@@ -808,7 +771,7 @@
               spread = '';
             }
             var tip = d + ' ' + h + ':00 \u2014 ' + statWord + ' ' + valStr + '  (n=' + c.count + spread + ')';
-            html += '<td class="heatmap-cell" style="background:' + bg + ';color:' + textColor + ';opacity:' + opacity + '" title="' + tip + '">' +
+            html += '<td class="heatmap-cell' + (d === nowDay && h === nowHour ? ' now' : '') + '" style="background:' + bg + ';color:' + textColor + ';opacity:' + opacity + '" title="' + tip + '">' +
               '<div class="cell-val">' + display + '</div></td>';
           }
         }
