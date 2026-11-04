@@ -15,6 +15,7 @@
 
     html.theme-dark {
       --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
+      --group-b: #d95926; --group-l: #3987e5; --group-s: #199e70;
       --border: rgba(0,255,255,0.08);
       --text: #e8ecf1; --text-secondary: #6b7f99;
       --accent: #00e5ff; --accent-secondary: #e040fb;
@@ -27,6 +28,7 @@
     }
     html.theme-light {
       --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
+      --group-b: #eb6834; --group-l: #2a78d6; --group-s: #1baf7a;
       --border: rgba(0,0,0,0.08);
       --text: #0f172a; --text-secondary: #64748b;
       --accent: #0891b2; --accent-secondary: #9333ea;
@@ -185,6 +187,9 @@
 
     /* Chart sections */
     .chart-section { margin-bottom: 48px; position: relative; z-index: 1; }
+    .chart-section .session-brief { margin-bottom: 0; }
+    .group-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .group-head .section-sub { margin-bottom: 0; }
     .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; transition: box-shadow 0.2s ease; }
     .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
     .chart-container { position: relative; height: 380px; }
@@ -341,6 +346,33 @@
           </div>
         </section>
 
+        <!-- BY COIN GROUP -->
+        <section class="chart-section" data-reveal>
+          <h2>Volume and Trades by Coin Group</h2>
+          <div class="group-head">
+            <p class="section-sub" id="groupChartSub">Per 5 min by hour of day, each group&rsquo;s own top coins</p>
+            <div class="stat-toggle" id="groupScaleToggle" role="group" aria-label="Show amounts or shares">
+              <button class="active" data-scale="amount" type="button">Amount</button>
+              <button data-scale="share" type="button">Share</button>
+            </div>
+          </div>
+          <div class="session-brief">
+            <div class="brief-card">
+              <div class="brief-label">Volume by coin group</div>
+              <div class="chart-container" style="height:300px;" role="img" aria-label="Stacked bar chart of volume by hour of day for each coin group">
+                <canvas id="groupVolChart"></canvas>
+              </div>
+            </div>
+            <div class="brief-card">
+              <div class="brief-label">Trades by coin group</div>
+              <div class="chart-container" style="height:300px;" role="img" aria-label="Stacked bar chart of trades by hour of day for each coin group">
+                <canvas id="groupTradeChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <p class="chart-help">Each colour is one coin group: <strong>BTC + ETH</strong> (their four USDT and USDC pairs), <strong>large caps</strong> (market cap of at least $1B) and <strong>small alts</strong> (everything below). Each group counts its own busiest coins, as many as the slider above sets, so the stack holds more coins than the charts above. Small alts sit at the bottom so their shape is easy to follow. <strong>Amount</strong> stacks the median (or mean) per 5 minutes of each group, <strong>Share</strong> shows each group&rsquo;s part of the hour. Compare the two charts: BTC and ETH carry most of the money, while small alts make most of the trades. The groups switched off above are left out. Hover an hour for each group&rsquo;s number and share.</p>
+        </section>
+
       </div>
     </div>
   </main>
@@ -406,8 +438,14 @@
     var currentWindowDays = 31;
     // Coin groups: b = BTC and ETH, l = other pairs with a market cap of at least
     // $1B (the Popular Coins high-cap list), s = everything else.
-    var currentGroups = 'bls';
+    var GROUPS_KEY = 'trading-hours-groups';
+    var currentGroups = (function() {
+      var saved = null;
+      try { saved = localStorage.getItem(GROUPS_KEY); } catch (e) {}
+      return /^(bls|b|l|s|bl|bs|ls)$/.test(saved || '') ? saved : 'bls';
+    })();
     var rowsByGroups = {};
+    var groupScale = 'amount';
     var GROUP_NOUN = { bls: 'coins', b: 'BTC/ETH pairs', l: 'large caps', s: 'small alts', bl: 'BTC/ETH + large caps', bs: 'coins', ls: 'alts' };
     var GROUP_HINT = {
       bls: 'All crypto pairs. Large caps have a market cap of at least $1B; small alts are everything below',
@@ -561,6 +599,7 @@
       buildSessionBrief();
       buildHeatmap();
       buildCharts();
+      buildGroupCharts();
     }
 
     // === SESSION BRIEF ===
@@ -884,6 +923,7 @@
       loadRows(next)
         .then(function(raw) {
           currentGroups = next;
+          try { localStorage.setItem(GROUPS_KEY, next); } catch (e) {}
           rawData = raw;
           renderGroupControls();
           rebuildAll();
@@ -1093,7 +1133,108 @@
       buildHeatmap();
       buildSessionBrief();
       buildCharts();
+      buildGroupCharts();
     }
+
+    // === BY COIN GROUP ===
+    var GROUP_ORDER = ['s', 'l', 'b']; // bottom of the stack first
+    var GROUP_NAME = { b: 'BTC + ETH', l: 'Large caps', s: 'Small alts' };
+    var groupLoad = null;
+
+    // Per hour of day, the median (or mean) of each group's top-N total per 5 minutes.
+    function groupHourly(raw, metric) {
+      var cutoff = new Date(rawData[rawData.length - 1].ts).getTime() - currentWindowDays * 86400000;
+      var buckets = [];
+      for (var h = 0; h < 24; h++) buckets.push([]);
+      raw.forEach(function(r) {
+        var d = new Date(r.ts);
+        if (d.getTime() > cutoff) buckets[d.getHours()].push(sumTopN(r[metric] || [], currentTopN));
+      });
+      return buckets.map(function(v) {
+        if (!v.length) return 0;
+        if (currentStat !== 'median') return v.reduce(function(a, b) { return a + b; }, 0) / v.length;
+        return quantile(v.sort(function(a, b) { return a - b; }), 0.5);
+      });
+    }
+
+    function buildGroupCharts() {
+      if (typeof Chart === 'undefined' || !rawData.length) return;
+      if (!GROUP_ORDER.every(function(g) { return rowsByGroups[g]; })) {
+        if (!groupLoad) {
+          groupLoad = Promise.all(GROUP_ORDER.map(loadRows)).then(buildGroupCharts, function(err) {
+            groupLoad = null;
+            document.getElementById('groupChartSub').textContent = 'Could not load the coin groups: ' + err.message;
+          });
+        }
+        return;
+      }
+      var c = getChartColors();
+      var css = getComputedStyle(document.documentElement);
+      var shown = GROUP_ORDER.filter(function(g) { return currentGroups.indexOf(g) >= 0; });
+      var share = groupScale === 'share';
+      var statWord = currentStat === 'median' ? 'Median' : 'Average';
+      var labels = HOURS_OF_DAY.map(function(h) { return (h < 10 ? '0' : '') + h + ':00'; });
+      document.getElementById('groupChartSub').textContent = (share ? 'Share of each hour' : statWord + ' per 5 min') +
+        ' by hour of day, your time, for each group\u2019s top ' + currentTopN;
+
+      function draw(id, metric, fmt) {
+        var ctx = resetCanvas(id);
+        if (!ctx) return;
+        var series = {};
+        shown.forEach(function(g) { series[g] = groupHourly(rowsByGroups[g], metric); });
+        var totals = labels.map(function(_, i) { return shown.reduce(function(a, g) { return a + series[g][i]; }, 0); });
+        var top = shown[shown.length - 1];
+        var datasets = shown.map(function(g) {
+          var col = css.getPropertyValue('--group-' + g).trim();
+          return {
+            label: GROUP_NAME[g],
+            data: series[g].map(function(v, i) { return share ? (totals[i] ? v / totals[i] * 100 : 0) : v; }),
+            raw: series[g],
+            backgroundColor: col,
+            borderColor: c.surface,
+            borderWidth: { top: 2, right: 0, bottom: 0, left: 0 },
+            borderSkipped: 'start',
+            borderRadius: g === top ? { topLeft: 4, topRight: 4 } : 0,
+            stack: 'groups'
+          };
+        });
+        new Chart(ctx, {
+          type: 'bar',
+          plugins: [usSessionPlugin],
+          data: { labels: labels, datasets: datasets },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              usSession: { hours: HOURS_OF_DAY },
+              legend: { display: true, position: 'bottom', reverse: true, labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12 } },
+              tooltip: { padding: 10, cornerRadius: 8, itemSort: function(a, b) { return b.datasetIndex - a.datasetIndex; }, callbacks: {
+                label: function(item) {
+                  var v = item.dataset.raw[item.dataIndex], t = totals[item.dataIndex];
+                  return ' ' + item.dataset.label + ': ' + fmt(v) + '  (' + (t ? Math.round(v / t * 100) : 0) + '%)';
+                },
+                footer: function(items) { return 'Together: ' + fmt(totals[items[0].dataIndex]); }
+              } }
+            },
+            layout: { padding: 6 },
+            scales: {
+              x: { stacked: true, ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 12 }, grid: { display: false } },
+              y: { stacked: true, beginAtZero: true, max: share ? 100 : undefined, ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v) { return share ? v + '%' : fmt(v); } }, grid: { color: c.gridLine } }
+            }
+          }
+        });
+      }
+      draw('groupVolChart', 'vR', function(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M' : '$' + Math.round(v / 1e3) + 'K'; });
+      draw('groupTradeChart', 'tR', function(v) { return v >= 1000 ? Math.round(v / 1000) + 'K' : Math.round(v) + ''; });
+    }
+
+    document.getElementById('groupScaleToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || btn.dataset.scale === groupScale) return;
+      groupScale = btn.dataset.scale;
+      document.querySelectorAll('#groupScaleToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
+      buildGroupCharts();
+    });
 
     // === INIT ===
     document.addEventListener('DOMContentLoaded', function() {
