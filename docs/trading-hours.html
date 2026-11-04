@@ -117,6 +117,7 @@
     .topn-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .topn-label { font-weight: 600; font-size: 0.95rem; color: var(--text); white-space: nowrap; min-width: 130px; }
     .topn-label span { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+    .topn-label span.topn-noun { color: var(--text); font-weight: 600; }
     .topn-hint { font-size: 0.8rem; }
     #topNSlider { flex: 1; min-width: 220px; accent-color: var(--accent); height: 4px; }
     .session-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); }
@@ -127,6 +128,7 @@
     .stat-toggle { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; }
     .stat-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
     .stat-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
+    .stat-toggle button:disabled { cursor: wait; opacity: 0.6; }
 
     /* KPI Grid */
     .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
@@ -239,11 +241,20 @@
       <div id="dashboardContent" style="display:none;">
 
         <!-- Top-N slider -->
-        <section class="topn-controls animate delay-0" aria-label="Top-N selector">
+        <section class="topn-controls animate delay-0" aria-label="Coin selection">
           <div class="topn-row">
-            <label for="topNSlider" class="topn-label">Top&nbsp;<span id="topNValue">20</span>&nbsp;coins</label>
+            <span class="topn-label">Coin groups</span>
+            <div class="stat-toggle" id="groupToggle" role="group" aria-label="Choose which coin groups to include">
+              <button class="active" data-group="b" type="button" aria-pressed="true">BTC + ETH</button>
+              <button class="active" data-group="l" type="button" aria-pressed="true">Large caps</button>
+              <button class="active" data-group="s" type="button" aria-pressed="true">Small alts</button>
+            </div>
+            <span class="topn-hint text-secondary" id="groupHint" aria-live="polite"></span>
+          </div>
+          <div class="topn-row">
+            <label for="topNSlider" class="topn-label">Top&nbsp;<span id="topNValue">20</span>&nbsp;<span class="topn-noun" id="topNNoun">coins</span></label>
             <input type="range" id="topNSlider" min="1" max="20" step="1" value="20" aria-label="Select how many top coins to include (1 to 20)">
-            <span class="topn-hint text-secondary">Coins ranked by trade count; volume is the volume of those same coins</span>
+            <span class="topn-hint text-secondary">Ranked by trade count; volume is the volume of those same coins</span>
           </div>
           <div class="topn-row">
             <span class="topn-label">Aggregation</span>
@@ -393,6 +404,20 @@
     var currentMetric = 'trades';
     var currentStat = 'median';
     var currentWindowDays = 31;
+    // Coin groups: b = BTC and ETH, l = other pairs with a market cap of at least
+    // $1B (the Popular Coins high-cap list), s = everything else.
+    var currentGroups = 'bls';
+    var rowsByGroups = {};
+    var GROUP_NOUN = { bls: 'coins', b: 'BTC/ETH pairs', l: 'large caps', s: 'small alts', bl: 'BTC/ETH + large caps', bs: 'coins', ls: 'alts' };
+    var GROUP_HINT = {
+      bls: 'All crypto pairs. Large caps have a market cap of at least $1B; small alts are everything below',
+      b: 'Only four pairs: BTC and ETH, each against USDT and USDC',
+      l: 'Pairs with a market cap of at least $1B, without BTC and ETH',
+      s: 'Pairs with a market cap below $1B',
+      bl: 'Everything with a market cap of at least $1B',
+      bs: 'BTC and ETH plus the pairs below $1B',
+      ls: 'Every pair except BTC and ETH'
+    };
 
     // === Statistics helpers ===
     function quantile(sorted, p) {
@@ -505,7 +530,7 @@
       var lastLabel = months[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear() + ' ' + pad(last.getHours()) + ':' + pad(last.getMinutes());
 
       var sub = document.getElementById('subtitleText');
-      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; Last: ' + lastLabel + ' &nbsp;|&nbsp; Top ' + topN;
+      if (sub) sub.innerHTML = '<span class="status-dot"></span>' + snapshots.length + ' Snapshots &nbsp;|&nbsp; Last: ' + lastLabel + ' &nbsp;|&nbsp; Top ' + topN + ' ' + GROUP_NOUN[currentGroups];
 
       dataReady = true;
     }
@@ -821,6 +846,54 @@
     });
 
     var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
+
+    // Each group combination is its own list on the server, so fetch it once and keep it.
+    function loadRows(groups) {
+      if (rowsByGroups[groups]) return Promise.resolve(rowsByGroups[groups]);
+      return fetch(API_URL + '/rows' + (groups === 'bls' ? '' : '?groups=' + groups))
+        .then(function(r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function(raw) {
+          if (!raw || raw.length === 0) throw new Error('No snapshot data found');
+          rowsByGroups[groups] = raw;
+          return raw;
+        });
+    }
+
+    function renderGroupControls() {
+      document.querySelectorAll('#groupToggle button').forEach(function(b) {
+        var on = currentGroups.indexOf(b.dataset.group) >= 0;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      document.getElementById('groupHint').textContent = GROUP_HINT[currentGroups];
+      document.getElementById('topNNoun').textContent = GROUP_NOUN[currentGroups];
+    }
+
+    document.getElementById('groupToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || !dataReady) return;
+      var g = btn.dataset.group;
+      var next = ['b', 'l', 's'].filter(function(k) { return (k === g) !== (currentGroups.indexOf(k) >= 0); }).join('');
+      if (!next) return; // keep at least one group
+      var buttons = document.querySelectorAll('#groupToggle button');
+      buttons.forEach(function(b) { b.disabled = true; });
+      document.getElementById('groupHint').textContent = 'Loading\u2026';
+      loadRows(next)
+        .then(function(raw) {
+          currentGroups = next;
+          rawData = raw;
+          renderGroupControls();
+          rebuildAll();
+        })
+        .catch(function(err) {
+          renderGroupControls();
+          document.getElementById('groupHint').textContent = 'Could not load this selection: ' + err.message;
+        })
+        .then(function() { buttons.forEach(function(b) { b.disabled = false; }); });
+    });
     // === CHARTS ===
 
     function getChartColors() {
@@ -1039,14 +1112,10 @@
         });
       }
 
-      fetch(API_URL + '/rows')
-        .then(function(r) {
-          if (!r.ok) throw new Error('Server returned ' + r.status);
-          return r.json();
-        })
+      loadRows(currentGroups)
         .then(function(raw) {
-          if (!raw || raw.length === 0) throw new Error('No snapshot data found');
           rawData = raw;
+          renderGroupControls();
           rebuildAll();
 
           document.getElementById('loadingState').style.display = 'none';

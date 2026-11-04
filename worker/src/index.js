@@ -1,8 +1,10 @@
 /**
  * Stores the trade data behind the Trading Hours and Popular Coins pages.
  *
- *   POST /rows           add one {ts, tR, vR, tS} top-20 row (needs the write secret)
- *   GET  /rows           every top-20 row in the rolling window, oldest first
+ *   POST /rows           add one {ts, tR, vR, tS, groups} top-20 row (needs the write secret)
+ *   GET  /rows           every top-20 row in the rolling window, oldest first, as {ts, tR, vR}
+ *   GET  /rows?groups=G  the same for a combination of coin groups: b = BTC and ETH,
+ *                        l = other high caps, s = the rest; G is one of b, l, s, bl, bs, ls
  *   POST /coins?period=P replace one period's coin list (needs the write secret)
  *   GET  /coins?period=P {start, end, step, coins: [[symbol, trades, volume, [closes]]]},
  *                        busiest first, for P = 7d, 1d, 12h, 6h, 4h, 2h or 1h;
@@ -10,11 +12,14 @@
  *                        P = tradfi gives {symbols: [TradFi pairs], active: [those in the lists],
  *                        types: {pair: Binance underlyingType}}
  *
- * Each new row also deletes rows that have left the window.
+ * Each new row also deletes rows that have left the window. A row's groups hold
+ * {set: {tR, vR}}, each set's own top 20. Posting a row that already exists only
+ * adds its groups, and only if it has none yet, so a backfill can fill them in.
  */
 
 const RETENTION_DAYS = 31;
 const TOP_N = 20;
+const GROUP_SETS = ["b", "l", "s", "bl", "bs", "ls"];
 const COIN_PERIODS = new Set(["7d", "1d", "12h", "6h", "4h", "2h", "1h", "highcap", "tradfi"]);
 // D1's limit for one value is 2,000,000 bytes.
 const MAX_COIN_BYTES = 1_900_000;
@@ -23,7 +28,8 @@ const CORS = { "Access-Control-Allow-Origin": "*" };
 // Timestamps are stored in this exact form so they sort as text.
 const TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/;
 
-let cached = null;
+// Group set ("" for all coins) -> {at, body}
+const rowCache = new Map();
 const coinCache = new Map();
 
 function cutoff() {
@@ -65,35 +71,62 @@ async function readJson(request) {
   }
 }
 
+// Returns {set: '{"tR":[...],"vR":[...]}'}, or null if the groups are malformed.
+function groupTexts(groups) {
+  if (groups === undefined) return {};
+  if (!groups || typeof groups !== "object" || Array.isArray(groups)) return null;
+  const texts = {};
+  for (const [key, g] of Object.entries(groups)) {
+    if (!GROUP_SETS.includes(key) || !g || !isCounts(g.tR) || !isCounts(g.vR) || g.tR.length !== g.vR.length) return null;
+    texts[key] = JSON.stringify({ tR: g.tR, vR: g.vR });
+  }
+  return texts;
+}
+
 async function addRow(request, env) {
   if (!(await authorized(request, env))) return new Response("Unauthorized", { status: 401 });
   const row = await readJson(request);
-  if (!row || !TS_RE.test(row.ts) || !isCounts(row.tR) || !isCounts(row.vR) || !isSymbols(row.tS, row.tR.length)) {
+  const groups = row && groupTexts(row.groups);
+  if (!row || !TS_RE.test(row.ts) || !isCounts(row.tR) || !isCounts(row.vR) || !isSymbols(row.tS, row.tR.length) || !groups) {
     return new Response("Invalid row", { status: 400 });
   }
+  const cols = GROUP_SETS.map((k) => `g_${k}`);
   const [insert] = await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO rows (ts, tR, vR, symbols) VALUES (?, ?, ?, ?)").bind(
-      row.ts,
-      JSON.stringify(row.tR),
-      JSON.stringify(row.vR),
-      JSON.stringify(row.tS)
-    ),
+    env.DB.prepare(
+      `INSERT INTO rows (ts, tR, vR, symbols, ${cols.join(", ")}) VALUES (?, ?, ?, ?, ${cols.map(() => "?").join(", ")})
+       ON CONFLICT(ts) DO UPDATE SET ${cols.map((c) => `${c} = excluded.${c}`).join(", ")}
+       WHERE rows.g_ls IS NULL AND excluded.g_ls IS NOT NULL`
+    ).bind(row.ts, JSON.stringify(row.tR), JSON.stringify(row.vR), JSON.stringify(row.tS), ...GROUP_SETS.map((k) => groups[k] ?? null)),
     env.DB.prepare("DELETE FROM rows WHERE ts < ?").bind(cutoff()),
   ]);
-  cached = null;
+  rowCache.clear();
   return Response.json({ added: insert.meta.changes > 0, ts: row.ts });
 }
 
-async function readRows(env) {
-  if (!cached || Date.now() - cached.at > READ_CACHE_MS) {
-    const rows = await env.DB.prepare("SELECT ts, tR, vR FROM rows WHERE ts >= ? ORDER BY ts")
-      .bind(cutoff())
-      .raw();
-    // tR and vR are already JSON, so join the text rather than parse it.
-    const body = "[" + rows.map((r) => `{"ts":"${r[0]}","tR":${r[1]},"vR":${r[2]}}`).join(",") + "]";
-    cached = { at: Date.now(), body };
+async function readRows(url, env) {
+  const set = url.searchParams.get("groups") || "";
+  if (set && !GROUP_SETS.includes(set)) return new Response("Invalid groups", { status: 400, headers: CORS });
+  let entry = rowCache.get(set);
+  if (!entry || Date.now() - entry.at > READ_CACHE_MS) {
+    let body;
+    if (set) {
+      // The column is from GROUP_SETS, never from the request text itself.
+      const rows = await env.DB.prepare(`SELECT ts, g_${set} FROM rows WHERE ts >= ? AND g_${set} IS NOT NULL ORDER BY ts`)
+        .bind(cutoff())
+        .raw();
+      // Each value is already {"tR":[...],"vR":[...]}, so splice in the timestamp as text.
+      body = "[" + rows.map((r) => `{"ts":"${r[0]}",` + r[1].slice(1)).join(",") + "]";
+    } else {
+      const rows = await env.DB.prepare("SELECT ts, tR, vR FROM rows WHERE ts >= ? ORDER BY ts")
+        .bind(cutoff())
+        .raw();
+      // tR and vR are already JSON, so join the text rather than parse it.
+      body = "[" + rows.map((r) => `{"ts":"${r[0]}","tR":${r[1]},"vR":${r[2]}}`).join(",") + "]";
+    }
+    entry = { at: Date.now(), body };
+    rowCache.set(set, entry);
   }
-  return new Response(cached.body, {
+  return new Response(entry.body, {
     headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "public, max-age=60" },
   });
 }
@@ -129,7 +162,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/rows") {
-      if (request.method === "GET") return readRows(env);
+      if (request.method === "GET") return readRows(url, env);
       if (request.method === "POST") return addRow(request, env);
       return new Response("Method not allowed", { status: 405 });
     }

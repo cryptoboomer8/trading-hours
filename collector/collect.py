@@ -14,11 +14,17 @@ Standard library only. Environment:
   ORION_API_URL       defaults to the deployed Worker
   HEALTHCHECK_URL     optional, pinged after each saved run
 
+Each row also holds the top 20 of every combination of three coin groups, so
+the Trading Hours page can leave groups out: b is BTC and ETH, l the other
+high-cap pairs (the list coins.py saves, market cap of at least $1B), and s
+every other crypto pair.
+
 Usage: collect.py [--dry-run]   (--dry-run prints the row and list sizes, writes nothing)
 """
 
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -41,6 +47,10 @@ MIN_SYMBOLS = 300
 # This IP is shared with other Binance clients, so stay well under the
 # 2400/min weight limit: above this, wait for the next minute's fresh count.
 MAX_USED_WEIGHT = 1000
+# The coin a pair trades, without a 1000-style multiplier: 1000PEPEUSDT is PEPE.
+PAIR_RE = re.compile(r"^(?:1000000|100000|10000|1000|1M)?(.+?)(?:USDT|USDC)$")
+# Group combinations stored besides the full row, which is all three.
+GROUP_SETS = ("b", "l", "s", "bl", "bs", "ls")
 
 
 class BinanceBackoff(Exception):
@@ -98,6 +108,43 @@ def active_tradfi(trading):
     return [s for s in saved.get("active", []) if s in trading]
 
 
+def high_cap_pairs_saved():
+    """Return the high-cap pairs coins.py last saved, or None if that list is unavailable."""
+    try:
+        saved, _ = request(os.environ.get("ORION_API_URL", API_URL) + "/coins?period=highcap")
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        print(f"high-cap list unavailable, no group rows: {e}")
+        return None
+    return set(saved.get("symbols") or []) or None
+
+
+def coin_group(symbol, high_caps):
+    match = PAIR_RE.match(symbol)
+    if match and match.group(1) in ("BTC", "ETH"):
+        return "b"
+    return "l" if symbol in high_caps else "s"
+
+
+def build_row(entries, slot, high_caps):
+    """Return the row for one 5-minute slot from (trades, volume, symbol) entries.
+
+    Without the high-cap list the row has no groups; the Worker fills them in
+    if a later backfill brings them.
+    """
+    entries = sorted(entries, reverse=True)
+    top = entries[:TOP_N]
+    ts = datetime.fromtimestamp(slot / 1000, timezone.utc).isoformat()
+    row = {"ts": ts, "tR": [c[0] for c in top], "vR": [c[1] for c in top], "tS": [c[2] for c in top]}
+    if high_caps:
+        groups = {}
+        for key in GROUP_SETS:
+            picked = [c for c in entries if coin_group(c[2], high_caps) in key][:TOP_N]
+            if picked:
+                groups[key] = {"tR": [c[0] for c in picked], "vR": [c[1] for c in picked]}
+        row["groups"] = groups
+    return row
+
+
 def post(path, body):
     result, _ = request(
         os.environ.get("ORION_API_URL", API_URL) + path,
@@ -136,15 +183,6 @@ def read_candles(symbols, interval, limit, last_open_ms, min_share=MIN_SUCCESS_S
     if symbols and (len(symbols) - failed) / len(symbols) < min_share:
         raise RuntimeError(f"{failed} of {len(symbols)} symbols failed")
     return series
-
-
-def build_row(series, slot):
-    """Return the top-20 row for one 5-minute slot."""
-    candles = [(rows[-1][1], rows[-1][2], symbol) for symbol, rows in series.items()]
-    candles.sort(key=lambda c: c[0], reverse=True)
-    top = candles[:TOP_N]
-    ts = datetime.fromtimestamp(slot / 1000, timezone.utc).isoformat()
-    return {"ts": ts, "tR": [c[0] for c in top], "vR": [c[1] for c in top], "tS": [c[2] for c in top]}
 
 
 def build_view(series, start, end, step):
@@ -191,7 +229,7 @@ def main():
     slot = now_ms - now_ms % SLOT_MS - SLOT_MS
     crypto, tradfi = trading_contracts()
     series = read_candles(crypto, "5m", SLOTS_PER_DAY, slot)
-    row = build_row(series, slot)
+    row = build_row([(rows[-1][1], rows[-1][2], symbol) for symbol, rows in series.items()], slot, high_cap_pairs_saved())
     # A missing TradFi pair only drops it from the lists, so no minimum share.
     tradfi_series = read_candles(active_tradfi(tradfi), "5m", SLOTS_PER_DAY, slot, min_share=0)
     views = build_views({**series, **tradfi_series}, slot)

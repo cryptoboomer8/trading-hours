@@ -11,12 +11,11 @@ Usage: coins.py [--dry-run]   (--dry-run prints the list size, writes nothing)
 """
 
 import json
-import re
 import sys
 import time
 import urllib.error
 
-from collect import DAY_MS, MINUTE_MS, build_view, post, read_candles, request, trading_contracts
+from collect import DAY_MS, MINUTE_MS, PAIR_RE, build_view, post, read_candles, request, trading_contracts
 
 HOUR_MS = 60 * MINUTE_MS
 WEEK_HOURS = 7 * DAY_MS // HOUR_MS
@@ -29,7 +28,6 @@ MIN_HIGH_CAP_PAIRS = 20
 TRADFI_MIN_WEEK_TRADES = 700_000
 # Keep the last TradFi list unless at least this share of the pairs was read.
 TRADFI_MIN_READ_SHARE = 0.9
-PAIR_RE = re.compile(r"^(?:1000000|100000|10000|1000|1M)?(.+?)(?:USDT|USDC)$")
 
 
 def high_cap_pairs(symbols):
