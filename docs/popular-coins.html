@@ -513,7 +513,10 @@
       var s = getComputedStyle(document.documentElement);
       var color = function(name) { return s.getPropertyValue(name).trim(); };
       var secondary = color('--text-secondary');
-      var maxVolume = Math.max.apply(null, chartData.volumes);
+      // The liquidity floor per bar: $100K a minute, the table's $500K per 5 minutes.
+      var floor = MIN_VOLUME_PER_5M / 5 * chartData.step;
+      var maxVolume = Math.max(Math.max.apply(null, chartData.volumes), floor);
+      var floorColor = '#ef4444';
       var lineSet = function(label, data, borderColor, borderWidth) {
         return { type: 'line', label: label, data: data, yAxisID: 'price', borderColor: borderColor, backgroundColor: borderColor, borderWidth: borderWidth, pointRadius: 0, tension: 0, order: 1 };
       };
@@ -523,6 +526,7 @@
         datasets.push(lineSet('SMMA ' + SMMA_SLOW, chartData.slow, color('--smma-slow'), 1.75));
       }
       datasets.push({ type: 'bar', label: 'Volume (USDT)', data: chartData.volumes, yAxisID: 'volume', backgroundColor: color('--accent') + '99', order: 2 });
+      datasets.push({ type: 'line', label: '$' + compactNumber(floor) + ' per ' + (chartData.step === 1 ? 'minute' : chartData.step + ' min') + ' floor', data: chartData.volumes.map(function() { return floor; }), yAxisID: 'volume', borderColor: floorColor, backgroundColor: floorColor, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0, order: 0, isFloor: true });
       coinChart = new Chart(document.getElementById('coinChart'), {
         data: { labels: chartData.labels, datasets: datasets },
         plugins: [sessionShade],
@@ -531,6 +535,7 @@
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: true, labels: { color: secondary, boxWidth: 12 }, position: 'bottom' },
+            tooltip: { filter: function(item) { return !item.dataset.isFloor; } },
             sessionShade: {
               markets: shownSessions,
               colors: { us: color('--session-us'), kr: color('--session-kr'), hk: color('--session-hk'), cn: color('--session-cn') }
