@@ -348,46 +348,39 @@
         <!-- HOURLY AVERAGE CHART -->
         <section class="chart-section" data-reveal>
           <h2>Activity by Hour</h2>
-          <p class="section-sub">Volume and trades per 5 min by hour of day, across all days in the period</p>
+          <div class="group-head">
+            <p class="section-sub" id="hourlySub">Tradeable coins per 5 min by hour of day, across all days in the period</p>
+            <div class="stat-toggle" id="hourlyMetricToggle" role="group" aria-label="Choose what the hourly chart shows">
+              <button class="active" data-metric="coins" type="button">Coins</button>
+              <button data-metric="trades" type="button">Trades</button>
+              <button data-metric="volume" type="button">Volume</button>
+            </div>
+          </div>
           <div class="chart-card">
-            <div class="chart-container" role="img" aria-label="Bar chart of volume by hour of day with a line for trades">
+            <div class="chart-container">
               <canvas id="hourlyChart"></canvas>
             </div>
-            <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis); the three brightest are the busiest hours. The <strong>line</strong> is the number of trades per 5 minutes (right axis). Both axes start at zero, so compare their shapes: where the line sits high but the bars are low, there are lots of trades but little money behind them, which means small trades and a thin market. Where the bars rise with the line, the size is there too. The shading marks the US session phases in your time. Hover an hour for both numbers.</p>
+            <p class="chart-help">Tradeable coins, trades or volume per 5 minutes in each hour of your time, whichever is selected, for the coin groups chosen at the top. The three brightest bars are the busiest hours. The shading marks the US session phases. Hover an hour for the spread: with the median, half of the 5-minute readings fall in the range shown.</p>
           </div>
         </section>
 
         <!-- BY COIN GROUP -->
         <section class="chart-section" data-reveal>
-          <h2>Tradeable Coins, Volume and Trades by Coin Group</h2>
+          <h2>Coin Group Share by Hour</h2>
           <div class="group-head">
-            <p class="section-sub" id="groupChartSub">Per 5 min by hour of day</p>
-            <div class="stat-toggle" id="groupScaleToggle" role="group" aria-label="Show amounts or shares">
-              <button class="active" data-scale="amount" type="button">Amount</button>
-              <button data-scale="share" type="button">Share</button>
+            <p class="section-sub" id="groupChartSub">Each group&rsquo;s share of the tradeable coins per hour of day, your time</p>
+            <div class="stat-toggle" id="groupMetricToggle" role="group" aria-label="Choose what the share chart splits">
+              <button class="active" data-metric="coins" type="button">Coins</button>
+              <button data-metric="trades" type="button">Trades</button>
+              <button data-metric="volume" type="button">Volume</button>
             </div>
           </div>
-          <div class="session-brief">
-            <div class="brief-card">
-              <div class="brief-label">Tradeable coins by coin group</div>
-              <div class="chart-container" style="height:300px;" role="img" aria-label="Stacked bar chart of the number of tradeable coins by hour of day for each coin group">
-                <canvas id="groupCoinChart"></canvas>
-              </div>
+          <div class="chart-card">
+            <div class="chart-container">
+              <canvas id="groupChart"></canvas>
             </div>
-            <div class="brief-card">
-              <div class="brief-label">Volume by coin group</div>
-              <div class="chart-container" style="height:300px;" role="img" aria-label="Stacked bar chart of volume by hour of day for each coin group">
-                <canvas id="groupVolChart"></canvas>
-              </div>
-            </div>
-            <div class="brief-card">
-              <div class="brief-label">Trades by coin group</div>
-              <div class="chart-container" style="height:300px;" role="img" aria-label="Stacked bar chart of trades by hour of day for each coin group">
-                <canvas id="groupTradeChart"></canvas>
-              </div>
-            </div>
+            <p class="chart-help">Each colour is one coin group: <strong>BTC + ETH</strong>, <strong>large caps</strong> (market cap of at least $1B) and <strong>small alts</strong> (everything below), counting only the tradeable coins. Each bar is one hour split by the selected measure, built from each group&rsquo;s median (or mean) per 5 minutes. All three groups are always shown, whatever is selected at the top. Small alts sit at the bottom so their shape is easy to follow. Switch between coins and volume to compare: BTC and ETH carry most of the money, while the alts make up most of the coins. Hover an hour for each group&rsquo;s share and amount.</p>
           </div>
-          <p class="chart-help">Each colour is one coin group: <strong>BTC + ETH</strong>, <strong>large caps</strong> (market cap of at least $1B) and <strong>small alts</strong> (everything below), counting only the tradeable coins. Small alts sit at the bottom so their shape is easy to follow. <strong>Amount</strong> stacks the median (or mean) per 5 minutes of each group, <strong>Share</strong> shows each group&rsquo;s part of the hour. Since medians don&rsquo;t add up, a stack can differ a little from the totals above. Compare the charts: BTC and ETH carry most of the money, while the alts make up most of the coins. The groups switched off above are left out. Hover an hour for each group&rsquo;s number and share.</p>
         </section>
 
       </div>
@@ -439,12 +432,9 @@
     var dayOrder = [];
     var hourlyAvg = [];
     var hourlyVolAvg = [];
-    var hourlyStd = [];       // std dev of trade totals per hour (across all samples of that hour)
     var hourlyMedian = [];    // median trades per hour
     var hourlyVolMedian = []; // median volume per hour
-    var hourlyP25 = [];       // 25th percentile of trades per hour (lower IQR)
-    var hourlyP75 = [];       // 75th percentile of trades per hour (upper IQR)
-    var hourlySamples = [];   // sample count per hour
+    var hourlyRaw = {};       // metric -> per hour, its sorted 5-minute readings
     var hourlyCoinAvg = [];
     var hourlyCoinMedian = [];
     var dayAvg = {};
@@ -456,6 +446,8 @@
     var currentMetric = 'trades';
     var paceMetric = 'coins';
     var dayMetric = 'coins';
+    var hourlyMetric = 'coins';
+    var groupMetric = 'coins';
     var currentStat = 'median';
     var currentWindowDays = 31;
     // Coin groups: b = BTC and ETH, l = other pairs with a market cap of at least
@@ -466,7 +458,6 @@
       try { saved = localStorage.getItem(GROUPS_KEY); } catch (e) {}
       return /^(bls|b|l|s|bl|bs|ls)$/.test(saved || '') ? saved : 'bls';
     })();
-    var groupScale = 'amount';
     var GROUP_NOUN = { bls: 'coins', b: 'BTC and ETH', l: 'large caps', s: 'small alts', bl: 'BTC, ETH and large caps', bs: 'BTC, ETH and small alts', ls: 'alts' };
     var GROUP_HINT = {
       bls: 'All coins. Large caps have a market cap of at least $1B; small alts are everything below',
@@ -546,38 +537,23 @@
         }
       });
 
-      // Hourly stats: pool samples across days for hour h to get mean/median/IQR/std/samples
-      hourlyAvg = []; hourlyVolAvg = []; hourlyStd = []; hourlyMedian = []; hourlyVolMedian = []; hourlyP25 = []; hourlyP75 = []; hourlySamples = [];
-      hourlyCoinAvg = []; hourlyCoinMedian = [];
-      for (var h=0; h<24; h++) {
-        var tradeSamples = [];
-        var volSamples = [];
-        var coinSamples = [];
-        snapshots.forEach(function(s) { if (s.hour === h) { tradeSamples.push(s.totalTrades); volSamples.push(s.totalVol); coinSamples.push(s.totalCoins); } });
-        hourlyCoinAvg.push(meanOf(coinSamples));
-        hourlyCoinMedian.push(medianOf(coinSamples));
-        if (tradeSamples.length === 0) {
-          hourlyAvg.push(0); hourlyVolAvg.push(0); hourlyStd.push(0);
-          hourlyMedian.push(0); hourlyVolMedian.push(0); hourlyP25.push(0); hourlyP75.push(0);
-          hourlySamples.push(0);
-          continue;
-        }
-        var sortedT = tradeSamples.slice().sort(function(a,b){return a-b;});
-        var sortedV = volSamples.slice().sort(function(a,b){return a-b;});
-        var meanT = tradeSamples.reduce(function(a,b){return a+b;}, 0) / tradeSamples.length;
-        var meanV = volSamples.reduce(function(a,b){return a+b;}, 0) / volSamples.length;
-        var sqT = 0;
-        for (var i=0; i<tradeSamples.length; i++) { var d = tradeSamples[i] - meanT; sqT += d*d; }
-        var std = tradeSamples.length > 1 ? Math.sqrt(sqT / tradeSamples.length) : 0;
-        hourlyAvg.push(Math.round(meanT));
-        hourlyVolAvg.push(Math.round(meanV));
-        hourlyStd.push(Math.round(std));
-        hourlyMedian.push(Math.round(quantile(sortedT, 0.5)));
-        hourlyVolMedian.push(Math.round(quantile(sortedV, 0.5)));
-        hourlyP25.push(Math.round(quantile(sortedT, 0.25)));
-        hourlyP75.push(Math.round(quantile(sortedT, 0.75)));
-        hourlySamples.push(tradeSamples.length);
-      }
+      // Hourly stats: pool the 5-minute readings of each hour across all days.
+      hourlyRaw = { coins: [], trades: [], volume: [] };
+      for (var h=0; h<24; h++) { hourlyRaw.coins.push([]); hourlyRaw.trades.push([]); hourlyRaw.volume.push([]); }
+      snapshots.forEach(function(s) {
+        hourlyRaw.coins[s.hour].push(s.totalCoins);
+        hourlyRaw.trades[s.hour].push(s.totalTrades);
+        hourlyRaw.volume[s.hour].push(s.totalVol);
+      });
+      ['coins', 'trades', 'volume'].forEach(function(m) {
+        hourlyRaw[m].forEach(function(v) { v.sort(function(a, b) { return a - b; }); });
+      });
+      hourlyCoinAvg = hourlyRaw.coins.map(meanOf);
+      hourlyCoinMedian = hourlyRaw.coins.map(medianOf);
+      hourlyAvg = hourlyRaw.trades.map(function(v) { return Math.round(meanOf(v)); });
+      hourlyMedian = hourlyRaw.trades.map(function(v) { return Math.round(medianOf(v)); });
+      hourlyVolAvg = hourlyRaw.volume.map(function(v) { return Math.round(meanOf(v)); });
+      hourlyVolMedian = hourlyRaw.volume.map(function(v) { return Math.round(medianOf(v)); });
 
       // Day stats
       dayAvg = {}; dayMedian = {}; dayVolAvg = {}; dayVolMedian = {}; dayCoinAvg = {}; dayCoinMedian = {};
@@ -1089,130 +1065,16 @@
       }
     };
 
-    function buildCharts() {
-      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
-      var c = getChartColors();
-      var isDark = document.documentElement.classList.contains('theme-dark');
-
-      var isMedian = currentStat === 'median';
-      var hourlyData = isMedian ? hourlyMedian : hourlyAvg;
-      var hourlyVolData = isMedian ? hourlyVolMedian : hourlyVolAvg;
-      var statLabel = isMedian ? 'median' : 'avg';
-
-      var tradeLine = c.accent;
-      var volRgb = isDark ? '224,64,251' : '147,51,234';
-      function moneyLabel(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; }
-      function countLabel(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; }
-
-      // Volume bars on the left axis with a trades line on the right. The `top`
-      // highest volume bars are drawn bright.
-      function comboChart(id, aria, labels, vols, trades, top, extra) {
-        var ctx = resetCanvas(id);
-        if (!ctx) return;
-        ctx.setAttribute('role', 'img'); ctx.setAttribute('aria-label', aria);
-        var ranked = vols.slice().sort(function(a, b) { return b - a; });
-        var colors = vols.map(function(v) {
-          var rank = ranked.indexOf(v);
-          var alpha = rank === 0 ? 1 : rank < top ? 0.7 : 0.28;
-          return 'rgba(' + volRgb + ',' + alpha + ')';
-        });
-        var plugins = { legend: { display: true, position: 'bottom', onClick: function() {}, labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12, generateLabels: function() {
-          return [
-            { text: 'Volume per 5 min (bars, ' + statLabel + ')', fillStyle: 'rgba(' + volRgb + ',1)', strokeStyle: 'rgba(' + volRgb + ',1)', lineWidth: 0, fontColor: c.textSecondary },
-            { text: 'Trades per 5 min (line, ' + statLabel + ')', fillStyle: tradeLine, strokeStyle: tradeLine, lineWidth: 0, fontColor: c.textSecondary }
-          ];
-        } } },
-          tooltip: { enabled: true, padding: 12, cornerRadius: 8, callbacks: { label: function(item) {
-            if (item.datasetIndex === 0) return 'Volume ' + moneyLabel(item.raw) + ' ' + statLabel;
-            return extra.tradeLabel ? extra.tradeLabel(item) : 'Trades ' + item.raw.toLocaleString() + ' ' + statLabel;
-          } } } };
-        if (extra.hours) plugins.usSession = { hours: extra.hours };
-        new Chart(ctx, {
-          type: 'bar',
-          plugins: extra.hours ? [usSessionPlugin] : [],
-          data: { labels: labels, datasets: [
-            { label: statLabel + ' volume', data: vols, backgroundColor: colors, borderRadius: 4, borderSkipped: false, yAxisID: 'y', order: 2 },
-            { type: 'line', label: statLabel + ' trades', data: trades, yAxisID: 'y1', order: 1, borderColor: tradeLine, backgroundColor: tradeLine, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.3 }
-          ] },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: plugins,
-            layout: { padding: 10 },
-            scales: {
-              x: { ticks: { color: c.textSecondary, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
-              y: { beginAtZero: true, title: { display: true, text: 'Volume', color: 'rgba(' + volRgb + ',1)', font: { size: 11 } }, ticks: { color: 'rgba(' + volRgb + ',1)', font: { size: 11 }, callback: moneyLabel }, grid: { color: c.gridLine } },
-              y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Trades', color: tradeLine, font: { size: 11 } }, ticks: { color: tradeLine, font: { size: 11 }, callback: countLabel }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      comboChart('hourlyChart', 'Volume and trades by hour of day',
-        Array.from({length:24}, function(_,i){return (i<10?'0':'')+i+':00';}), hourlyVolData, hourlyData, 3, {
-          hours: HOURS_OF_DAY,
-          tradeLabel: function(item) {
-            var i = item.dataIndex;
-            if (isMedian) return 'Trades ' + item.raw.toLocaleString() + ' median, half of the 5-min readings between ' + (hourlyP25[i]||0).toLocaleString() + ' \u2013 ' + (hourlyP75[i]||0).toLocaleString() + '  (n=' + (hourlySamples[i]||0) + ')';
-            return 'Trades ' + item.raw.toLocaleString() + ' avg  \u00B1' + (hourlyStd[i]||0).toLocaleString() + ' (n=' + (hourlySamples[i]||0) + ')';
-          }
-        });
-
-      buildDayChart();
+    // === METRIC CHARTS ===
+    // Coins, trades or volume: the three things every metric toggle switches between.
+    var METRIC_NOUN = { coins: 'Tradeable coins', trades: 'Trades', volume: 'Volume' };
+    function metricFmt(metric) {
+      if (metric === 'coins') return function(v) { return '' + Math.round(v * 10) / 10; };
+      if (metric === 'volume') return function(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M' : '$' + Math.round(v / 1e3) + 'K'; };
+      return function(v) { return v >= 1000 ? Math.round(v / 1000) + 'K' : '' + Math.round(v); };
     }
-
-    // One bar per weekday for the metric chosen on the card, the busiest day brightest.
-    function buildDayChart() {
-      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
-      var c = getChartColors();
-      var isMedian = currentStat === 'median';
-      var statLabel = isMedian ? 'median' : 'avg';
-      var source = dayMetric === 'coins' ? (isMedian ? dayCoinMedian : dayCoinAvg)
-        : dayMetric === 'volume' ? (isMedian ? dayVolMedian : dayVolAvg)
-        : (isMedian ? dayMedian : dayAvg);
-      var noun = { coins: 'Tradeable coins', trades: 'Trades', volume: 'Volume' }[dayMetric];
-      var fmt = dayMetric === 'coins' ? function(v) { return '' + Math.round(v * 10) / 10; }
-        : dayMetric === 'volume' ? function(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; }
-        : function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : '' + Math.round(v); };
-      var color = dayMetric === 'coins' ? c.text : dayMetric === 'volume' ? c.accentSecondary : c.accent;
-      var values = dayOrder.map(function(d) { return source[d] || 0; });
-      var max = Math.max.apply(null, values);
-      var busiest = dayOrder[values.indexOf(max)];
-      var quietest = dayOrder[values.indexOf(Math.min.apply(null, values))];
-
-      document.getElementById('dayLabel').textContent = noun + ' by weekday';
-      var head = document.getElementById('dayHeadline');
-      head.textContent = 'Busiest: ' + busiest;
-      head.className = 'brief-headline ' + dayMetric;
-      document.getElementById('daySub').textContent = 'Quietest: ' + quietest;
-
-      var ctx = resetCanvas('dayChart');
-      if (!ctx) return;
-      ctx.setAttribute('role', 'img');
-      ctx.setAttribute('aria-label', 'Bar chart of ' + noun.toLowerCase() + ' per 5 minutes by weekday');
-      new Chart(ctx, {
-        type: 'bar',
-        data: { labels: dayOrder, datasets: [{
-          label: noun + ' per 5 min (' + statLabel + ')',
-          data: values,
-          // Every bar but the busiest is faded, as in Activity by Hour.
-          backgroundColor: values.map(function(v) { return v === max ? color : fade(color, 0.3); }),
-          borderRadius: 4,
-          borderSkipped: false
-        }] },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(item) { return ' ' + noun + ' ' + fmt(item.raw) + ' per 5 min, ' + statLabel; } } }
-          },
-          layout: { padding: 6 },
-          scales: {
-            x: { ticks: { color: c.textSecondary, font: { size: 12, weight: '600' } }, grid: { display: false } },
-            y: { beginAtZero: true, ticks: { color: c.textSecondary, font: { size: 10 }, callback: fmt }, grid: { color: c.gridLine } }
-          }
-        }
-      });
+    function metricColor(metric, c) {
+      return metric === 'coins' ? c.text : metric === 'volume' ? c.accentSecondary : c.accent;
     }
 
     // A #rrggbb colour at the given opacity.
@@ -1221,13 +1083,110 @@
       return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + alpha + ')';
     }
 
-    document.getElementById('dayMetricToggle').addEventListener('click', function(e) {
-      var btn = e.target.closest('button');
-      if (!btn || btn.dataset.metric === dayMetric) return;
-      dayMetric = btn.dataset.metric;
-      document.querySelectorAll('#dayMetricToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
-      if (dataReady) buildDayChart();
-    });
+    // Bars of one metric; the busiest bar is solid, the next (top - 1) a little
+    // faded and the rest faded more.
+    function metricBars(id, labels, values, metric, top, extra) {
+      var ctx = resetCanvas(id);
+      if (!ctx) return;
+      var c = getChartColors();
+      var fmt = metricFmt(metric), color = metricColor(metric, c);
+      var statLabel = currentStat === 'median' ? 'median' : 'avg';
+      var noun = METRIC_NOUN[metric];
+      var ranked = values.slice().sort(function(a, b) { return b - a; });
+      ctx.setAttribute('role', 'img');
+      ctx.setAttribute('aria-label', 'Bar chart of ' + noun.toLowerCase() + ' per 5 minutes ' + extra.by);
+      new Chart(ctx, {
+        type: 'bar',
+        plugins: extra.hours ? [usSessionPlugin] : [],
+        data: { labels: labels, datasets: [{
+          label: noun + ' per 5 min (' + statLabel + ')',
+          data: values,
+          backgroundColor: values.map(function(v) {
+            var rank = ranked.indexOf(v);
+            return rank === 0 ? color : fade(color, rank < top ? 0.7 : 0.3);
+          }),
+          borderRadius: 4,
+          borderSkipped: false
+        }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            usSession: extra.hours ? { hours: extra.hours } : undefined,
+            legend: { display: false },
+            tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(item) {
+              var line = ' ' + noun + ' ' + fmt(item.raw) + ' per 5 min, ' + statLabel;
+              return extra.detail ? [line, extra.detail(item.dataIndex, fmt)] : line;
+            } } }
+          },
+          layout: { padding: 6 },
+          scales: {
+            x: { ticks: { color: c.textSecondary, font: extra.xFont || { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: c.textSecondary, font: { size: 10 }, callback: fmt }, grid: { color: c.gridLine } }
+          }
+        }
+      });
+    }
+
+    function buildCharts() {
+      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
+      buildHourlyChart();
+      buildDayChart();
+    }
+
+    // Activity by Hour: the selected groups' total per hour of day.
+    function buildHourlyChart() {
+      var isMedian = currentStat === 'median';
+      var source = hourlyMetric === 'coins' ? (isMedian ? hourlyCoinMedian : hourlyCoinAvg)
+        : hourlyMetric === 'volume' ? (isMedian ? hourlyVolMedian : hourlyVolAvg)
+        : (isMedian ? hourlyMedian : hourlyAvg);
+      var readings = hourlyRaw[hourlyMetric];
+      document.getElementById('hourlySub').textContent = METRIC_NOUN[hourlyMetric] +
+        ' per 5 min by hour of day, across all days in the period';
+      metricBars('hourlyChart', HOURS_OF_DAY.map(function(h) { return (h < 10 ? '0' : '') + h + ':00'; }), source, hourlyMetric, 3, {
+        by: 'hour of day',
+        hours: HOURS_OF_DAY,
+        detail: function(i, fmt) {
+          var v = readings[i] || [];
+          if (isMedian) return ' Half of the readings ' + fmt(quantile(v, 0.25)) + ' – ' + fmt(quantile(v, 0.75)) + '  (n=' + v.length + ')';
+          var mean = meanOf(v), sq = 0;
+          v.forEach(function(x) { sq += (x - mean) * (x - mean); });
+          return ' ±' + fmt(v.length ? Math.sqrt(sq / v.length) : 0) + '  (n=' + v.length + ')';
+        }
+      });
+    }
+
+    // One bar per weekday for the metric chosen on the card, the busiest day brightest.
+    function buildDayChart() {
+      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
+      var isMedian = currentStat === 'median';
+      var source = dayMetric === 'coins' ? (isMedian ? dayCoinMedian : dayCoinAvg)
+        : dayMetric === 'volume' ? (isMedian ? dayVolMedian : dayVolAvg)
+        : (isMedian ? dayMedian : dayAvg);
+      var values = dayOrder.map(function(d) { return source[d] || 0; });
+      var busiest = dayOrder[values.indexOf(Math.max.apply(null, values))];
+      var quietest = dayOrder[values.indexOf(Math.min.apply(null, values))];
+
+      document.getElementById('dayLabel').textContent = METRIC_NOUN[dayMetric] + ' by weekday';
+      var head = document.getElementById('dayHeadline');
+      head.textContent = 'Busiest: ' + busiest;
+      head.className = 'brief-headline ' + dayMetric;
+      document.getElementById('daySub').textContent = 'Quietest: ' + quietest;
+      metricBars('dayChart', dayOrder, values, dayMetric, 1, { by: 'weekday', xFont: { size: 12, weight: '600' } });
+    }
+
+    // Wires a Coins / Trades / Volume toggle to its setter and chart.
+    function metricToggle(id, get, set, rebuild) {
+      document.getElementById(id).addEventListener('click', function(e) {
+        var btn = e.target.closest('button');
+        if (!btn || btn.dataset.metric === get()) return;
+        set(btn.dataset.metric);
+        document.querySelectorAll('#' + id + ' button').forEach(function(b) { b.classList.toggle('active', b === btn); });
+        if (dataReady) rebuild();
+      });
+    }
+    metricToggle('dayMetricToggle', function() { return dayMetric; }, function(m) { dayMetric = m; }, buildDayChart);
+    metricToggle('hourlyMetricToggle', function() { return hourlyMetric; }, function(m) { hourlyMetric = m; }, buildHourlyChart);
+    metricToggle('groupMetricToggle', function() { return groupMetric; }, function(m) { groupMetric = m; }, buildGroupCharts);
 
     function onThemeChange() {
       renderUsLegend();
@@ -1249,76 +1208,62 @@
       return buckets.map(currentStat === 'median' ? medianOf : meanOf);
     }
 
+    // Each group's share of every hour. Always all three groups, whatever is
+    // selected at the top: the amounts are in Activity by Hour.
     function buildGroupCharts() {
       if (typeof Chart === 'undefined' || !rawData.length) return;
+      var ctx = resetCanvas('groupChart');
+      if (!ctx) return;
       var c = getChartColors();
       var css = getComputedStyle(document.documentElement);
-      var shown = GROUP_ORDER.filter(function(g) { return currentGroups.indexOf(g) >= 0; });
-      var share = groupScale === 'share';
-      var statWord = currentStat === 'median' ? 'Median' : 'Average';
+      var fmt = metricFmt(groupMetric);
+      var noun = METRIC_NOUN[groupMetric].toLowerCase();
       var labels = HOURS_OF_DAY.map(function(h) { return (h < 10 ? '0' : '') + h + ':00'; });
-      document.getElementById('groupChartSub').textContent = (share ? 'Share of each hour' : statWord + ' per 5 min') +
-        ' by hour of day, your time, tradeable coins only';
+      document.getElementById('groupChartSub').textContent = 'Each group’s share of the ' +
+        (groupMetric === 'coins' ? 'tradeable coins' : noun + ' of the tradeable coins') + ' by hour of day, your time';
+      ctx.setAttribute('role', 'img');
+      ctx.setAttribute('aria-label', 'Stacked bar chart of each coin group’s share of ' + noun + ' by hour of day');
 
-      function draw(id, metric, fmt) {
-        var ctx = resetCanvas(id);
-        if (!ctx) return;
-        var series = {};
-        shown.forEach(function(g) { series[g] = groupHourly(g, metric); });
-        var totals = labels.map(function(_, i) { return shown.reduce(function(a, g) { return a + series[g][i]; }, 0); });
-        var top = shown[shown.length - 1];
-        var datasets = shown.map(function(g) {
-          var col = css.getPropertyValue('--group-' + g).trim();
-          return {
-            label: GROUP_NAME[g],
-            data: series[g].map(function(v, i) { return share ? (totals[i] ? v / totals[i] * 100 : 0) : v; }),
-            raw: series[g],
-            backgroundColor: col,
-            borderColor: c.surface,
-            borderWidth: { top: 2, right: 0, bottom: 0, left: 0 },
-            borderSkipped: 'start',
-            borderRadius: g === top ? { topLeft: 4, topRight: 4 } : 0,
-            stack: 'groups'
-          };
-        });
-        new Chart(ctx, {
-          type: 'bar',
-          plugins: [usSessionPlugin],
-          data: { labels: labels, datasets: datasets },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-              usSession: { hours: HOURS_OF_DAY },
-              legend: { display: true, position: 'bottom', reverse: true, labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12 } },
-              tooltip: { padding: 10, cornerRadius: 8, itemSort: function(a, b) { return b.datasetIndex - a.datasetIndex; }, callbacks: {
-                label: function(item) {
-                  var v = item.dataset.raw[item.dataIndex], t = totals[item.dataIndex];
-                  return ' ' + item.dataset.label + ': ' + fmt(v) + '  (' + (t ? Math.round(v / t * 100) : 0) + '%)';
-                },
-                footer: function(items) { return 'Together: ' + fmt(totals[items[0].dataIndex]); }
-              } }
-            },
-            layout: { padding: 6 },
-            scales: {
-              x: { stacked: true, ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 12 }, grid: { display: false } },
-              y: { stacked: true, beginAtZero: true, max: share ? 100 : undefined, ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v) { return share ? v + '%' : fmt(v); } }, grid: { color: c.gridLine } }
-            }
+      var series = {};
+      GROUP_ORDER.forEach(function(g) { series[g] = groupHourly(g, groupMetric); });
+      var totals = labels.map(function(_, i) { return GROUP_ORDER.reduce(function(a, g) { return a + series[g][i]; }, 0); });
+      var datasets = GROUP_ORDER.map(function(g) {
+        return {
+          label: GROUP_NAME[g],
+          data: series[g].map(function(v, i) { return totals[i] ? v / totals[i] * 100 : 0; }),
+          raw: series[g],
+          backgroundColor: css.getPropertyValue('--group-' + g).trim(),
+          borderColor: c.surface,
+          borderWidth: { top: 2, right: 0, bottom: 0, left: 0 },
+          borderSkipped: 'start',
+          borderRadius: g === 'b' ? { topLeft: 4, topRight: 4 } : 0,
+          stack: 'groups'
+        };
+      });
+      new Chart(ctx, {
+        type: 'bar',
+        plugins: [usSessionPlugin],
+        data: { labels: labels, datasets: datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            usSession: { hours: HOURS_OF_DAY },
+            legend: { display: true, position: 'bottom', reverse: true, labels: { color: c.textSecondary, font: { size: 11 }, boxWidth: 12 } },
+            tooltip: { padding: 10, cornerRadius: 8, itemSort: function(a, b) { return b.datasetIndex - a.datasetIndex; }, callbacks: {
+              label: function(item) {
+                return ' ' + item.dataset.label + ': ' + Math.round(item.raw) + '%  (' + fmt(item.dataset.raw[item.dataIndex]) + ')';
+              }
+            } }
+          },
+          layout: { padding: 6 },
+          scales: {
+            x: { stacked: true, ticks: { color: c.textSecondary, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, max: 100, ticks: { color: c.textSecondary, font: { size: 10 }, callback: function(v) { return v + '%'; } }, grid: { color: c.gridLine } }
           }
-        });
-      }
-      draw('groupCoinChart', 'coins', function(v) { return '' + Math.round(v * 10) / 10; });
-      draw('groupVolChart', 'volume', function(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M' : '$' + Math.round(v / 1e3) + 'K'; });
-      draw('groupTradeChart', 'trades', function(v) { return v >= 1000 ? Math.round(v / 1000) + 'K' : Math.round(v) + ''; });
+        }
+      });
     }
-
-    document.getElementById('groupScaleToggle').addEventListener('click', function(e) {
-      var btn = e.target.closest('button');
-      if (!btn || btn.dataset.scale === groupScale) return;
-      groupScale = btn.dataset.scale;
-      document.querySelectorAll('#groupScaleToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
-      buildGroupCharts();
-    });
 
     // === INIT ===
     document.addEventListener('DOMContentLoaded', function() {
