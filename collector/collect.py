@@ -19,6 +19,10 @@ the Trading Hours page can leave groups out: b is BTC and ETH, l the other
 high-cap pairs (the list coins.py saves, market cap of at least $1B), and s
 every other crypto pair.
 
+Each row also holds the tradeable bucket: per group, how many coins reached
+$500K volume in the 5 minutes, and their trades and volume added up. The
+Trading Hours page is built on this bucket.
+
 Usage: collect.py [--dry-run]   (--dry-run prints the row and list sizes, writes nothing)
 """
 
@@ -51,6 +55,10 @@ MAX_USED_WEIGHT = 1000
 PAIR_RE = re.compile(r"^(?:1000000|100000|10000|1000|1M)?(.+?)(?:USDT|USDC)$")
 # Group combinations stored besides the full row, which is all three.
 GROUP_SETS = ("b", "l", "s", "bl", "bs", "ls")
+# The tradeable bucket: every coin with at least this volume in the 5 minutes.
+BUCKET_MIN_VOLUME = 500_000
+# Crypto contracts that don't trade like a coin: gold tokens and Binance's indexes.
+BUCKET_EXCLUDED = {"PAXG", "XAUT", "BTCDOM", "ALL"}
 
 
 class BinanceBackoff(Exception):
@@ -118,11 +126,43 @@ def high_cap_pairs_saved():
     return set(saved.get("symbols") or []) or None
 
 
-def coin_group(symbol, high_caps):
+def coin_name(symbol):
     match = PAIR_RE.match(symbol)
-    if match and match.group(1) in ("BTC", "ETH"):
+    return match.group(1) if match else symbol
+
+
+def coin_group(symbol, high_caps):
+    if coin_name(symbol) in ("BTC", "ETH"):
         return "b"
     return "l" if symbol in high_caps else "s"
+
+
+def bucket_totals(entries, high_caps):
+    """Return {group: [coins, trades, volume]} for the coins in the tradeable bucket.
+
+    entries are (trades, volume, symbol) for one slot. A coin's USDT and USDC
+    pairs are added up and count as one coin, which is high cap if any of its
+    pairs is.
+    """
+    coins = {}
+    for trades, volume, symbol in entries:
+        name = coin_name(symbol)
+        if name in BUCKET_EXCLUDED:
+            continue
+        coin = coins.setdefault(name, [0, 0, "s"])
+        coin[0] += trades
+        coin[1] += volume
+        group = coin_group(symbol, high_caps)
+        if group != "s":
+            coin[2] = group
+    totals = {group: [0, 0, 0] for group in "bls"}
+    for trades, volume, group in coins.values():
+        if volume >= BUCKET_MIN_VOLUME:
+            total = totals[group]
+            total[0] += 1
+            total[1] += trades
+            total[2] += volume
+    return totals
 
 
 def build_row(entries, slot, high_caps):
@@ -229,7 +269,11 @@ def main():
     slot = now_ms - now_ms % SLOT_MS - SLOT_MS
     crypto, tradfi = trading_contracts()
     series = read_candles(crypto, "5m", SLOTS_PER_DAY, slot)
-    row = build_row([(rows[-1][1], rows[-1][2], symbol) for symbol, rows in series.items()], slot, high_cap_pairs_saved())
+    entries = [(rows[-1][1], rows[-1][2], symbol) for symbol, rows in series.items()]
+    high_caps = high_cap_pairs_saved()
+    row = build_row(entries, slot, high_caps)
+    if high_caps:
+        row["bucket"] = bucket_totals(entries, high_caps)
     # A missing TradFi pair only drops it from the lists, so no minimum share.
     tradfi_series = read_candles(active_tradfi(tradfi), "5m", SLOTS_PER_DAY, slot, min_share=0)
     views = build_views({**series, **tradfi_series}, slot)

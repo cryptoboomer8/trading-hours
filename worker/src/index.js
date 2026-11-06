@@ -1,10 +1,13 @@
 /**
  * Stores the trade data behind the Trading Hours and Popular Coins pages.
  *
- *   POST /rows           add one {ts, tR, vR, tS, groups} top-20 row (needs the write secret)
+ *   POST /rows           add one {ts, tR, vR, tS, groups, bucket} top-20 row (needs the write secret)
  *   GET  /rows           every top-20 row in the rolling window, oldest first, as {ts, tR, vR}
  *   GET  /rows?groups=G  the same for a combination of coin groups: b = BTC and ETH,
  *                        l = other high caps, s = the rest; G is one of b, l, s, bl, bs, ls
+ *   GET  /bucket         the tradeable bucket of every row in the window, oldest first, as
+ *                        {ts, b, l, s}: per group [coins, trades, volume] of the coins with
+ *                        at least $500K volume in the 5 minutes
  *   POST /coins?period=P replace one period's coin list (needs the write secret)
  *   GET  /coins?period=P {start, end, step, coins: [[symbol, trades, volume, [closes]]]},
  *                        busiest first, for P = 7d, 1d, 12h, 6h, 4h, 2h or 1h;
@@ -14,7 +17,8 @@
  *
  * Each new row also deletes rows that have left the window. A row's groups hold
  * {set: {tR, vR}}, each set's own top 20. Posting a row that already exists only
- * adds its groups, and only if it has none yet, so a backfill can fill them in.
+ * adds its groups and its bucket, each only if the row has none yet, so a
+ * backfill can fill them in.
  */
 
 const RETENTION_DAYS = 31;
@@ -28,7 +32,10 @@ const CORS = { "Access-Control-Allow-Origin": "*" };
 // Timestamps are stored in this exact form so they sort as text.
 const TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/;
 
-// Group set ("" for all coins) -> {at, body}
+const BUCKET_GROUPS = ["b", "l", "s"];
+const BUCKET_KEY = "bucket";
+
+// Group set ("" for all coins), or BUCKET_KEY -> {at, body}
 const rowCache = new Map();
 const coinCache = new Map();
 
@@ -83,24 +90,54 @@ function groupTexts(groups) {
   return texts;
 }
 
+// Returns '{"b":[...],"l":[...],"s":[...]}', "" if there is no bucket, or null if it is malformed.
+function bucketText(bucket) {
+  if (bucket === undefined) return "";
+  if (!bucket || typeof bucket !== "object" || Array.isArray(bucket) || Object.keys(bucket).length !== BUCKET_GROUPS.length) return null;
+  const out = {};
+  for (const g of BUCKET_GROUPS) {
+    const v = bucket[g];
+    if (!Array.isArray(v) || v.length !== 3 || !v.every((n) => Number.isInteger(n) && n >= 0)) return null;
+    out[g] = v;
+  }
+  return JSON.stringify(out);
+}
+
 async function addRow(request, env) {
   if (!(await authorized(request, env))) return new Response("Unauthorized", { status: 401 });
   const row = await readJson(request);
   const groups = row && groupTexts(row.groups);
-  if (!row || !TS_RE.test(row.ts) || !isCounts(row.tR) || !isCounts(row.vR) || !isSymbols(row.tS, row.tR.length) || !groups) {
+  const bucket = row && bucketText(row.bucket);
+  if (!row || !TS_RE.test(row.ts) || !isCounts(row.tR) || !isCounts(row.vR) || !isSymbols(row.tS, row.tR.length) || !groups || bucket === null) {
     return new Response("Invalid row", { status: 400 });
   }
-  const cols = GROUP_SETS.map((k) => `g_${k}`);
+  const cols = [...GROUP_SETS.map((k) => `g_${k}`), "bucket"];
   const [insert] = await env.DB.batch([
+    // An existing row keeps what it has and only gets what it is missing.
     env.DB.prepare(
       `INSERT INTO rows (ts, tR, vR, symbols, ${cols.join(", ")}) VALUES (?, ?, ?, ?, ${cols.map(() => "?").join(", ")})
-       ON CONFLICT(ts) DO UPDATE SET ${cols.map((c) => `${c} = excluded.${c}`).join(", ")}
-       WHERE rows.g_ls IS NULL AND excluded.g_ls IS NOT NULL`
-    ).bind(row.ts, JSON.stringify(row.tR), JSON.stringify(row.vR), JSON.stringify(row.tS), ...GROUP_SETS.map((k) => groups[k] ?? null)),
+       ON CONFLICT(ts) DO UPDATE SET ${cols.map((c) => `${c} = COALESCE(rows.${c}, excluded.${c})`).join(", ")}
+       WHERE (rows.g_ls IS NULL AND excluded.g_ls IS NOT NULL) OR (rows.bucket IS NULL AND excluded.bucket IS NOT NULL)`
+    ).bind(row.ts, JSON.stringify(row.tR), JSON.stringify(row.vR), JSON.stringify(row.tS), ...GROUP_SETS.map((k) => groups[k] ?? null), bucket || null),
     env.DB.prepare("DELETE FROM rows WHERE ts < ?").bind(cutoff()),
   ]);
   rowCache.clear();
   return Response.json({ added: insert.meta.changes > 0, ts: row.ts });
+}
+
+async function readBucket(env) {
+  let entry = rowCache.get(BUCKET_KEY);
+  if (!entry || Date.now() - entry.at > READ_CACHE_MS) {
+    const rows = await env.DB.prepare("SELECT ts, bucket FROM rows WHERE ts >= ? AND bucket IS NOT NULL ORDER BY ts")
+      .bind(cutoff())
+      .raw();
+    // Each value is already {"b":[...],"l":[...],"s":[...]}, so splice in the timestamp as text.
+    entry = { at: Date.now(), body: "[" + rows.map((r) => `{"ts":"${r[0]}",` + r[1].slice(1)).join(",") + "]" };
+    rowCache.set(BUCKET_KEY, entry);
+  }
+  return new Response(entry.body, {
+    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "public, max-age=60" },
+  });
 }
 
 async function readRows(url, env) {
@@ -164,6 +201,10 @@ export default {
     if (url.pathname === "/rows") {
       if (request.method === "GET") return readRows(url, env);
       if (request.method === "POST") return addRow(request, env);
+      return new Response("Method not allowed", { status: 405 });
+    }
+    if (url.pathname === "/bucket") {
+      if (request.method === "GET") return readBucket(env);
       return new Response("Method not allowed", { status: 405 });
     }
     if (url.pathname === "/coins") {
