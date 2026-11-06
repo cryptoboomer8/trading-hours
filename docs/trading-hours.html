@@ -174,6 +174,8 @@
     .heatmap-table th.now { color: var(--accent); }
     .heatmap-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
     .brief-headline.volume { color: var(--accent-secondary); }
+    .brief-headline.trades { color: var(--accent); }
+    .brief-headline.coins { color: var(--text); }
 
     .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: center; }
     .heatmap-legend span { font-size: 0.75rem; color: var(--text-secondary); }
@@ -306,15 +308,20 @@
           <div class="brief-card">
             <div class="brief-head">
               <div>
-                <div class="brief-label">Volume and trades by weekday</div>
-                <div class="brief-headline volume" id="dayHeadline">&mdash;</div>
+                <div class="brief-label" id="dayLabel">Tradeable coins by weekday</div>
+                <div class="brief-headline coins" id="dayHeadline">&mdash;</div>
               </div>
               <div class="brief-sub" id="daySub"></div>
             </div>
-            <div class="chart-container" style="height:240px;" role="img" aria-label="Bar chart of volume by weekday with a line for trades">
+            <div class="stat-toggle brief-tools" id="dayMetricToggle" role="group" aria-label="Choose what the weekday chart shows">
+              <button class="active" data-metric="coins" type="button">Coins</button>
+              <button data-metric="trades" type="button">Trades</button>
+              <button data-metric="volume" type="button">Volume</button>
+            </div>
+            <div class="chart-container" style="height:240px;">
               <canvas id="dayChart"></canvas>
             </div>
-            <p class="chart-help"><strong>Bars</strong> are USDT volume per 5 minutes (left axis), with the brightest bar the day with the most volume. The <strong>line</strong> is trades per 5 minutes (right axis). Each day pools all 24 hours, so this shows which days are busier overall, not when during the day. A day whose line holds up while its bar drops has activity but less money behind it, as on weekends.</p>
+            <p class="chart-help">Tradeable coins, trades or volume per 5 minutes on each weekday, whichever is selected, with the brightest bar the busiest day. Each day pools all 24 hours, so this shows which days are busier overall, not when during the day. Switch between them to compare: on weekends volume drops to about half, while the coins and trades fall much less.</p>
           </div>
         </section>
 
@@ -448,6 +455,7 @@
     var dayCoinMedian = {};
     var currentMetric = 'trades';
     var paceMetric = 'coins';
+    var dayMetric = 'coins';
     var currentStat = 'median';
     var currentWindowDays = 31;
     // Coin groups: b = BTC and ETH, l = other pairs with a market cap of at least
@@ -1132,7 +1140,7 @@
             plugins: plugins,
             layout: { padding: 10 },
             scales: {
-              x: { ticks: { color: c.textSecondary, font: extra.xFont || { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+              x: { ticks: { color: c.textSecondary, font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
               y: { beginAtZero: true, title: { display: true, text: 'Volume', color: 'rgba(' + volRgb + ',1)', font: { size: 11 } }, ticks: { color: 'rgba(' + volRgb + ',1)', font: { size: 11 }, callback: moneyLabel }, grid: { color: c.gridLine } },
               y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Trades', color: tradeLine, font: { size: 11 } }, ticks: { color: tradeLine, font: { size: 11 }, callback: countLabel }, grid: { display: false } }
             }
@@ -1150,17 +1158,76 @@
           }
         });
 
-      comboChart('dayChart', 'Volume and trades by day of week', dayOrder,
-        dayOrder.map(function(d){return isMedian ? dayVolMedian[d] : dayVolAvg[d];}),
-        dayOrder.map(function(d){return isMedian ? dayMedian[d] : dayAvg[d];}), 1, { xFont: { size: 12, weight: '600' } });
-
-      var dayVols = isMedian ? dayVolMedian : dayVolAvg, dayTrades = isMedian ? dayMedian : dayAvg;
-      var topVol = dayOrder.reduce(function(a, b) { return dayVols[b] > dayVols[a] ? b : a; });
-      var topTrades = dayOrder.reduce(function(a, b) { return dayTrades[b] > dayTrades[a] ? b : a; });
-      document.getElementById('dayHeadline').textContent = 'Most volume: ' + topVol;
-      document.getElementById('daySub').textContent = 'Most trades: ' + topTrades;
-
+      buildDayChart();
     }
+
+    // One bar per weekday for the metric chosen on the card, the busiest day brightest.
+    function buildDayChart() {
+      if (typeof Chart === 'undefined' || snapshots.length === 0) return;
+      var c = getChartColors();
+      var isMedian = currentStat === 'median';
+      var statLabel = isMedian ? 'median' : 'avg';
+      var source = dayMetric === 'coins' ? (isMedian ? dayCoinMedian : dayCoinAvg)
+        : dayMetric === 'volume' ? (isMedian ? dayVolMedian : dayVolAvg)
+        : (isMedian ? dayMedian : dayAvg);
+      var noun = { coins: 'Tradeable coins', trades: 'Trades', volume: 'Volume' }[dayMetric];
+      var fmt = dayMetric === 'coins' ? function(v) { return '' + Math.round(v * 10) / 10; }
+        : dayMetric === 'volume' ? function(v) { return v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; }
+        : function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : '' + Math.round(v); };
+      var color = dayMetric === 'coins' ? c.text : dayMetric === 'volume' ? c.accentSecondary : c.accent;
+      var values = dayOrder.map(function(d) { return source[d] || 0; });
+      var max = Math.max.apply(null, values);
+      var busiest = dayOrder[values.indexOf(max)];
+      var quietest = dayOrder[values.indexOf(Math.min.apply(null, values))];
+
+      document.getElementById('dayLabel').textContent = noun + ' by weekday';
+      var head = document.getElementById('dayHeadline');
+      head.textContent = 'Busiest: ' + busiest;
+      head.className = 'brief-headline ' + dayMetric;
+      document.getElementById('daySub').textContent = 'Quietest: ' + quietest;
+
+      var ctx = resetCanvas('dayChart');
+      if (!ctx) return;
+      ctx.setAttribute('role', 'img');
+      ctx.setAttribute('aria-label', 'Bar chart of ' + noun.toLowerCase() + ' per 5 minutes by weekday');
+      new Chart(ctx, {
+        type: 'bar',
+        data: { labels: dayOrder, datasets: [{
+          label: noun + ' per 5 min (' + statLabel + ')',
+          data: values,
+          // Every bar but the busiest is faded, as in Activity by Hour.
+          backgroundColor: values.map(function(v) { return v === max ? color : fade(color, 0.3); }),
+          borderRadius: 4,
+          borderSkipped: false
+        }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(item) { return ' ' + noun + ' ' + fmt(item.raw) + ' per 5 min, ' + statLabel; } } }
+          },
+          layout: { padding: 6 },
+          scales: {
+            x: { ticks: { color: c.textSecondary, font: { size: 12, weight: '600' } }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: c.textSecondary, font: { size: 10 }, callback: fmt }, grid: { color: c.gridLine } }
+          }
+        }
+      });
+    }
+
+    // A #rrggbb colour at the given opacity.
+    function fade(hex, alpha) {
+      var n = parseInt(hex.replace('#', ''), 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + alpha + ')';
+    }
+
+    document.getElementById('dayMetricToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || btn.dataset.metric === dayMetric) return;
+      dayMetric = btn.dataset.metric;
+      document.querySelectorAll('#dayMetricToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
+      if (dataReady) buildDayChart();
+    });
 
     function onThemeChange() {
       renderUsLegend();
