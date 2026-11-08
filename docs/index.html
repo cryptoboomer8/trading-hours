@@ -41,8 +41,8 @@
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
     .shellbar { flex: none; display: flex; align-items: center; gap: 12px 28px; padding: 10px 20px 0; position: relative; z-index: 1; }
-    .brand { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap; }
-    .tabs { display: flex; gap: 4px; align-self: stretch; }
+    /* Pulled left by the tab padding, so the first tab's text lines up with the page below. */
+    .tabs { display: flex; gap: 4px; align-self: stretch; margin-left: -14px; }
     .tab { padding: 6px 14px 8px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); font: 600 1.15rem/1.2 'Inter', sans-serif; letter-spacing: -0.02em; cursor: pointer; white-space: nowrap; }
     .tab:hover { color: var(--text); }
     .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
@@ -58,8 +58,8 @@
     .frames iframe.active { visibility: visible; }
 
     @media (max-width: 640px) {
-      .brand { display: none; }
       .shellbar { flex-wrap: wrap; padding: 8px 12px 0; }
+      .tabs { margin-left: -10px; }
       .tab { font-size: 1rem; padding: 6px 10px 8px; }
     }
   </style>
@@ -67,7 +67,6 @@
 <body>
   <div class="bg-atmosphere"></div>
   <header class="shellbar">
-    <span class="brand">Orion Screener</span>
     <nav class="tabs" role="tablist" aria-label="Dashboards">
       <button class="tab" role="tab" id="tab-hours" data-page="hours" aria-controls="frame-hours" aria-selected="false" type="button">Trading Hours</button>
       <button class="tab" role="tab" id="tab-coins" data-page="coins" aria-controls="frame-coins" aria-selected="false" type="button">Popular Coins</button>
