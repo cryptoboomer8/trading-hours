@@ -95,15 +95,30 @@
     .viz-menu-dropdown button:hover { background: var(--surface-hover); }
 
     /* === LAYOUT === */
-    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+    /* One screen on a large display: a top bar, a KPI strip and five panels in
+       a grid that fills the window. Smaller windows get one scrolling column. */
+    .container { max-width: 3400px; margin: 0 auto; padding: 14px 20px; position: relative; z-index: 1; }
     .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
-
-    .dashboard-header { text-align: center; margin-bottom: 48px; position: relative; z-index: 1; }
-    .dashboard-header h1 { font-size: clamp(2rem, 5vw, 3.2rem); margin-bottom: 8px; }
     .accent-text { color: var(--accent); }
-    .subtitle { font-size: 1rem; color: var(--text-secondary); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; }
     .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    /* Top bar */
+    .topbar { display: flex; align-items: center; gap: 10px 28px; flex-wrap: wrap; padding-right: 60px; margin-bottom: 14px; position: relative; z-index: 3; }
+    .brand { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+    .brand h1 { font-size: 1.6rem; font-weight: 700; }
+    .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.8rem; letter-spacing: 0.04em; }
+    .back-link:hover { color: var(--accent); }
+    .subtitle { font-size: 0.72rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+    .controls { display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap; }
+    .ctl { display: flex; align-items: center; gap: 8px; position: relative; }
+    .ctl-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); white-space: nowrap; }
+    .ctl-hint { font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; }
+    .session-legend { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-size: 0.72rem; color: var(--text-secondary); }
+    .session-legend strong { color: var(--text-secondary); font-weight: 600; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; }
+    .session-legend span { color: var(--text-secondary); }
+    .sl-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 
     /* Loading state */
     .loading-state { text-align: center; padding: 80px 24px; position: relative; z-index: 1; }
@@ -114,100 +129,90 @@
     .error-state p { color: var(--negative); font-size: 1.1rem; }
     .error-state code { display: block; margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem; }
 
-    /* Top-N controls */
-    .topn-controls { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 24px; margin-bottom: 28px; position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
-    .topn-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .topn-label { font-weight: 600; font-size: 0.95rem; color: var(--text); white-space: nowrap; min-width: 130px; }
-    .topn-hint { font-size: 0.8rem; }
-    .session-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); }
-    .session-legend strong { color: var(--text); font-weight: 600; }
-    .sl-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
-    .heatmap-table .us-strip td { height: 8px; padding: 0; border-radius: 2px; }
-    .heatmap-table .us-strip th { font-size: 0.65rem; padding: 0 12px 0 0; }
-    .stat-toggle { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; }
-    .stat-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
+    /* Toggles */
+    .stat-toggle { display: flex; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; width: fit-content; }
+    .stat-toggle button { padding: 4px 11px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.76rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; white-space: nowrap; }
     .stat-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
     .stat-toggle button:disabled { cursor: wait; opacity: 0.6; }
 
-    /* KPI Grid */
-    .kpi-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 48px; position: relative; z-index: 1; }
-    .kpi-card { position: relative; overflow: hidden; cursor: help; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; transition: box-shadow 0.2s ease; }
+    /* Info buttons: the help text shows on hover or focus. */
+    .info { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--text-secondary); background: transparent; color: var(--text-secondary); font: 700 0.7rem/18px 'Inter', sans-serif; text-align: center; cursor: help; padding: 0; }
+    .info:hover, .info:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+    .help-pop { display: none; position: absolute; top: calc(100% + 8px); right: 0; width: min(460px, 85vw); z-index: 50; background: var(--surface); border: 1px solid var(--text-secondary); border-radius: 10px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.35); font-size: 0.8rem; line-height: 1.55; color: var(--text-secondary); text-transform: none; letter-spacing: normal; font-weight: 400; white-space: normal; }
+    .help-pop.left { right: auto; left: 0; }
+    .help-pop strong { color: var(--text); font-weight: 600; }
+    .info:hover + .help-pop, .info:focus + .help-pop { display: block; }
+
+    /* Grid */
+    .dash { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); position: relative; z-index: 1; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; display: flex; flex-direction: column; min-width: 0; min-height: 340px; }
+    .panel-head { display: flex; align-items: flex-start; gap: 8px 16px; margin-bottom: 8px; flex-wrap: wrap; }
+    .head-text { flex: 1 1 auto; min-width: 0; }
+    .panel-title { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+    .panel-sub { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; margin-top: 2px; }
+    .head-tools { display: flex; align-items: center; gap: 10px; position: relative; }
+    .chart-box { position: relative; flex: 1 1 0; min-height: 220px; }
+
+    /* KPI strip */
+    .kpi-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+    .kpi-card { position: relative; overflow: hidden; cursor: help; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 44px 12px 20px; display: flex; align-items: center; gap: 10px 24px; flex-wrap: wrap; transition: box-shadow 0.2s ease; }
     .kpi-card:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .kpi-card .kpi-info { position: absolute; top: 14px; right: 16px; width: 18px; height: 18px; border: 1px solid var(--text-secondary); border-radius: 50%; color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; line-height: 16px; text-align: center; }
+    .kpi-card .kpi-info { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); width: 18px; height: 18px; border: 1px solid var(--text-secondary); border-radius: 50%; color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; line-height: 16px; text-align: center; }
     .kpi-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 20px rgba(0,0,0,0.15); }
-    .kpi-label { font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-    .kpi-value { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; }
-    .kpi-detail { position: absolute; inset: 0; display: flex; align-items: center; padding: 20px 24px; background: var(--surface); color: var(--text); font-size: 0.85rem; line-height: 1.5; opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
-    .kpi-card:hover .kpi-detail, .kpi-card:focus .kpi-detail { opacity: 1; }
-    .kpi-row { display: flex; align-items: baseline; gap: 14px; margin-top: 6px; }
-    .kpi-metric { flex: 0 0 64px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); }
-    .kpi-row .kpi-value { font-size: 1.75rem; line-height: 1.2; white-space: nowrap; }
+    .kpi-label { flex: 0 0 auto; min-width: 96px; white-space: nowrap; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+    .kpi-rows { display: flex; gap: 8px 28px; flex-wrap: wrap; }
+    .kpi-row { display: flex; flex-direction: column; }
+    .kpi-metric { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); }
+    .kpi-value { font-size: 1.45rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; white-space: nowrap; }
     .kpi-row.trades .kpi-value { color: var(--accent); }
     .kpi-row.volume .kpi-value { color: var(--accent-secondary); }
     .kpi-row.coins .kpi-value { color: var(--text); }
+    .kpi-detail { position: absolute; inset: 0; display: flex; align-items: center; padding: 8px 20px; background: var(--surface); color: var(--text); font-size: 0.8rem; line-height: 1.45; opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
+    .kpi-card:hover .kpi-detail, .kpi-card:focus .kpi-detail { opacity: 1; }
 
-    /* Session brief */
-    .session-brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-bottom: 48px; position: relative; z-index: 1; }
-    .brief-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
-    .brief-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+    /* Brief headlines (pace and weekday) */
     .brief-label { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
-    .brief-headline { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
+    .brief-headline { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; }
     .brief-headline.pace-up { color: var(--positive); }
     .brief-headline.pace-down { color: var(--negative); }
     .brief-headline.pace-flat { color: var(--text); }
-    .brief-sub { font-size: 0.78rem; color: var(--text-secondary); text-align: right; max-width: 180px; line-height: 1.35; }
-    .brief-tools { margin-bottom: 10px; }
-
-    /* Heatmap */
-    .heatmap-section { margin-bottom: 48px; position: relative; z-index: 1; }
-    .heatmap-section h2 { margin-bottom: 6px; }
-    .section-sub { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px; }
-
-    .heatmap-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; overflow-x: auto; }
-    .heatmap-table { width: 100%; border-collapse: separate; border-spacing: 4px; }
-    .heatmap-table th { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 4px; text-align: center; white-space: nowrap; }
-    .heatmap-table .day-label { text-align: right; padding-right: 12px; min-width: 50px; }
-    .heatmap-cell { border-radius: 4px; padding: 8px 4px; text-align: center; cursor: default; transition: transform 0.15s, box-shadow 0.15s; position: relative; min-width: 44px; }
-    .heatmap-cell:hover { transform: scale(1.15); z-index: 2; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
-    .heatmap-cell .cell-val { font-size: 0.7rem; font-weight: 700; }
-    .heatmap-cell.empty { background: var(--surface-hover); opacity: 0.3; }
-    .heatmap-table th.now { color: var(--accent); }
-    .heatmap-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
     .brief-headline.volume { color: var(--accent-secondary); }
     .brief-headline.trades { color: var(--accent); }
     .brief-headline.coins { color: var(--text); }
+    .brief-sub { font-size: 0.75rem; color: var(--text-secondary); text-align: right; line-height: 1.35; }
 
-    .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: center; }
-    .heatmap-legend span { font-size: 0.75rem; color: var(--text-secondary); }
-    .legend-bar { width: 200px; height: 12px; border-radius: 6px; }
+    /* Heatmap */
+    .heat-box { flex: 1 1 0; min-height: 0; overflow: auto; }
+    .heatmap-table { width: 100%; height: 100%; border-collapse: separate; border-spacing: 3px; }
+    .heatmap-table th { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; padding: 2px; text-align: center; white-space: nowrap; }
+    .heatmap-table .day-label { text-align: right; padding-right: 10px; min-width: 44px; }
+    .heatmap-table .us-strip td { height: 8px; padding: 0; border-radius: 2px; }
+    .heatmap-table .us-strip th { font-size: 0.65rem; padding: 0 10px 0 0; }
+    .heatmap-cell { border-radius: 4px; padding: 4px 2px; text-align: center; cursor: default; transition: transform 0.15s, box-shadow 0.15s; position: relative; min-width: 38px; }
+    .heatmap-cell:hover { transform: scale(1.12); z-index: 2; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+    .heatmap-cell .cell-val { font-size: 0.74rem; font-weight: 700; }
+    .heatmap-cell.empty { background: var(--surface-hover); opacity: 0.3; }
+    .heatmap-table th.now { color: var(--accent); }
+    .heatmap-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
+    .heatmap-legend { display: flex; align-items: center; gap: 6px; }
+    .heatmap-legend span { font-size: 0.7rem; color: var(--text-secondary); }
+    .legend-bar { width: 110px; height: 10px; border-radius: 5px; }
 
-    /* Toggle */
-    .metric-toggle { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; margin-bottom: 16px; }
-    .metric-toggle button { padding: 6px 16px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 0.8rem; font-family: inherit; cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
-    .metric-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
-
-    /* Chart sections */
-    .chart-section { margin-bottom: 48px; position: relative; z-index: 1; }
-    .chart-section .session-brief { margin-bottom: 0; }
-    .group-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-    .group-head .section-sub { margin-bottom: 0; }
-    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; transition: box-shadow 0.2s ease; }
-    .chart-card:hover { box-shadow: 0 0 0 1px var(--border), 0 8px 16px rgba(0,0,0,0.12); }
-    .chart-container { position: relative; height: 380px; }
-    .chart-help { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; margin-top: 14px; max-width: 920px; }
-    .chart-help strong { color: var(--text); font-weight: 600; }
-
-
-    @media (max-width: 768px) {
-      .container { padding: 20px 16px; }
-      .kpi-grid { grid-template-columns: 1fr; }
-      .heatmap-wrap { padding: 16px; }
-      h1 { font-size: 2rem; }
+    @media (min-width: 1400px) and (min-height: 700px) {
+      .container { height: 100vh; display: flex; flex-direction: column; }
+      .dash { flex: 1 1 auto; min-height: 0;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: "kpi kpi" "pace day" "heat hourly" "heat share"; }
+      .kpi-grid { grid-area: kpi; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .area-pace { grid-area: pace; } .area-day { grid-area: day; } .area-heat { grid-area: heat; }
+      .area-hourly { grid-area: hourly; } .area-share { grid-area: share; }
+      .panel, .chart-box { min-height: 0; }
     }
-    @media (max-width: 375px) {
-      body { overflow-x: hidden; }
-      .chart-container { height: 280px; }
-      .kpi-card .kpi-row .kpi-value { font-size: 1.5rem; }
+    @media (max-width: 768px) {
+      .container { padding: 14px 12px; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .topbar { padding-right: 56px; }
     }
   </style>
 </head>
@@ -230,11 +235,47 @@
   <main id="main-content" role="main">
     <div class="container">
 
-      <section class="dashboard-header animate">
-        <p style="margin-bottom:12px;"><a href="./" style="color:var(--text-secondary);text-decoration:none;font-size:0.85rem;letter-spacing:0.04em;">&larr; Back to index</a></p>
-        <h1><span class="accent-text">Best Trading Hours</span></h1>
-        <p class="subtitle" id="subtitleText"><span class="status-dot"></span>Loading snapshots&hellip;</p>
-      </section>
+      <header class="topbar animate">
+        <div class="brand">
+          <a class="back-link" href="./">&larr; Index</a>
+          <h1><span class="accent-text">Best Trading Hours</span></h1>
+          <p class="subtitle" id="subtitleText"><span class="status-dot"></span>Loading snapshots&hellip;</p>
+        </div>
+        <div class="controls" id="controlsBar" style="display:none;" aria-label="Coin selection">
+          <div class="ctl">
+            <span class="ctl-label">Tradeable coins</span>
+            <button class="info" type="button" aria-label="What counts as a tradeable coin" aria-describedby="helpBucket">i</button>
+            <div class="help-pop left" id="helpBucket" role="tooltip">Every 5 minutes, the coins with at least $500K volume in those 5 minutes. A coin&rsquo;s USDT and USDC pairs count as one coin. Gold tokens and Binance&rsquo;s index contracts are left out. Everything on this page counts only these coins.</div>
+          </div>
+          <div class="ctl">
+            <span class="ctl-label">Groups</span>
+            <div class="stat-toggle" id="groupToggle" role="group" aria-label="Choose which coin groups to include">
+              <button class="active" data-group="b" type="button" aria-pressed="true">BTC + ETH</button>
+              <button class="active" data-group="l" type="button" aria-pressed="true">Large caps</button>
+              <button class="active" data-group="s" type="button" aria-pressed="true">Small alts</button>
+            </div>
+            <span class="sr-only" id="groupHint" aria-live="polite"></span>
+          </div>
+          <div class="ctl">
+            <span class="ctl-label">Aggregation</span>
+            <div class="stat-toggle" id="statToggle" role="group" aria-label="Choose mean or median aggregation" title="Median is robust to pump-driven outliers; hover a bar for its spread">
+              <button data-stat="mean" type="button">Mean</button>
+              <button class="active" data-stat="median" type="button">Median</button>
+            </div>
+          </div>
+          <div class="ctl">
+            <span class="ctl-label">Period</span>
+            <div class="stat-toggle" id="windowToggle" role="group" aria-label="Choose how many weeks of data to include">
+              <button data-days="7" type="button">1W</button>
+              <button data-days="14" type="button">2W</button>
+              <button data-days="21" type="button">3W</button>
+              <button class="active" data-days="31" type="button">Month</button>
+            </div>
+            <span class="ctl-hint" id="windowHint"></span>
+          </div>
+          <div class="session-legend" id="usLegend" aria-label="US session phases in your time"></div>
+        </div>
+      </header>
 
       <!-- Loading / Error states -->
       <div id="loadingState" class="loading-state">
@@ -244,143 +285,118 @@
       <div id="errorState" class="error-state" style="display:none;"></div>
 
       <!-- Dashboard content (hidden until data loads) -->
-      <div id="dashboardContent" style="display:none;">
-
-        <!-- Coin selection -->
-        <section class="topn-controls animate delay-0" aria-label="Coin selection">
-          <div class="topn-row">
-            <span class="topn-label">Tradeable coins</span>
-            <span class="topn-hint text-secondary">Every 5 minutes, the coins with at least $500K volume in those 5 minutes. A coin&rsquo;s USDT and USDC pairs count as one coin. Gold tokens and Binance&rsquo;s index contracts are left out.</span>
-          </div>
-          <div class="topn-row">
-            <span class="topn-label">Coin groups</span>
-            <div class="stat-toggle" id="groupToggle" role="group" aria-label="Choose which coin groups to include">
-              <button class="active" data-group="b" type="button" aria-pressed="true">BTC + ETH</button>
-              <button class="active" data-group="l" type="button" aria-pressed="true">Large caps</button>
-              <button class="active" data-group="s" type="button" aria-pressed="true">Small alts</button>
-            </div>
-            <span class="topn-hint text-secondary" id="groupHint" aria-live="polite"></span>
-          </div>
-          <div class="topn-row">
-            <span class="topn-label">Aggregation</span>
-            <div class="stat-toggle" id="statToggle" role="group" aria-label="Choose mean or median aggregation">
-              <button data-stat="mean" type="button">Mean</button>
-              <button class="active" data-stat="median" type="button">Median</button>
-            </div>
-            <span class="topn-hint text-secondary">Median is robust to pump-driven outliers; hover a bar for its spread</span>
-          </div>
-          <div class="topn-row">
-            <span class="topn-label">Period</span>
-            <div class="stat-toggle" id="windowToggle" role="group" aria-label="Choose how many weeks of data to include">
-              <button data-days="7" type="button">1W</button>
-              <button data-days="14" type="button">2W</button>
-              <button data-days="21" type="button">3W</button>
-              <button class="active" data-days="31" type="button">Month</button>
-            </div>
-            <span class="topn-hint text-secondary" id="windowHint"></span>
-          </div>
-          <div class="session-legend" id="usLegend" aria-label="US session phases in your time"></div>
-        </section>
+      <div id="dashboardContent" class="dash" style="display:none;">
 
         <!-- KPIs -->
         <section class="kpi-grid" aria-label="Key findings" id="kpiSection"></section>
 
-        <!-- SESSION BRIEF -->
-        <section class="session-brief animate delay-2" aria-label="Session brief">
-          <div class="brief-card brief-pace">
-            <div class="brief-head">
-              <div>
-                <div class="brief-label" id="paceLabel">Today&rsquo;s pace</div>
-                <div class="brief-headline" id="paceHeadline">&mdash;</div>
+        <!-- TODAY'S PACE -->
+        <section class="panel area-pace" aria-label="Today's pace">
+          <div class="panel-head">
+            <div class="head-text">
+              <div class="brief-label" id="paceLabel">Today&rsquo;s pace</div>
+              <div class="brief-headline" id="paceHeadline">&mdash;</div>
+            </div>
+            <div class="brief-sub" id="paceSub" aria-live="polite"></div>
+            <div class="head-tools">
+              <div class="stat-toggle" id="paceMetricToggle" role="group" aria-label="Choose what the pace chart compares">
+                <button class="active" data-metric="coins" type="button">Coins</button>
+                <button data-metric="trades" type="button">Trades</button>
+                <button data-metric="volume" type="button">Volume</button>
               </div>
-              <div class="brief-sub" id="paceSub" aria-live="polite"></div>
+              <button class="info" type="button" aria-label="About the pace chart" aria-describedby="helpPace">i</button>
+              <div class="help-pop" id="helpPace" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour, whichever is selected, your time. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day (the median of each hour). Weekdays are compared with weekdays and weekends with weekends, since weekends run at about half the volume: Monday against Friday, Saturday against last Sunday. The headline adds up today so far against that day up to the same time; the line below it does the same against a typical day. The shading marks the US session phases.</div>
             </div>
-            <div class="stat-toggle brief-tools" id="paceMetricToggle" role="group" aria-label="Choose what the pace chart compares">
-              <button class="active" data-metric="coins" type="button">Coins</button>
-              <button data-metric="trades" type="button">Trades</button>
-              <button data-metric="volume" type="button">Volume</button>
-            </div>
-            <div class="chart-container" style="height:240px;">
-              <canvas id="paceChart"></canvas>
-            </div>
-            <p class="chart-help">Tradeable coins, trades or volume per 5 minutes in each hour, whichever is selected, your time. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day (the median of each hour). Weekdays are compared with weekdays and weekends with weekends, since weekends run at about half the volume: Monday against Friday, Saturday against last Sunday. The headline adds up today so far against that day up to the same time; the line below it does the same against a typical day. The shading marks the US session phases.</p>
           </div>
-          <div class="brief-card">
-            <div class="brief-head">
-              <div>
-                <div class="brief-label" id="dayLabel">Tradeable coins by weekday</div>
-                <div class="brief-headline coins" id="dayHeadline">&mdash;</div>
+          <div class="chart-box"><canvas id="paceChart"></canvas></div>
+        </section>
+
+        <!-- BY WEEKDAY -->
+        <section class="panel area-day" aria-label="Activity by weekday">
+          <div class="panel-head">
+            <div class="head-text">
+              <div class="brief-label" id="dayLabel">Tradeable coins by weekday</div>
+              <div class="brief-headline coins" id="dayHeadline">&mdash;</div>
+            </div>
+            <div class="brief-sub" id="daySub"></div>
+            <div class="head-tools">
+              <div class="stat-toggle" id="dayMetricToggle" role="group" aria-label="Choose what the weekday chart shows">
+                <button class="active" data-metric="coins" type="button">Coins</button>
+                <button data-metric="trades" type="button">Trades</button>
+                <button data-metric="volume" type="button">Volume</button>
               </div>
-              <div class="brief-sub" id="daySub"></div>
+              <button class="info" type="button" aria-label="About the weekday chart" aria-describedby="helpDay">i</button>
+              <div class="help-pop" id="helpDay" role="tooltip">Tradeable coins, trades or volume per 5 minutes on each weekday, whichever is selected, with the brightest bar the busiest day. Each day pools all 24 hours, so this shows which days are busier overall, not when during the day. Switch between them to compare: on weekends volume drops to about half, while the coins and trades fall much less.</div>
             </div>
-            <div class="stat-toggle brief-tools" id="dayMetricToggle" role="group" aria-label="Choose what the weekday chart shows">
-              <button class="active" data-metric="coins" type="button">Coins</button>
-              <button data-metric="trades" type="button">Trades</button>
-              <button data-metric="volume" type="button">Volume</button>
-            </div>
-            <div class="chart-container" style="height:240px;">
-              <canvas id="dayChart"></canvas>
-            </div>
-            <p class="chart-help">Tradeable coins, trades or volume per 5 minutes on each weekday, whichever is selected, with the brightest bar the busiest day. Each day pools all 24 hours, so this shows which days are busier overall, not when during the day. Switch between them to compare: on weekends volume drops to about half, while the coins and trades fall much less.</p>
           </div>
+          <div class="chart-box"><canvas id="dayChart"></canvas></div>
         </section>
 
         <!-- HEATMAP -->
-        <section class="heatmap-section animate delay-3">
-          <h2>Activity Heatmap</h2>
-          <p class="section-sub" id="heatmapSub">Trades per 5 min by weekday and hour, your time &mdash; hover for details</p>
-          <div class="metric-toggle" id="metricToggle">
-            <button data-metric="coins">Coins</button>
-            <button class="active" data-metric="trades">Trades</button>
-            <button data-metric="volume">Volume</button>
-          </div>
-          <div class="heatmap-wrap">
-            <table class="heatmap-table" id="heatmapTable" aria-label="Heatmap of trading activity by day and hour"></table>
-            <div class="heatmap-legend">
-              <span>Low</span>
-              <div class="legend-bar" id="legendBar"></div>
-              <span>High</span>
+        <section class="panel area-heat" aria-label="Activity heatmap">
+          <div class="panel-head">
+            <div class="head-text">
+              <h2 class="panel-title">Activity Heatmap</h2>
+              <p class="panel-sub" id="heatmapSub">Trades per 5 min by weekday and hour, your time &mdash; hover for details</p>
             </div>
-            <p class="chart-help">Each cell is the median (or mean) of the tradeable coins, their trades or their volume per 5 minutes, whichever is selected above, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> Today and the current hour are highlighted, and the outlined cell is now, so reading along the row to the right shows what usually comes next. The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells rest on fewer than three days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend above.</p>
+            <div class="head-tools">
+              <div class="heatmap-legend" aria-hidden="true">
+                <span>Low</span>
+                <div class="legend-bar" id="legendBar"></div>
+                <span>High</span>
+              </div>
+              <div class="stat-toggle" id="metricToggle" role="group" aria-label="Choose what the heatmap shows">
+                <button data-metric="coins" type="button">Coins</button>
+                <button class="active" data-metric="trades" type="button">Trades</button>
+                <button data-metric="volume" type="button">Volume</button>
+              </div>
+              <button class="info" type="button" aria-label="About the heatmap" aria-describedby="helpHeat">i</button>
+              <div class="help-pop" id="helpHeat" role="tooltip">Each cell is the median (or mean) of the tradeable coins, their trades or their volume per 5 minutes, whichever is selected, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> Today and the current hour are highlighted, and the outlined cell is now, so reading along the row to the right shows what usually comes next. The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells rest on fewer than three days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend at the top of the page.</div>
+            </div>
+          </div>
+          <div class="heat-box">
+            <table class="heatmap-table" id="heatmapTable" aria-label="Heatmap of trading activity by day and hour"></table>
           </div>
         </section>
 
-        <!-- HOURLY AVERAGE CHART -->
-        <section class="chart-section" data-reveal>
-          <h2>Activity by Hour</h2>
-          <div class="group-head">
-            <p class="section-sub" id="hourlySub">Tradeable coins per 5 min by hour of day, across all days in the period</p>
-            <div class="stat-toggle" id="hourlyMetricToggle" role="group" aria-label="Choose what the hourly chart shows">
-              <button class="active" data-metric="coins" type="button">Coins</button>
-              <button data-metric="trades" type="button">Trades</button>
-              <button data-metric="volume" type="button">Volume</button>
+        <!-- BY HOUR -->
+        <section class="panel area-hourly" aria-label="Activity by hour">
+          <div class="panel-head">
+            <div class="head-text">
+              <h2 class="panel-title">Activity by Hour</h2>
+              <p class="panel-sub" id="hourlySub">Tradeable coins per 5 min by hour of day, across all days in the period</p>
+            </div>
+            <div class="head-tools">
+              <div class="stat-toggle" id="hourlyMetricToggle" role="group" aria-label="Choose what the hourly chart shows">
+                <button class="active" data-metric="coins" type="button">Coins</button>
+                <button data-metric="trades" type="button">Trades</button>
+                <button data-metric="volume" type="button">Volume</button>
+              </div>
+              <button class="info" type="button" aria-label="About the hourly chart" aria-describedby="helpHourly">i</button>
+              <div class="help-pop" id="helpHourly" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour of your time, whichever is selected, for the coin groups chosen at the top. The three brightest bars are the busiest hours. The shading marks the US session phases. Hover an hour for the spread: with the median, half of the 5-minute readings fall in the range shown.</div>
             </div>
           </div>
-          <div class="chart-card">
-            <div class="chart-container">
-              <canvas id="hourlyChart"></canvas>
-            </div>
-            <p class="chart-help">Tradeable coins, trades or volume per 5 minutes in each hour of your time, whichever is selected, for the coin groups chosen at the top. The three brightest bars are the busiest hours. The shading marks the US session phases. Hover an hour for the spread: with the median, half of the 5-minute readings fall in the range shown.</p>
-          </div>
+          <div class="chart-box"><canvas id="hourlyChart"></canvas></div>
         </section>
 
         <!-- BY COIN GROUP -->
-        <section class="chart-section" data-reveal>
-          <h2>Coin Group Share by Hour</h2>
-          <div class="group-head">
-            <p class="section-sub" id="groupChartSub">Each group&rsquo;s share of the tradeable coins per hour of day, your time</p>
-            <div class="stat-toggle" id="groupMetricToggle" role="group" aria-label="Choose what the share chart splits">
-              <button class="active" data-metric="coins" type="button">Coins</button>
-              <button data-metric="trades" type="button">Trades</button>
-              <button data-metric="volume" type="button">Volume</button>
+        <section class="panel area-share" aria-label="Coin group share by hour">
+          <div class="panel-head">
+            <div class="head-text">
+              <h2 class="panel-title">Coin Group Share by Hour</h2>
+              <p class="panel-sub" id="groupChartSub">Each group&rsquo;s share of the tradeable coins per hour of day, your time</p>
+            </div>
+            <div class="head-tools">
+              <div class="stat-toggle" id="groupMetricToggle" role="group" aria-label="Choose what the share chart splits">
+                <button class="active" data-metric="coins" type="button">Coins</button>
+                <button data-metric="trades" type="button">Trades</button>
+                <button data-metric="volume" type="button">Volume</button>
+              </div>
+              <button class="info" type="button" aria-label="About the share chart" aria-describedby="helpShare">i</button>
+              <div class="help-pop" id="helpShare" role="tooltip">Each colour is one coin group: <strong>BTC + ETH</strong>, <strong>large caps</strong> (market cap of at least $1B) and <strong>small alts</strong> (everything below), counting only the tradeable coins. Each bar is one hour split by the selected measure, built from each group&rsquo;s median (or mean) per 5 minutes. All three groups are always shown, whatever is selected at the top. Small alts sit at the bottom so their shape is easy to follow. Switch between coins and volume to compare: BTC and ETH carry most of the money, while the alts make up most of the coins. Hover an hour for each group&rsquo;s share and amount.</div>
             </div>
           </div>
-          <div class="chart-card">
-            <div class="chart-container">
-              <canvas id="groupChart"></canvas>
-            </div>
-            <p class="chart-help">Each colour is one coin group: <strong>BTC + ETH</strong>, <strong>large caps</strong> (market cap of at least $1B) and <strong>small alts</strong> (everything below), counting only the tradeable coins. Each bar is one hour split by the selected measure, built from each group&rsquo;s median (or mean) per 5 minutes. All three groups are always shown, whatever is selected at the top. Small alts sit at the bottom so their shape is easy to follow. Switch between coins and volume to compare: BTC and ETH carry most of the money, while the alts make up most of the coins. Hover an hour for each group&rsquo;s share and amount.</p>
-          </div>
+          <div class="chart-box"><canvas id="groupChart"></canvas></div>
         </section>
 
       </div>
@@ -778,9 +794,11 @@
         return '<div class="kpi-card" tabindex="0" aria-label="' + label + ': by tradeable coins ' + coinValue + ', by volume ' + volValue + ', by trades ' + tradeValue + '. ' + detail + '">' +
           '<span class="kpi-info" aria-hidden="true">i</span>' +
           '<div class="kpi-label">' + label + '</div>' +
-          row('coins', 'Coins', coinValue) +
-          row('volume', 'Volume', volValue) +
-          row('trades', 'Trades', tradeValue) +
+          '<div class="kpi-rows">' +
+            row('coins', 'Coins', coinValue) +
+            row('volume', 'Volume', volValue) +
+            row('trades', 'Trades', tradeValue) +
+          '</div>' +
           '<div class="kpi-detail" aria-hidden="true">' + detail + '</div>' +
         '</div>';
       }
@@ -939,6 +957,7 @@
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
       document.getElementById('groupHint').textContent = GROUP_HINT[currentGroups];
+      document.getElementById('groupToggle').title = GROUP_HINT[currentGroups];
     }
 
     document.getElementById('groupToggle').addEventListener('click', function(e) {
@@ -1275,6 +1294,7 @@
 
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('dashboardContent').style.display = '';
+          document.getElementById('controlsBar').style.display = '';
           setupReveal();
         })
         .catch(function(err) {
