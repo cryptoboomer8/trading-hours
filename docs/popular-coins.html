@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orion Screener — Popular Coins</title>
+  <script>
+    // This page runs as a tab of the index page; opened on its own, go there.
+    if (window.top === window.self) location.replace('./#coins');
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
@@ -14,26 +18,24 @@
       --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
       --border: rgba(0,255,255,0.08);
       --text: #e8ecf1; --text-secondary: #6b7f99;
-      --accent: #e040fb; --positive: #00e676; --negative: #ff1744;
+      --accent: #00e5ff; --volume: #e040fb; --positive: #00e676; --negative: #ff1744;
       --smma-fast: #ffab00; --smma-slow: #00e5ff;
       --session-us: rgba(255,255,255,0.08); --session-kr: rgba(68,138,255,0.14);
       --session-hk: rgba(0,230,118,0.10); --session-cn: rgba(255,82,82,0.12);
-      --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
     }
     html.theme-light {
       --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
       --border: rgba(0,0,0,0.08);
       --text: #0f172a; --text-secondary: #64748b;
-      --accent: #9333ea; --positive: #059669; --negative: #e11d48;
+      --accent: #0891b2; --volume: #9333ea; --positive: #059669; --negative: #e11d48;
       --smma-fast: #d97706; --smma-slow: #0891b2;
       --session-us: rgba(15,23,42,0.08); --session-kr: rgba(37,99,235,0.12);
       --session-hk: rgba(5,150,105,0.12); --session-cn: rgba(225,29,72,0.10);
-      --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
     }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
+      background: transparent; color: var(--text);
       line-height: 1.6; -webkit-font-smoothing: antialiased;
       letter-spacing: -0.01em;
       transition: background 0.3s, color 0.3s; scrollbar-gutter: stable;
@@ -43,35 +45,28 @@
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
 
-    .theme-toggle { position: fixed; top: 16px; right: 16px; z-index: 9999; width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; }
-    .theme-toggle:hover { background: var(--surface-hover); }
-    .bg-atmosphere { position: fixed; inset: 0; pointer-events: none; z-index: 0;
-      background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
+    /* Spacing, controls and cards match the Trading Hours tab. */
+    .container { padding: 14px 20px; position: relative; z-index: 1; }
 
-    .container { padding: 24px 76px 24px 24px; position: relative; z-index: 1; }
-    .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.04em; }
-    .dashboard-header { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
-    .dashboard-header h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.08; color: var(--accent); }
-    .subtitle { font-size: 0.8rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; }
-    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
-    .status-dot.stale { background: var(--negative); animation: none; }
-
-    .controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-    .period-toggle { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-    .period-toggle button { padding: 6px 14px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .controls { display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap; min-height: 32px; margin-bottom: 14px; }
+    .ctl { display: flex; align-items: center; gap: 8px; }
+    .ctl-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); white-space: nowrap; }
+    .period-toggle { display: flex; gap: 3px; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+    .period-toggle button { padding: 4px 11px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.76rem; letter-spacing: 0.02em; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
     .period-toggle button:hover { color: var(--text); }
-    .period-toggle button.active { background: var(--accent); color: #fff; }
-    .coin-search { padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.85rem; }
-    .cap-filter { font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .period-toggle button.active { background: var(--accent); color: #000; font-weight: 600; }
+    .period-toggle button:disabled { cursor: not-allowed; opacity: 0.5; }
+    .coin-search { padding: 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 0.76rem; }
+    .cap-filter { font-size: 0.76rem; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .cap-filter input { accent-color: var(--accent); }
-    .session-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--text-secondary); }
-    .session-toggle button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .session-toggle { display: flex; gap: 3px; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+    .session-toggle button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.76rem; cursor: pointer; }
     .session-toggle button:hover { color: var(--text); }
-    .session-toggle button.active { color: var(--text); border-color: var(--text-secondary); }
+    .session-toggle button.active { color: var(--text); background: var(--surface-hover); font-weight: 600; }
     .session-toggle .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--text-secondary); }
 
-    .workspace { display: grid; grid-template-columns: minmax(620px, 1fr) minmax(0, 2fr); gap: 20px; align-items: start; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+    .workspace { display: grid; grid-template-columns: minmax(620px, 1fr) minmax(0, 2fr); gap: 14px; align-items: start; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
     .coin-table-wrap { overflow-x: auto; }
     .coin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .coin-table th { text-align: left; font-weight: 500; font-size: 0.75rem; color: var(--text-secondary); padding: 8px 10px; }
@@ -86,50 +81,49 @@
     .coin-flat { color: var(--text-secondary); }
     .market-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); font-size: 0.65rem; font-weight: 600; letter-spacing: 0.04em; line-height: 1.5; vertical-align: 1px; }
     .coin-note { margin: 12px 10px 4px; font-size: 0.75rem; color: var(--text-secondary); }
-    .coin-detail { position: sticky; top: 16px; }
+    .coin-detail { position: sticky; top: 14px; }
     .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 12px; }
-    .chart-container { position: relative; height: calc(100vh - 210px); min-height: 420px; }
+    .chart-container { position: relative; height: calc(100vh - 140px); min-height: 420px; }
 
     @media (max-width: 1100px) {
       .workspace { grid-template-columns: minmax(0, 1fr); }
       .coin-detail { position: static; }
       .chart-container { height: 420px; }
-      .container { padding: 20px 16px; }
+      .container { padding: 14px 12px; }
     }
   </style>
 </head>
 <body>
-  <div class="bg-atmosphere"></div>
-  <button class="theme-toggle" onclick="cycleTheme()" aria-label="Toggle theme"><span id="themeIcon"></span></button>
-
   <main class="container">
-    <section class="dashboard-header">
-      <a class="back-link" href="./">&larr; Back to index</a>
-      <h1>Popular Coins</h1>
-      <p class="subtitle"><span class="status-dot" id="statusDot"></span><span id="subtitleText">Loading&hellip;</span></p>
-    </section>
-
     <section class="controls">
-      <div class="period-toggle" id="periodToggle" role="group" aria-label="Choose the period">
+      <div class="ctl">
+        <span class="ctl-label">Period</span>
+        <div class="period-toggle" id="periodToggle" role="group" aria-label="Choose the period">
         <button class="active" data-period="7d" type="button">7D</button>
         <button data-period="1d" type="button">1D</button>
         <button data-period="12h" type="button">12H</button>
         <button data-period="6h" type="button">6H</button>
         <button data-period="4h" type="button">4H</button>
         <button data-period="2h" type="button">2H</button>
+        </div>
       </div>
-      <div class="period-toggle" id="marketToggle" role="group" aria-label="Choose the market">
+      <div class="ctl">
+        <span class="ctl-label">Market</span>
+        <div class="period-toggle" id="marketToggle" role="group" aria-label="Choose the market">
         <button class="active" data-market="all" type="button">All</button>
         <button data-market="crypto" type="button">Crypto</button>
         <button data-market="tradfi" type="button" title="Stocks, ETFs and commodities">TradFi</button>
+        </div>
       </div>
       <label class="cap-filter"><input type="checkbox" id="hideHighCaps"> Hide high caps</label>
-      <div class="session-toggle" id="sessionToggle" role="group" aria-label="Shade exchange sessions on the chart">
-        Sessions
+      <div class="ctl">
+        <span class="ctl-label">Sessions</span>
+        <div class="session-toggle" id="sessionToggle" role="group" aria-label="Shade exchange sessions on the chart">
         <button type="button" data-session="us" aria-pressed="false" title="NYSE and Nasdaq: 9:30 to 16:00 New York time, weekdays, without US market holidays"><span class="swatch" style="background: var(--session-us)"></span>US</button>
         <button type="button" data-session="kr" aria-pressed="false" title="Korea Exchange: 9:00 to 15:30 Seoul time, weekdays. Korean holidays are not left out."><span class="swatch" style="background: var(--session-kr)"></span>KR</button>
         <button type="button" data-session="hk" aria-pressed="false" title="HKEX: 9:30 to 12:00 and 13:00 to 16:00 Hong Kong time, weekdays. Hong Kong holidays are not left out."><span class="swatch" style="background: var(--session-hk)"></span>HK</button>
         <button type="button" data-session="cn" aria-pressed="false" title="Shanghai and Shenzhen: 9:30 to 11:30 and 13:00 to 15:00 Beijing time, weekdays. Chinese holidays are not left out."><span class="swatch" style="background: var(--session-cn)"></span>CN</button>
+        </div>
       </div>
       <input type="search" class="coin-search" id="coinSearch" placeholder="Find a coin" aria-label="Find a coin">
     </section>
@@ -221,12 +215,19 @@
     var currentTheme = localStorage.getItem('viz-theme') || 'dark';
     function applyTheme(t) {
       document.documentElement.className = 'theme-' + t;
-      document.getElementById('themeIcon').textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
-      localStorage.setItem('viz-theme', t);
       currentTheme = t;
       drawChart();
     }
-    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
+
+    // The index page sends the theme when its switch is used.
+    window.addEventListener('message', function(e) {
+      if (e.origin === location.origin && e.data && (e.data.orionTheme === 'dark' || e.data.orionTheme === 'light')) applyTheme(e.data.orionTheme);
+    });
+
+    // Shows text as the last-updated line in the index page's bar.
+    function reportStatus(text, stale) {
+      if (window.parent !== window) window.parent.postMessage({ orionStatus: { text: text, stale: !!stale } }, location.origin);
+    }
 
     function compactNumber(n) {
       if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
@@ -315,8 +316,7 @@
 
     function renderHeader(view) {
       var stale = Date.now() - view.end > STALE_MS[currentPeriod];
-      document.getElementById('statusDot').className = 'status-dot' + (stale ? ' stale' : '');
-      document.getElementById('subtitleText').textContent = (stale ? 'Stale: ' : '') + dateTimeLabel(view.start) + ' – ' + dateTimeLabel(view.end) + ' your time';
+      reportStatus((stale ? 'Stale: ' : 'Last: ') + dateTimeLabel(view.end) + ' your time, from ' + dateTimeLabel(view.start), stale);
     }
 
     function visibleCoins(view) {
@@ -525,7 +525,7 @@
         datasets.push(lineSet('SMMA ' + SMMA_FAST, chartData.fast, color('--smma-fast'), 1.75));
         datasets.push(lineSet('SMMA ' + SMMA_SLOW, chartData.slow, color('--smma-slow'), 1.75));
       }
-      datasets.push({ type: 'bar', label: 'Volume (USDT)', data: chartData.volumes, yAxisID: 'volume', backgroundColor: color('--accent') + '99', order: 2 });
+      datasets.push({ type: 'bar', label: 'Volume (USDT)', data: chartData.volumes, yAxisID: 'volume', backgroundColor: color('--volume') + '99', order: 2 });
       datasets.push({ type: 'line', label: '$' + compactNumber(floor) + ' per ' + (chartData.step === 1 ? 'minute' : chartData.step + ' min') + ' floor', data: chartData.volumes.map(function() { return floor; }), yAxisID: 'volume', borderColor: floorColor, backgroundColor: floorColor, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0, order: 0, isFloor: true });
       coinChart = new Chart(document.getElementById('coinChart'), {
         data: { labels: chartData.labels, datasets: datasets },
@@ -659,8 +659,7 @@
       }).catch(function(err) {
         if (period !== currentPeriod) return;
         document.getElementById('coinRows').textContent = '';
-        document.getElementById('subtitleText').textContent = 'Failed to load';
-        document.getElementById('statusDot').className = 'status-dot stale';
+        reportStatus('Failed to load', true);
         document.getElementById('coinNote').textContent = 'Failed to load coins: ' + err.message;
       });
     }

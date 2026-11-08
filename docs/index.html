@@ -5,185 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orion Screener</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // Set the theme before the first paint, so a light theme doesn't flash dark.
+    try { document.documentElement.className = 'theme-' + (localStorage.getItem('viz-theme') || 'dark'); } catch (e) {}
+  </script>
   <style>
+    /* The two dashboards run as separate pages in frames below this bar. The
+       bar owns the tabs, the last-updated status and the theme switch. */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     html.theme-dark {
       --bg: #060b12; --surface: #0d1520; --surface-hover: #131d2e;
       --border: rgba(0,255,255,0.08);
       --text: #e8ecf1; --text-secondary: #6b7f99;
-      --accent: #00e5ff; --accent-secondary: #e040fb;
-      --positive: #00e676;
+      --accent: #00e5ff; --positive: #00e676; --negative: #ff1744;
       --glow-cyan: rgba(0,229,255,0.12); --glow-magenta: rgba(224,64,251,0.12);
     }
     html.theme-light {
       --bg: #f0f4f8; --surface: #ffffff; --surface-hover: #e8edf3;
       --border: rgba(0,0,0,0.08);
       --text: #0f172a; --text-secondary: #64748b;
-      --accent: #0891b2; --accent-secondary: #9333ea;
-      --positive: #059669;
+      --accent: #0891b2; --positive: #059669; --negative: #e11d48;
       --glow-cyan: rgba(8,145,178,0.06); --glow-magenta: rgba(147,51,234,0.06);
     }
-
+    html, body { height: 100%; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
-      line-height: 1.6; -webkit-font-smoothing: antialiased;
-      letter-spacing: -0.01em;
-      transition: background 0.3s, color 0.3s;
-      min-height: 100vh;
-      display: flex; flex-direction: column;
+      background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+      display: flex; flex-direction: column; overflow: hidden;
     }
-    h1 { font-weight: 700; font-size: clamp(2.4rem, 6vw, 3.6rem); letter-spacing: -0.03em; line-height: 1.08; text-wrap: balance; }
-    h2 { font-weight: 600; font-size: 1.4rem; letter-spacing: -0.02em; }
-
-    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-    .animate { animation: fadeInUp 0.6s ease-out both; }
-    .animate.delay-1 { animation-delay: 0.1s; }
-    .animate.delay-2 { animation-delay: 0.2s; }
-    .animate.delay-3 { animation-delay: 0.3s; }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation: none !important; transition: none !important; }
-    }
-
-    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
-    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-    .viz-menu-toggle:hover { background: var(--surface-hover); }
-
+    /* The frames are transparent, so this glow runs on behind both pages. */
     .bg-atmosphere { position: fixed; inset: 0; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
-    .container { max-width: 960px; margin: 0 auto; padding: 72px 24px; position: relative; z-index: 1; flex: 1; width: 100%; }
+    .shellbar { flex: none; display: flex; align-items: center; gap: 12px 28px; padding: 10px 20px 0; position: relative; z-index: 1; }
+    .brand { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap; }
+    .tabs { display: flex; gap: 4px; align-self: stretch; }
+    .tab { padding: 6px 14px 8px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); font: 600 1.15rem/1.2 'Inter', sans-serif; letter-spacing: -0.02em; cursor: pointer; white-space: nowrap; }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    .status { margin-left: auto; font-size: 0.72rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
+    .status-dot.stale { background: var(--negative); animation: none; }
+    .theme-btn { flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; font-size: 1rem; }
+    .theme-btn:hover { background: var(--surface-hover); }
 
-    .hero { text-align: center; margin-bottom: 56px; }
-    .hero .eyebrow {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: 0.78rem; color: var(--text-secondary);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      margin-bottom: 16px;
-    }
-    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); animation: pulse 2s infinite; }
-    .accent-text { color: var(--accent); }
-    .hero p { font-size: 1.05rem; color: var(--text-secondary); max-width: 560px; margin: 16px auto 0; }
+    .frames { flex: 1 1 auto; position: relative; z-index: 1; }
+    .frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; visibility: hidden; }
+    .frames iframe.active { visibility: visible; }
 
-    .page-grid {
-      display: grid; gap: 20px;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    }
-
-    .page-card {
-      display: flex; flex-direction: column; gap: 14px;
-      padding: 28px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--border);
-      border-radius: 14px;
-      color: var(--text);
-      text-decoration: none;
-      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-      position: relative;
-      overflow: hidden;
-    }
-    .page-card:hover {
-      transform: translateY(-3px);
-      background: var(--surface-hover);
-      box-shadow: 0 12px 32px rgba(0,0,0,0.28);
-    }
-    .page-card[data-accent="cyan"]    { border-left-color: var(--accent); }
-    .page-card[data-accent="cyan"]:hover    { border-color: rgba(0,229,255,0.30); }
-    .page-card[data-accent="magenta"] { border-left-color: var(--accent-secondary); }
-    .page-card[data-accent="magenta"]:hover { border-color: rgba(224,64,251,0.30); }
-
-    .page-card .card-label {
-      font-size: 0.72rem; color: var(--text-secondary);
-      letter-spacing: 0.12em; text-transform: uppercase;
-    }
-    .page-card h2 { color: var(--text); }
-    .page-card[data-accent="cyan"] h2 .t   { color: var(--accent); }
-    .page-card[data-accent="magenta"] h2 .t { color: var(--accent-secondary); }
-    .page-card p {
-      color: var(--text-secondary);
-      font-size: 0.92rem;
-      line-height: 1.5;
-    }
-    .page-card .cta {
-      margin-top: auto;
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-      letter-spacing: 0.04em;
-      display: inline-flex; align-items: center; gap: 6px;
-    }
-    .page-card[data-accent="cyan"] .cta    { color: var(--accent); }
-    .page-card[data-accent="magenta"] .cta { color: var(--accent-secondary); }
-    .page-card .cta::after {
-      content: '→';
-      transition: transform 0.18s ease;
-    }
-    .page-card:hover .cta::after { transform: translateX(4px); }
-
-    footer {
-      position: relative; z-index: 1;
-      text-align: center;
-      padding: 24px 16px 32px;
-      font-size: 0.78rem;
-      color: var(--text-secondary);
-      letter-spacing: 0.06em;
-    }
-    footer a { color: var(--text-secondary); text-decoration: none; border-bottom: 1px dotted var(--border); }
-    footer a:hover { color: var(--accent); }
-
-    @media (max-width: 560px) {
-      .container { padding: 48px 20px; }
-      .page-card { padding: 22px; }
+    @media (max-width: 640px) {
+      .brand { display: none; }
+      .shellbar { flex-wrap: wrap; padding: 8px 12px 0; }
+      .tab { font-size: 1rem; padding: 6px 10px 8px; }
     }
   </style>
 </head>
 <body>
   <div class="bg-atmosphere"></div>
-
-  <div class="viz-menu">
-    <button class="viz-menu-toggle" onclick="cycleTheme()" aria-label="Toggle theme">
-      <span id="themeIcon">🌙</span>
-    </button>
-  </div>
-
-  <main class="container">
-    <section class="hero animate">
-      <div class="eyebrow"><span class="status-dot"></span>Orion Screener</div>
-      <h1><span class="accent-text">Crypto</span> intelligence dashboards</h1>
-      <p>When the market trades, and which coins it trades most.</p>
-    </section>
-
-    <section class="page-grid">
-      <a class="page-card animate delay-1" href="./trading-hours.html" data-accent="cyan">
-        <span class="card-label">Dashboard</span>
-        <h2><span class="t">Trading Hours</span></h2>
-        <p>Hourly and weekday activity heatmap, session brief, best 2h window, and volume-by-hour charts across all captured snapshots.</p>
-        <span class="cta">Open dashboard</span>
-      </a>
-      <a class="page-card animate delay-2" href="./popular-coins.html" data-accent="magenta">
-        <span class="card-label">Dashboard</span>
-        <h2><span class="t">Popular Coins</span></h2>
-        <p>Every Binance perpetual ranked by trade count over 7 days, 1 day, or 12, 6, 4 or 2 hours, with a 1-minute chart and SMMAs for each coin.</p>
-        <span class="cta">Open dashboard</span>
-      </a>
-    </section>
-  </main>
+  <header class="shellbar">
+    <span class="brand">Orion Screener</span>
+    <nav class="tabs" role="tablist" aria-label="Dashboards">
+      <button class="tab" role="tab" id="tab-hours" data-page="hours" aria-controls="frame-hours" aria-selected="false" type="button">Trading Hours</button>
+      <button class="tab" role="tab" id="tab-coins" data-page="coins" aria-controls="frame-coins" aria-selected="false" type="button">Popular Coins</button>
+    </nav>
+    <p class="status" aria-live="polite"><span class="status-dot" id="statusDot"></span><span id="statusText">Loading&hellip;</span></p>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch between dark and light theme"></button>
+  </header>
+  <div class="frames" id="frames"></div>
 
   <script>
-    var savedTheme = localStorage.getItem('viz-theme');
-    var currentTheme = savedTheme || 'dark';
-    function applyTheme(t) {
-      document.documentElement.className = 'theme-' + t;
-      var icon = document.getElementById('themeIcon');
-      if (icon) icon.textContent = t === 'dark' ? '🌙' : '☀️';
-      localStorage.setItem('viz-theme', t);
-      currentTheme = t;
+    var PAGES = { hours: './trading-hours.html', coins: './popular-coins.html' };
+    var TITLES = { hours: 'Trading Hours', coins: 'Popular Coins' };
+    var frames = {};   // page -> iframe, created the first time its tab opens
+    var statuses = {}; // page -> { text, stale }, as the page last reported it
+    var current = null;
+    var theme = document.documentElement.className === 'theme-light' ? 'light' : 'dark';
+
+    function renderStatus() {
+      var s = statuses[current];
+      document.getElementById('statusText').textContent = s ? s.text : 'Loading…';
+      document.getElementById('statusDot').className = 'status-dot' + (s && s.stale ? ' stale' : '');
     }
-    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
-    applyTheme(currentTheme);
+
+    function show(page) {
+      if (!PAGES[page]) page = 'hours';
+      if (page === current) return;
+      current = page;
+      if (!frames[page]) {
+        var f = document.createElement('iframe');
+        f.id = 'frame-' + page;
+        f.src = PAGES[page];
+        f.title = TITLES[page];
+        f.setAttribute('role', 'tabpanel');
+        f.setAttribute('aria-labelledby', 'tab-' + page);
+        document.getElementById('frames').appendChild(f);
+        frames[page] = f;
+      }
+      Object.keys(frames).forEach(function(p) { frames[p].classList.toggle('active', p === page); });
+      document.querySelectorAll('.tab').forEach(function(t) { t.setAttribute('aria-selected', t.dataset.page === page ? 'true' : 'false'); });
+      document.title = TITLES[page] + ' — Orion Screener';
+      if (location.hash !== '#' + page) history.replaceState(null, '', '#' + page);
+      renderStatus();
+    }
+
+    document.querySelector('.tabs').addEventListener('click', function(e) {
+      var t = e.target.closest('.tab');
+      if (t) show(t.dataset.page);
+    });
+    window.addEventListener('hashchange', function() { show(location.hash.slice(1)); });
+
+    // Each page reports its last-updated text; only the open tab's is shown.
+    window.addEventListener('message', function(e) {
+      if (e.origin !== location.origin || !e.data || !e.data.orionStatus) return;
+      Object.keys(frames).forEach(function(p) {
+        if (frames[p].contentWindow === e.source) { statuses[p] = e.data.orionStatus; if (p === current) renderStatus(); }
+      });
+    });
+
+    function applyTheme(t) {
+      theme = t;
+      document.documentElement.className = 'theme-' + t;
+      document.getElementById('themeBtn').textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
+      try { localStorage.setItem('viz-theme', t); } catch (e) {}
+      Object.keys(frames).forEach(function(p) { frames[p].contentWindow.postMessage({ orionTheme: t }, location.origin); });
+    }
+    document.getElementById('themeBtn').addEventListener('click', function() { applyTheme(theme === 'dark' ? 'light' : 'dark'); });
+
+    applyTheme(theme);
+    show(location.hash.slice(1));
   </script>
 </body>
 </html>

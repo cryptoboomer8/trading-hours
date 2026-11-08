@@ -4,11 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orion Screener — Trading Hours</title>
+  <script>
+    // This page runs as a tab of the index page; opened on its own, go there.
+    if (window.top === window.self) location.replace('./#hours');
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script>Chart.defaults.animation = false;</script>
-  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root { interpolate-size: allow-keywords; }
@@ -42,7 +45,7 @@
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
+      background: transparent; color: var(--text);
       line-height: 1.6; -webkit-font-smoothing: antialiased;
       letter-spacing: -0.01em; font-feature-settings: 'cv11', 'ss01';
       transition: background 0.3s, color 0.3s; scrollbar-gutter: stable;
@@ -78,39 +81,22 @@
     }
     @media print {
       body { background: white !important; color: black !important; }
-      .viz-menu { display: none; }
       .reveal { opacity: 1 !important; transform: none !important; }
       .card { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
-      .bg-atmosphere { display: none; }
       * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     }
     @page { margin: 0.75in; }
 
-    .viz-menu { position: fixed; top: 16px; right: 16px; z-index: 9999; }
-    .viz-menu-toggle { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); transition: all 0.2s; }
-    .viz-menu-toggle:hover { background: var(--surface-hover); }
-    .viz-menu-dropdown { position: absolute; top: 52px; right: 0; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.2s; backdrop-filter: blur(16px); }
-    .viz-menu-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
-    .viz-menu-dropdown button { width: 100%; padding: 10px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
-    .viz-menu-dropdown button:hover { background: var(--surface-hover); }
 
     /* === LAYOUT === */
     /* One screen on a large display: a top bar, a KPI strip and five panels in
        a grid that fills the window. Smaller windows get one scrolling column. */
     .container { max-width: 3400px; margin: 0 auto; padding: 14px 20px; position: relative; z-index: 1; }
-    .bg-atmosphere { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
-      background: radial-gradient(ellipse at 15% 30%, var(--glow-cyan) 0%, transparent 50%), radial-gradient(ellipse at 85% 70%, var(--glow-magenta) 0%, transparent 50%); }
     .accent-text { color: var(--accent); }
-    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); margin-right: 8px; animation: pulse 2s infinite; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
     /* Top bar */
-    .topbar { display: flex; align-items: center; gap: 10px 28px; flex-wrap: wrap; padding-right: 60px; margin-bottom: 14px; position: relative; z-index: 3; }
-    .brand { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
-    .brand h1 { font-size: 1.6rem; font-weight: 700; }
-    .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.8rem; letter-spacing: 0.04em; }
-    .back-link:hover { color: var(--accent); }
-    .subtitle { font-size: 0.72rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+    .topbar { display: flex; align-items: center; gap: 10px 28px; flex-wrap: wrap; min-height: 32px; margin-bottom: 14px; position: relative; z-index: 3; }
     .controls { display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap; }
     .ctl { display: flex; align-items: center; gap: 8px; position: relative; }
     .ctl-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); white-space: nowrap; }
@@ -212,35 +198,16 @@
     @media (max-width: 768px) {
       .container { padding: 14px 12px; }
       .kpi-grid { grid-template-columns: 1fr; }
-      .topbar { padding-right: 56px; }
     }
   </style>
 </head>
 <body>
-  <div class="bg-atmosphere"></div>
-
   <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:10000;padding:8px 16px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;" onfocus="this.style.cssText='position:fixed;left:16px;top:16px;z-index:10000;padding:8px 16px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;'" onblur="this.style.cssText='position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;'">Skip to content</a>
-
-  <div class="viz-menu">
-    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
-    </button>
-    <div class="viz-menu-dropdown" id="vizMenuDropdown">
-      <button onclick="cycleTheme()"><span id="themeIcon"></span><span id="themeLabel">Dark</span></button>
-      <button onclick="downloadImage()"><span>PNG</span><span>Download PNG</span></button>
-      <button onclick="window.print()"><span>PDF</span><span>Print / PDF</span></button>
-    </div>
-  </div>
 
   <main id="main-content" role="main">
     <div class="container">
 
       <header class="topbar animate">
-        <div class="brand">
-          <a class="back-link" href="./">&larr; Index</a>
-          <h1><span class="accent-text">Best Trading Hours</span></h1>
-          <p class="subtitle" id="subtitleText"><span class="status-dot"></span>Loading snapshots&hellip;</p>
-        </div>
         <div class="controls" id="controlsBar" style="display:none;" aria-label="Coin selection">
           <div class="ctl">
             <span class="ctl-label">Tradeable coins</span>
@@ -404,39 +371,31 @@
   </main>
 
   <script>
-    // === Menu ===
-    function toggleMenu() { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.toggle('open'); }
-    document.addEventListener('click', function(e) { if (!e.target.closest('.viz-menu')) { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { var d = document.getElementById('vizMenuDropdown'); if (d) d.classList.remove('open'); } });
-
     // === Theme ===
     var savedTheme = localStorage.getItem('viz-theme');
     var currentTheme = savedTheme || 'dark';
     function applyTheme(t) {
       document.documentElement.className = 'theme-' + t;
-      var icon = document.getElementById('themeIcon');
-      var label = document.getElementById('themeLabel');
-      if (icon) icon.textContent = t === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
-      if (label) label.textContent = t === 'dark' ? 'Dark' : 'Light';
-      localStorage.setItem('viz-theme', t);
       currentTheme = t;
       if (typeof onThemeChange === 'function' && dataReady) onThemeChange();
     }
-    function cycleTheme() { applyTheme(currentTheme === 'dark' ? 'light' : 'dark'); }
     applyTheme(currentTheme);
+
+    // The index page sends the theme when its switch is used.
+    window.addEventListener('message', function(e) {
+      if (e.origin === location.origin && e.data && (e.data.orionTheme === 'dark' || e.data.orionTheme === 'light')) applyTheme(e.data.orionTheme);
+    });
+
+    // Shows text as the last-updated line in the index page's bar.
+    function reportStatus(text, stale) {
+      if (window.parent !== window) window.parent.postMessage({ orionStatus: { text: text, stale: !!stale } }, location.origin);
+    }
 
     // === Scroll Reveal ===
     var revealObserver = new IntersectionObserver(function(entries) { entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('visible'); revealObserver.unobserve(e.target); } }); }, { threshold: 0.15 });
 
     function setupReveal() {
       document.querySelectorAll('[data-reveal]').forEach(function(el) { el.classList.add('reveal'); revealObserver.observe(el); });
-    }
-
-    // === Download PNG ===
-    async function downloadImage() {
-      var menu = document.querySelector('.viz-menu'); menu.style.display = 'none';
-      try { var url = await htmlToImage.toPng(document.body, { quality: 1, pixelRatio: 2 }); var a = document.createElement('a'); a.href = url; a.download = 'best-trading-hours.png'; a.click(); } catch(e) { console.error(e); }
-      menu.style.display = '';
     }
 
     // === STATE ===
@@ -587,14 +546,14 @@
         dayVolMedian[d] = Math.round(quantile(vols.slice().sort(function(a,b){return a-b;}), 0.5));
       });
 
-      // Subtitle uses the most recent snapshot timestamp
-      var last = snapshots[snapshots.length - 1].date;
-      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      // The newest row covers the 5 minutes from its time, so the data runs to
+      // its end, written as on Popular Coins. Stale once the collector has
+      // missed a few runs.
+      var lastEnd = snapshots[snapshots.length - 1].date.getTime() + 5 * 60000;
       var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
-      var lastLabel = months[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear() + ' ' + pad(last.getHours()) + ':' + pad(last.getMinutes());
-
-      var sub = document.getElementById('subtitleText');
-      if (sub) sub.innerHTML = '<span class="status-dot"></span>Last: ' + lastLabel + ' &nbsp;|&nbsp; Tradeable ' + GROUP_NOUN[currentGroups];
+      var end = new Date(lastEnd);
+      var stale = Date.now() - lastEnd > 20 * 60000;
+      reportStatus((stale ? 'Stale: ' : 'Last: ') + pad(end.getDate()) + '/' + pad(end.getMonth() + 1) + ' ' + pad(end.getHours()) + ':' + pad(end.getMinutes()) + ' your time', stale);
 
       dataReady = true;
     }
@@ -1302,6 +1261,7 @@
           var el = document.getElementById('errorState');
           el.style.display = '';
           el.innerHTML = '<p>Failed to load snapshot data</p><code>' + err.message + '</code>';
+          reportStatus('Failed to load', true);
         });
     });
 
