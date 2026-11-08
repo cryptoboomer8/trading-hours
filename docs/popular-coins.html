@@ -70,6 +70,8 @@
     .coin-table-wrap { overflow-x: auto; }
     .coin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .coin-table th { text-align: left; font-weight: 500; font-size: 0.75rem; color: var(--text-secondary); padding: 8px 10px; }
+    /* The column names stay put while the coins scroll under them. */
+    .coin-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); box-shadow: inset 0 -1px var(--border); }
     .coin-table td { padding: 7px 10px; border-top: 1px solid var(--border); white-space: nowrap; }
     .coin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
     .coin-table tbody tr { cursor: pointer; }
@@ -84,6 +86,20 @@
     .coin-detail { position: sticky; top: 14px; }
     .coin-detail h3 { font-size: 1rem; font-weight: 500; margin-bottom: 12px; }
     .chart-container { position: relative; height: calc(100vh - 140px); min-height: 420px; }
+
+    /* On wide screens the page fits the window: the controls, the list's
+       column names and the chart stay where they are, and only the coin
+       list scrolls. */
+    @media (min-width: 1101px) {
+      html, body { height: 100%; overflow: hidden; }
+      .container { height: 100%; display: flex; flex-direction: column; }
+      .controls { flex: none; }
+      .workspace { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+      .workspace > .card { min-height: 0; display: flex; flex-direction: column; }
+      .coin-table-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
+      .coin-detail h3 { flex: none; }
+      .chart-container { flex: 1 1 auto; height: auto; min-height: 240px; }
+    }
 
     @media (max-width: 1100px) {
       .workspace { grid-template-columns: minmax(0, 1fr); }
@@ -135,8 +151,8 @@
             <thead><tr><th>#</th><th>Coin</th><th class="num">Trades / 5m</th><th class="num">Volume / 5m</th><th class="num" title="Average volume per 5 minutes over the last hour">Vol / 5m 1H</th><th class="num" title="Average volume per 5 minutes over the last 2 hours">Vol / 5m 2H</th><th>Price</th><th class="num">Change</th></tr></thead>
             <tbody id="coinRows"></tbody>
           </table>
+          <p class="coin-note" id="coinNote"></p>
         </div>
-        <p class="coin-note" id="coinNote"></p>
       </section>
 
       <section class="card coin-detail">
