@@ -189,11 +189,11 @@
     @media (min-width: 1400px) and (min-height: 700px) {
       .container { height: 100vh; display: flex; flex-direction: column; }
       .dash { flex: 1 1 auto; min-height: 0;
-        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         grid-template-rows: auto minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
-        grid-template-areas: "kpi kpi" "pace day" "heat hourly" "heat share"; }
+        grid-template-areas: "kpi kpi kpi" "pace week day" "heat heat hourly" "heat heat share"; }
       .kpi-grid { grid-area: kpi; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .area-pace { grid-area: pace; } .area-day { grid-area: day; } .area-heat { grid-area: heat; }
+      .area-pace { grid-area: pace; } .area-week { grid-area: week; } .area-day { grid-area: day; } .area-heat { grid-area: heat; }
       .area-hourly { grid-area: hourly; } .area-share { grid-area: share; }
       .panel, .chart-box { min-height: 0; }
     }
@@ -277,10 +277,26 @@
             <div class="brief-sub" id="paceSub" aria-live="polite"></div>
             <div class="head-tools">
               <button class="info" type="button" aria-label="About the pace chart" aria-describedby="helpPace">i</button>
-              <div class="help-pop" id="helpPace" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour, whichever is selected, your time. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day (the median of each hour). Weekdays are compared with weekdays and weekends with weekends, since weekends run at about half the volume: Monday against Friday, Saturday against last Sunday. The headline adds up today so far against that day up to the same time; the line below it does the same against a typical day. The shading marks the US session phases.</div>
+              <div class="help-pop" id="helpPace" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour, whichever is selected at the top, your time. The <strong>blue line</strong> is today, the <strong>amber line</strong> yesterday, and the <strong>dashed line</strong> a typical day of the same kind (the median of each hour over weekdays, or over weekend days). The headline adds up today so far against yesterday up to the same time; the line below it does the same against a typical day. Yesterday is used even across a weekend, so Monday against Sunday will usually look strong and Saturday against Friday weak, since weekends run at about half the volume. The shading marks the US session phases.</div>
             </div>
           </div>
           <div class="chart-box"><canvas id="paceChart"></canvas></div>
+        </section>
+
+        <!-- THIS WEEK -->
+        <section class="panel area-week" aria-label="This week's pace">
+          <div class="panel-head">
+            <div class="head-text">
+              <div class="brief-label" id="weekLabel">This week vs last week</div>
+              <div class="brief-headline" id="weekHeadline">&mdash;</div>
+            </div>
+            <div class="brief-sub" id="weekSub" aria-live="polite"></div>
+            <div class="head-tools">
+              <button class="info" type="button" aria-label="About the week chart" aria-describedby="helpWeek">i</button>
+              <div class="help-pop" id="helpWeek" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour from Monday 00:00, whichever is selected at the top, your time. The <strong>blue line</strong> is this week and the <strong>amber line</strong> last week. The headline adds up this week so far against the same hours of last week. Unlike the rest of the page, this chart ignores the period, since it always needs the last two weeks; the coin groups still apply. The shading marks the US session phases on weekdays.</div>
+            </div>
+          </div>
+          <div class="chart-box"><canvas id="weekChart"></canvas></div>
         </section>
 
         <!-- BY WEEKDAY -->
@@ -564,6 +580,7 @@
       renderUsLegend();
       buildKPIs();
       buildSessionBrief();
+      buildWeekPace();
       buildHeatmap();
       buildCharts();
       buildGroupCharts();
@@ -573,14 +590,28 @@
     function dayKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
     function isWeekend(dayIdx) { return dayIdx === 0 || dayIdx === 6; }
 
-    // The last earlier day of the same kind: Monday compares with Friday,
-    // Saturday with the previous Sunday, any other day with the day before.
+    // Today is compared with yesterday, weekend or not.
     function comparisonDay(now) {
-      for (var back = 1; back <= 7; back++) {
-        var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
-        if (isWeekend(d.getDay()) === isWeekend(now.getDay())) return d;
-      }
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     }
+
+    // Number formats for the pace charts: tooltips and the y axis.
+    function paceFormats(metric) {
+      return {
+        fmt: metric === 'coins' ? function(v) { return (Math.round(v * 10) / 10) + ' coins'; }
+          : metric === 'volume' ? function(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; }
+          : function(v) { return Math.round(v).toLocaleString() + ' trades'; },
+        tick: metric === 'coins' ? function(v) { return v; }
+          : metric === 'volume' ? function(v) { return '$' + Math.round(v / 1e6) + 'M'; }
+          : function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; }
+      };
+    }
+
+    function pctText(a, b) {
+      var pct = b > 0 ? Math.round((a / b - 1) * 100) : 0;
+      return { pct: pct, text: (pct > 0 ? '+' : '') + pct + '%' };
+    }
+    function paceClass(pct) { return 'brief-headline ' + (pct >= 8 ? 'pace-up' : pct <= -8 ? 'pace-down' : 'pace-flat'); }
 
     function buildSessionBrief() {
       if (typeof Chart === 'undefined' || snapshots.length === 0) return;
@@ -597,12 +628,7 @@
       document.getElementById('paceLabel').innerHTML = 'Today&rsquo;s pace vs ' + prevName + ' and a typical ' + kindName;
 
       var val = function(s) { return pageMetric === 'coins' ? s.totalCoins : pageMetric === 'volume' ? s.totalVol : s.totalTrades; };
-      var paceFmt = pageMetric === 'coins' ? function(v) { return (Math.round(v * 10) / 10) + ' coins'; }
-        : pageMetric === 'volume' ? function(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; }
-        : function(v) { return Math.round(v).toLocaleString() + ' trades'; };
-      var paceTick = pageMetric === 'coins' ? function(v) { return v; }
-        : pageMetric === 'volume' ? function(v) { return '$' + Math.round(v / 1e6) + 'M'; }
-        : function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; };
+      var formats = paceFormats(pageMetric), paceFmt = formats.fmt, paceTick = formats.tick;
 
       // Per-hour totals and row counts for today and the comparison day, keyed by minute of day for matching.
       var todayByHour = [], prevByHour = [], todayRowsPerHour = [], prevRowsPerHour = [], kindSamples = [];
@@ -634,10 +660,6 @@
         typicalLine.push(kindMedian[h]);
       }
 
-      function pctText(a, b) {
-        var pct = b > 0 ? Math.round((a / b - 1) * 100) : 0;
-        return { pct: pct, text: (pct > 0 ? '+' : '') + pct + '%' };
-      }
       var paceEl = document.getElementById('paceHeadline');
       var paceSubEl = document.getElementById('paceSub');
       if (!todayRows.length) {
@@ -648,7 +670,7 @@
         var vsTypical = pctText(todayTotal, typicalSoFar);
         var head = matched ? pctText(todaySum, prevSum) : vsTypical;
         paceEl.textContent = head.text + (matched ? ' vs ' + prevName : ' vs typical ' + kindName);
-        paceEl.className = 'brief-headline ' + (head.pct >= 8 ? 'pace-up' : head.pct <= -8 ? 'pace-down' : 'pace-flat');
+        paceEl.className = paceClass(head.pct);
         paceSubEl.innerHTML = (matched ? vsTypical.text + ' vs a typical ' + kindName : 'No data for ' + prevName) +
           '<br>through ' + pad(lastHour) + ':59 your time';
       }
@@ -675,6 +697,101 @@
           }
         });
       }
+    }
+
+    // === THIS WEEK ===
+    var WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    // Monday 00:00 of the week holding d, your time.
+    function weekStart(d) {
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
+    }
+
+    // This week against last week, hour by hour from Monday. It reads all the
+    // loaded rows rather than the period, which at 1W would not reach last week.
+    function buildWeekPace() {
+      if (typeof Chart === 'undefined' || !rawData.length) return;
+      var c = getChartColors();
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var dm = function(d) { return pad(d.getDate()) + '/' + pad(d.getMonth() + 1); };
+      var formats = paceFormats(pageMetric);
+      var thisStart = weekStart(new Date());
+      var lastStart = new Date(thisStart.getFullYear(), thisStart.getMonth(), thisStart.getDate() - 7);
+      var lastEnd = new Date(thisStart.getFullYear(), thisStart.getMonth(), thisStart.getDate() - 1);
+
+      // Sums and row counts per hour of the week (0 = Monday 00:00), and last
+      // week's rows by minute of the week, to match this week's slot for slot.
+      var sums = { this: [], last: [] }, counts = { this: [], last: [] };
+      for (var h = 0; h < 168; h++) { sums.this.push(0); sums.last.push(0); counts.this.push(0); counts.last.push(0); }
+      var thisRows = [], lastByMinute = {};
+      rawData.forEach(function(r) {
+        var d = new Date(r.ts);
+        var which = d >= thisStart ? 'this' : d >= lastStart ? 'last' : null;
+        if (!which) return;
+        var hour = ((d.getDay() + 6) % 7) * 24 + d.getHours(), minute = hour * 60 + d.getMinutes();
+        var v = bucketSum(r, pageMetric);
+        sums[which][hour] += v; counts[which][hour]++;
+        if (which === 'this') thisRows.push({ minute: minute, hour: hour, value: v });
+        else lastByMinute[minute] = v;
+      });
+
+      var thisSum = 0, lastSum = 0, matched = 0, lastHour = -1;
+      thisRows.forEach(function(r) {
+        lastHour = Math.max(lastHour, r.hour);
+        if (r.minute in lastByMinute) { thisSum += r.value; lastSum += lastByMinute[r.minute]; matched++; }
+      });
+
+      document.getElementById('weekLabel').textContent = 'This week vs last week (' + dm(lastStart) + '–' + dm(lastEnd) + ')';
+      var headEl = document.getElementById('weekHeadline'), subEl = document.getElementById('weekSub');
+      if (!thisRows.length) {
+        headEl.textContent = 'No data yet this week';
+        headEl.className = 'brief-headline pace-flat';
+        subEl.textContent = 'Waiting for the first snapshot.';
+      } else if (!matched) {
+        headEl.textContent = 'No data for last week';
+        headEl.className = 'brief-headline pace-flat';
+        subEl.textContent = '';
+      } else {
+        var head = pctText(thisSum, lastSum);
+        headEl.textContent = head.text + ' vs last week';
+        headEl.className = paceClass(head.pct);
+        subEl.innerHTML = 'same hours of last week<br>through ' + WEEK_DAYS[Math.floor(lastHour / 24)] + ' ' + pad(lastHour % 24) + ':59 your time';
+      }
+
+      var line = function(which) { return sums[which].map(function(v, i) { return counts[which][i] ? v / counts[which][i] : null; }); };
+      var labels = [], hours = [];
+      for (var i = 0; i < 168; i++) { labels.push(WEEK_DAYS[Math.floor(i / 24)] + ' ' + pad(i % 24) + ':00'); hours.push(i % 24); }
+
+      var ctx = resetCanvas('weekChart');
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'line',
+        plugins: [usSessionPlugin],
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Last week', data: line('last'), borderColor: c.warning, borderWidth: 1.5, fill: false, pointRadius: 0, tension: 0.2 },
+            { label: 'This week', data: line('this'), borderColor: c.accent, borderWidth: 2, fill: false, pointRadius: 0, tension: 0.2, spanGaps: false }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            // US markets are shut at the weekend. A phase that runs past midnight
+            // belongs to the day before, so Friday's after-hours reach into Saturday.
+            usSession: { hours: hours, skip: function(i, sg) { var day = Math.floor(i / 24) - (sg.wrapped ? 1 : 0); return day < 0 || day >= 5; } },
+            legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' },
+            tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(item) { return item.dataset.label + ': ' + (item.raw == null ? '—' : formats.fmt(item.raw) + ' per 5 min'); } } }
+          },
+          layout: { padding: 6 },
+          scales: {
+            x: { ticks: { color: c.textSecondary, font: { size: 10 }, maxRotation: 0, autoSkip: false, callback: function(v, i) { return i % 24 === 12 ? WEEK_DAYS[i / 24 | 0] : ''; } },
+                 grid: { drawTicks: false, color: function(g) { return g.index % 24 === 0 && g.index > 0 ? c.gridLine : 'transparent'; } } },
+            y: { beginAtZero: pageMetric === 'coins', ticks: { color: c.textSecondary, font: { size: 10 }, callback: formats.tick }, grid: { color: c.gridLine } }
+          }
+        }
+      });
     }
 
     // === BUILD KPIs ===
@@ -934,7 +1051,7 @@
       US_PHASES.forEach(function(ph) {
         var from = ((ph.from + shift) % 24 + 24) % 24, to = from + ph.to - ph.from;
         if (to <= 24) out.push({ key: ph.key, from: from, to: to });
-        else { out.push({ key: ph.key, from: from, to: 24 }); out.push({ key: ph.key, from: 0, to: to - 24 }); }
+        else { out.push({ key: ph.key, from: from, to: 24 }); out.push({ key: ph.key, from: 0, to: to - 24, wrapped: true }); }
       });
       return out;
     }
@@ -999,7 +1116,7 @@
           var left = x.getPixelForValue(i) - (opts.edge ? 0 : width / 2);
           segs.forEach(function(sg) {
             var a = Math.max(h, sg.from), b = Math.min(h + 1, sg.to);
-            if (b <= a) return;
+            if (b <= a || (opts.skip && opts.skip(i, sg))) return;
             ctx.fillStyle = colors[sg.key];
             ctx.fillRect(left + (a - h) * width, area.top, (b - a) * width, area.bottom - area.top);
           });
@@ -1125,6 +1242,7 @@
       document.querySelectorAll('#measureToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
       if (!dataReady) return;
       buildSessionBrief();
+      buildWeekPace();
       buildDayChart();
       buildHeatmap();
       buildHourlyChart();
@@ -1135,6 +1253,7 @@
       renderUsLegend();
       buildHeatmap();
       buildSessionBrief();
+      buildWeekPace();
       buildCharts();
       buildGroupCharts();
     }
