@@ -963,6 +963,7 @@
       var btn = e.target.closest('button');
       if (!btn || btn.dataset.stat === currentStat) return;
       currentStat = btn.dataset.stat;
+      saveView();
       document.querySelectorAll('#statToggle button').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       if (dataReady) rebuildAll();
@@ -972,10 +973,30 @@
       var btn = e.target.closest('button');
       if (!btn || parseInt(btn.dataset.days, 10) === currentWindowDays) return;
       currentWindowDays = parseInt(btn.dataset.days, 10);
+      saveView();
       document.querySelectorAll('#windowToggle button').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       if (dataReady) rebuildAll();
     });
+
+    // Show, Aggregation and Period survive a reload, like the groups.
+    var VIEW_KEY = 'trading-hours-view';
+    function saveView() {
+      try { localStorage.setItem(VIEW_KEY, JSON.stringify({ metric: pageMetric, stat: currentStat, days: currentWindowDays })); } catch (e) {}
+    }
+    (function restoreView() {
+      var v = {};
+      try { v = JSON.parse(localStorage.getItem(VIEW_KEY)) || {}; } catch (e) {}
+      if (['coins', 'trades', 'volume'].indexOf(v.metric) >= 0) pageMetric = v.metric;
+      if (v.stat === 'mean' || v.stat === 'median') currentStat = v.stat;
+      if ([7, 14, 21, 31].indexOf(v.days) >= 0) currentWindowDays = v.days;
+      var mark = function(id, attr, value) {
+        document.querySelectorAll('#' + id + ' button').forEach(function(b) { b.classList.toggle('active', b.dataset[attr] === String(value)); });
+      };
+      mark('measureToggle', 'metric', pageMetric);
+      mark('statToggle', 'stat', currentStat);
+      mark('windowToggle', 'days', currentWindowDays);
+    })();
 
     var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
 
@@ -1239,6 +1260,7 @@
       var btn = e.target.closest('button');
       if (!btn || btn.dataset.metric === pageMetric) return;
       pageMetric = btn.dataset.metric;
+      saveView();
       document.querySelectorAll('#measureToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
       if (!dataReady) return;
       buildSessionBrief();

@@ -108,6 +108,7 @@
       document.querySelectorAll('.tab').forEach(function(t) { t.setAttribute('aria-selected', t.dataset.page === page ? 'true' : 'false'); });
       document.title = TITLES[page] + ' — Orion Screener';
       if (location.hash !== '#' + page) history.replaceState(null, '', '#' + page);
+      try { localStorage.setItem('orion-tab', page); } catch (e) {}
       renderStatus();
     }
 
@@ -135,7 +136,10 @@
     document.getElementById('themeBtn').addEventListener('click', function() { applyTheme(theme === 'dark' ? 'light' : 'dark'); });
 
     applyTheme(theme);
-    show(location.hash.slice(1));
+    // A link to a tab opens that tab; otherwise the one last open.
+    var lastTab = null;
+    try { lastTab = localStorage.getItem('orion-tab'); } catch (e) {}
+    show(location.hash.slice(1) || lastTab);
   </script>
 </body>
 </html>
