@@ -544,16 +544,20 @@
         dayVolMedian[d] = Math.round(quantile(vols.slice().sort(function(a,b){return a-b;}), 0.5));
       });
 
-      // The newest row covers the 5 minutes from its time, so the data runs to
-      // its end, written as on Popular Coins. Stale once the collector has
-      // missed a few runs.
-      var lastEnd = snapshots[snapshots.length - 1].date.getTime() + 5 * 60000;
+      reportLastUpdate();
+      dataReady = true;
+    }
+
+    // The newest row covers the 5 minutes from its time, so the data runs to
+    // its end, written as on Popular Coins. Stale once the collector has
+    // missed a few runs.
+    function reportLastUpdate() {
+      if (!rawData.length) return;
+      var lastEnd = new Date(rawData[rawData.length - 1].ts).getTime() + 5 * 60000;
       var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
       var end = new Date(lastEnd);
       var stale = Date.now() - lastEnd > 20 * 60000;
       reportStatus((stale ? 'Stale: ' : 'Last: ') + pad(end.getDate()) + '/' + pad(end.getMonth() + 1) + ' ' + pad(end.getHours()) + ':' + pad(end.getMinutes()) + ' your time', stale);
-
-      dataReady = true;
     }
 
     // Measured from the newest row, not the clock, so the page still has
@@ -1001,7 +1005,7 @@
     var API_URL = 'https://trading-hours.cryptoboomer.workers.dev';
 
     function loadBucket() {
-      return fetch(API_URL + '/bucket')
+      return fetch(API_URL + '/bucket', { cache: 'no-cache' })
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
@@ -1370,6 +1374,22 @@
           reportStatus('Failed to load', true);
         });
     });
+
+    // Every minute, fetch the rows again and redraw once a new 5-minute row is
+    // in. A failed refresh keeps what is on screen; the status turns stale on
+    // its own. A hidden browser tab skips it and catches up when shown again.
+    var REFRESH_MS = 60000;
+    function refresh() {
+      if (document.hidden || !dataReady) return;
+      loadBucket().then(function(raw) {
+        var was = rawData[rawData.length - 1], now = raw[raw.length - 1];
+        if (raw.length === rawData.length && was.ts === now.ts) { reportLastUpdate(); return; }
+        rawData = raw;
+        rebuildAll();
+      }).catch(reportLastUpdate);
+    }
+    setInterval(refresh, REFRESH_MS);
+    document.addEventListener('visibilitychange', function() { if (!document.hidden) refresh(); });
 
   </script>
 </body>

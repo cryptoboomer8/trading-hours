@@ -178,7 +178,11 @@
     // history to let the slow line settle before the chart begins.
     var WARMUP_CANDLES = 6 * SMMA_SLOW;
     var CANDLES_PER_REQUEST = 1500;
-    var CANDLE_CACHE_MS = MINUTE_MS;
+    // The page fetches its lists and the chart again this often. Anything
+    // fetched within the last 55 seconds is reused, so a refresh always refetches.
+    var REFRESH_MS = MINUTE_MS;
+    var REUSE_MS = REFRESH_MS - 5000;
+    var CANDLE_CACHE_MS = REUSE_MS;
     // The lines are calculated on every 1-minute candle; a long period is then
     // drawn at a coarser spacing so it stays readable.
     var MAX_CHART_POINTS = 500;
@@ -186,6 +190,7 @@
 
     var currentPeriod = '7d';
     var views = {};
+    var viewAt = {};
     var RECENT_PERIODS = ['1h', '2h'];
     var recentVolume = {};
     var MIN_VOLUME_PER_5M = 500000;
@@ -567,14 +572,15 @@
       });
     }
 
-    function loadChart() {
+    // quiet: a refresh, which keeps the title and, if it fails, the last chart.
+    function loadChart(quiet) {
       var view = views[currentPeriod];
       if (!view || !selectedCoin) return;
       var symbol = selectedCoin, period = currentPeriod, request = ++chartRequest;
       // Over a week, lines this short only trace the price.
       var showSmma = period !== '7d';
       var title = document.getElementById('coinTitle');
-      title.textContent = symbol + ' — loading 1-minute candles…';
+      if (!quiet) title.textContent = symbol + ' — loading 1-minute candles…';
       var length = view.end - view.start, key = symbol + ':' + period, cached = candleCache[key];
       var ready;
       if (cached && Date.now() - cached.at < CANDLE_CACHE_MS) {
@@ -592,7 +598,7 @@
         title.textContent = symbol + ' — 1m close' + (showSmma ? ', SMMA ' + SMMA_FAST + ' and ' + SMMA_SLOW : '') + (chartData.step > 1 ? ', drawn every ' + chartData.step + ' minutes' : '');
         drawChart();
       }).catch(function(err) {
-        if (request !== chartRequest) return;
+        if (request !== chartRequest || (quiet && coinChart)) return;
         clearChart();
         title.textContent = symbol + ' — could not load 1-minute candles: ' + err.message;
       });
@@ -646,14 +652,15 @@
       loadChart();
     }
 
+    // The Worker allows a minute of caching, so skip the browser's copy.
     function fetchView(period) {
-      if (views[period]) return Promise.resolve(views[period]);
-      return fetch(API_URL + '/coins?period=' + period)
+      if (views[period] && Date.now() - viewAt[period] < REUSE_MS) return Promise.resolve(views[period]);
+      return fetch(API_URL + '/coins?period=' + period, { cache: 'no-cache' })
         .then(function(r) {
           if (!r.ok) throw new Error('Server returned ' + r.status);
           return r.json();
         })
-        .then(function(view) { views[period] = view; return view; });
+        .then(function(view) { views[period] = view; viewAt[period] = Date.now(); return view; });
     }
 
     // Average volume per 5 minutes over the last 1 and 2 hours, for every coin.
@@ -742,11 +749,30 @@
       drawChart();
     });
 
+    // Every minute, fetch the list, the 1H and 2H volumes and the chart again.
+    // A failed refresh keeps what is on screen; the status turns stale on its
+    // own. A hidden browser tab skips it and catches up when shown again.
+    function refresh() {
+      if (document.hidden || !views[currentPeriod]) return;
+      loadRecentVolume();
+      var period = currentPeriod;
+      fetchView(period).then(function() {
+        if (period !== currentPeriod) return;
+        renderHeader(views[period]);
+        renderCoins();
+        loadChart(true);
+      }, function() {
+        if (period === currentPeriod) renderHeader(views[period]);
+      });
+    }
+
     restoreState();
     applyTheme(currentTheme);
     loadHighCaps();
     loadRecentVolume();
     loadPeriod();
+    setInterval(refresh, REFRESH_MS);
+    document.addEventListener('visibilitychange', function() { if (!document.hidden) refresh(); });
   </script>
 </body>
 </html>
