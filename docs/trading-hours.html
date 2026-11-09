@@ -217,6 +217,14 @@
             <div class="help-pop left" id="helpBucket" role="tooltip">Every 5 minutes, the coins with at least $500K volume in those 5 minutes. A coin&rsquo;s USDT and USDC pairs count as one coin. Gold tokens and Binance&rsquo;s index contracts are left out. Everything on this page counts only these coins.</div>
           </div>
           <div class="ctl">
+            <span class="ctl-label">Show</span>
+            <div class="stat-toggle" id="measureToggle" role="group" aria-label="Choose what every chart shows">
+              <button class="active" data-metric="coins" type="button">Coins</button>
+              <button data-metric="trades" type="button">Trades</button>
+              <button data-metric="volume" type="button">Volume</button>
+            </div>
+          </div>
+          <div class="ctl">
             <span class="ctl-label">Groups</span>
             <div class="stat-toggle" id="groupToggle" role="group" aria-label="Choose which coin groups to include">
               <button class="active" data-group="b" type="button" aria-pressed="true">BTC + ETH</button>
@@ -268,11 +276,6 @@
             </div>
             <div class="brief-sub" id="paceSub" aria-live="polite"></div>
             <div class="head-tools">
-              <div class="stat-toggle" id="paceMetricToggle" role="group" aria-label="Choose what the pace chart compares">
-                <button class="active" data-metric="coins" type="button">Coins</button>
-                <button data-metric="trades" type="button">Trades</button>
-                <button data-metric="volume" type="button">Volume</button>
-              </div>
               <button class="info" type="button" aria-label="About the pace chart" aria-describedby="helpPace">i</button>
               <div class="help-pop" id="helpPace" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour, whichever is selected, your time. The <strong>blue line</strong> is today, the <strong>amber line</strong> the last comparable day, and the <strong>dashed line</strong> a typical day (the median of each hour). Weekdays are compared with weekdays and weekends with weekends, since weekends run at about half the volume: Monday against Friday, Saturday against last Sunday. The headline adds up today so far against that day up to the same time; the line below it does the same against a typical day. The shading marks the US session phases.</div>
             </div>
@@ -289,11 +292,6 @@
             </div>
             <div class="brief-sub" id="daySub"></div>
             <div class="head-tools">
-              <div class="stat-toggle" id="dayMetricToggle" role="group" aria-label="Choose what the weekday chart shows">
-                <button class="active" data-metric="coins" type="button">Coins</button>
-                <button data-metric="trades" type="button">Trades</button>
-                <button data-metric="volume" type="button">Volume</button>
-              </div>
               <button class="info" type="button" aria-label="About the weekday chart" aria-describedby="helpDay">i</button>
               <div class="help-pop" id="helpDay" role="tooltip">Tradeable coins, trades or volume per 5 minutes on each weekday, whichever is selected, with the brightest bar the busiest day. Each day pools all 24 hours, so this shows which days are busier overall, not when during the day. Switch between them to compare: on weekends volume drops to about half, while the coins and trades fall much less.</div>
             </div>
@@ -306,18 +304,13 @@
           <div class="panel-head">
             <div class="head-text">
               <h2 class="panel-title">Activity Heatmap</h2>
-              <p class="panel-sub" id="heatmapSub">Trades per 5 min by weekday and hour, your time &mdash; hover for details</p>
+              <p class="panel-sub" id="heatmapSub">Tradeable coins per 5 min by weekday and hour, your time &mdash; hover for details</p>
             </div>
             <div class="head-tools">
               <div class="heatmap-legend" aria-hidden="true">
                 <span>Low</span>
                 <div class="legend-bar" id="legendBar"></div>
                 <span>High</span>
-              </div>
-              <div class="stat-toggle" id="metricToggle" role="group" aria-label="Choose what the heatmap shows">
-                <button data-metric="coins" type="button">Coins</button>
-                <button class="active" data-metric="trades" type="button">Trades</button>
-                <button data-metric="volume" type="button">Volume</button>
               </div>
               <button class="info" type="button" aria-label="About the heatmap" aria-describedby="helpHeat">i</button>
               <div class="help-pop" id="helpHeat" role="tooltip">Each cell is the median (or mean) of the tradeable coins, their trades or their volume per 5 minutes, whichever is selected, for one weekday and one hour of your time. <strong>Brighter cells are busier.</strong> Today and the current hour are highlighted, and the outlined cell is now, so reading along the row to the right shows what usually comes next. The colour scale ignores the most extreme 5% at each end, so one wild day does not wash out the rest. Faded cells rest on fewer than three days of data, so trust them less. Hover a cell for the exact number. The coloured strip at the top marks the US session phases, as in the legend at the top of the page.</div>
@@ -336,11 +329,6 @@
               <p class="panel-sub" id="hourlySub">Tradeable coins per 5 min by hour of day, across all days in the period</p>
             </div>
             <div class="head-tools">
-              <div class="stat-toggle" id="hourlyMetricToggle" role="group" aria-label="Choose what the hourly chart shows">
-                <button class="active" data-metric="coins" type="button">Coins</button>
-                <button data-metric="trades" type="button">Trades</button>
-                <button data-metric="volume" type="button">Volume</button>
-              </div>
               <button class="info" type="button" aria-label="About the hourly chart" aria-describedby="helpHourly">i</button>
               <div class="help-pop" id="helpHourly" role="tooltip">Tradeable coins, trades or volume per 5 minutes in each hour of your time, whichever is selected, for the coin groups chosen at the top. The three brightest bars are the busiest hours. The shading marks the US session phases. Hover an hour for the spread: with the median, half of the 5-minute readings fall in the range shown.</div>
             </div>
@@ -356,11 +344,6 @@
               <p class="panel-sub" id="groupChartSub">Each group&rsquo;s share of the tradeable coins per hour of day, your time</p>
             </div>
             <div class="head-tools">
-              <div class="stat-toggle" id="groupMetricToggle" role="group" aria-label="Choose what the share chart splits">
-                <button class="active" data-metric="coins" type="button">Coins</button>
-                <button data-metric="trades" type="button">Trades</button>
-                <button data-metric="volume" type="button">Volume</button>
-              </div>
               <button class="info" type="button" aria-label="About the share chart" aria-describedby="helpShare">i</button>
               <div class="help-pop" id="helpShare" role="tooltip">Each colour is one coin group: <strong>BTC + ETH</strong>, <strong>large caps</strong> (market cap of at least $1B) and <strong>small alts</strong> (everything below), counting only the tradeable coins. Each bar is one hour split by the selected measure, built from each group&rsquo;s median (or mean) per 5 minutes. All three groups are always shown, whatever is selected at the top. Small alts sit at the bottom so their shape is easy to follow. Switch between coins and volume to compare: BTC and ETH carry most of the money, while the alts make up most of the coins. Hover an hour for each group&rsquo;s share and amount.</div>
             </div>
@@ -420,11 +403,8 @@
     var dayVolMedian = {};
     var dayCoinAvg = {};
     var dayCoinMedian = {};
-    var currentMetric = 'trades';
-    var paceMetric = 'coins';
-    var dayMetric = 'coins';
-    var hourlyMetric = 'coins';
-    var groupMetric = 'coins';
+    // What every chart shows: 'coins', 'trades' or 'volume', from the toggle at the top.
+    var pageMetric = 'coins';
     var currentStat = 'median';
     var currentWindowDays = 31;
     // Coin groups: b = BTC and ETH, l = other pairs with a market cap of at least
@@ -616,12 +596,12 @@
       var kindName = weekend ? 'weekend day' : 'weekday';
       document.getElementById('paceLabel').innerHTML = 'Today&rsquo;s pace vs ' + prevName + ' and a typical ' + kindName;
 
-      var val = function(s) { return paceMetric === 'coins' ? s.totalCoins : paceMetric === 'volume' ? s.totalVol : s.totalTrades; };
-      var paceFmt = paceMetric === 'coins' ? function(v) { return (Math.round(v * 10) / 10) + ' coins'; }
-        : paceMetric === 'volume' ? function(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; }
+      var val = function(s) { return pageMetric === 'coins' ? s.totalCoins : pageMetric === 'volume' ? s.totalVol : s.totalTrades; };
+      var paceFmt = pageMetric === 'coins' ? function(v) { return (Math.round(v * 10) / 10) + ' coins'; }
+        : pageMetric === 'volume' ? function(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; }
         : function(v) { return Math.round(v).toLocaleString() + ' trades'; };
-      var paceTick = paceMetric === 'coins' ? function(v) { return v; }
-        : paceMetric === 'volume' ? function(v) { return '$' + Math.round(v / 1e6) + 'M'; }
+      var paceTick = pageMetric === 'coins' ? function(v) { return v; }
+        : pageMetric === 'volume' ? function(v) { return '$' + Math.round(v / 1e6) + 'M'; }
         : function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; };
 
       // Per-hour totals and row counts for today and the comparison day, keyed by minute of day for matching.
@@ -691,19 +671,11 @@
             interaction: { mode: 'index', intersect: false },
             plugins: { usSession: { hours: HOURS_OF_DAY }, legend: { display: true, labels: { color: c.textSecondary, font: { size: 10 }, boxWidth: 12 }, position: 'bottom' }, tooltip: { padding: 10, cornerRadius: 8, callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + (ctx.raw == null ? '—' : paceFmt(ctx.raw) + ' per 5 min'); } } } },
             layout: { padding: 6 },
-            scales: { x: { offset: true, ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { beginAtZero: paceMetric === 'coins', ticks: { color: c.textSecondary, font: { size: 10 }, callback: paceTick }, grid: { color: c.gridLine } } }
+            scales: { x: { offset: true, ticks: { color: c.textSecondary, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 13 }, grid: { display: false } }, y: { beginAtZero: pageMetric === 'coins', ticks: { color: c.textSecondary, font: { size: 10 }, callback: paceTick }, grid: { color: c.gridLine } } }
           }
         });
       }
     }
-
-    document.getElementById('paceMetricToggle').addEventListener('click', function(e) {
-      var btn = e.target.closest('button');
-      if (!btn || btn.dataset.metric === paceMetric) return;
-      paceMetric = btn.dataset.metric;
-      document.querySelectorAll('#paceMetricToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
-      if (dataReady) buildSessionBrief();
-    });
 
     // === BUILD KPIs ===
     function buildKPIs() {
@@ -776,10 +748,10 @@
     // === HEATMAP ===
     function getHeatColor(intensity) {
       var isDark = document.documentElement.classList.contains('theme-dark');
-      if (currentMetric === 'volume' || currentMetric === 'coins') {
+      if (pageMetric === 'volume' || pageMetric === 'coins') {
         // Coins wear the text colour, as in the KPI cards: no hue of their own.
         var from = isDark ? [13, 21, 32] : [240, 244, 248];
-        var to = currentMetric === 'coins' ? (isDark ? [232, 236, 241] : [15, 23, 42]) : (isDark ? [224, 64, 251] : [147, 51, 234]);
+        var to = pageMetric === 'coins' ? (isDark ? [232, 236, 241] : [15, 23, 42]) : (isDark ? [224, 64, 251] : [147, 51, 234]);
         return 'rgb(' + from.map(function(f, k) { return Math.round(f + intensity * (to[k] - f)); }).join(',') + ')';
       }
       if (isDark) {
@@ -802,8 +774,8 @@
 
       var useMedian = currentStat === 'median';
       function cellVal(c) {
-        if (currentMetric === 'trades') return useMedian ? c.tradeMedian : c.trades / c.count;
-        if (currentMetric === 'coins') return useMedian ? c.coinMedian : c.coins / c.count;
+        if (pageMetric === 'trades') return useMedian ? c.tradeMedian : c.trades / c.count;
+        if (pageMetric === 'coins') return useMedian ? c.coinMedian : c.coins / c.count;
         return useMedian ? c.volMedian : c.vol / c.count;
       }
       var allVals = [];
@@ -822,7 +794,7 @@
       }
       var range = maxVal - minVal || 1;
 
-      document.getElementById('heatmapSub').innerHTML = { trades: 'Trades', volume: 'USDT volume', coins: 'Tradeable coins' }[currentMetric] + ' per 5 min by weekday and hour, your time &mdash; hover for details';
+      document.getElementById('heatmapSub').innerHTML = { trades: 'Trades', volume: 'USDT volume', coins: 'Tradeable coins' }[pageMetric] + ' per 5 min by weekday and hour, your time &mdash; hover for details';
       var segs = usSegments();
       var now = new Date(), nowDay = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()], nowHour = now.getHours();
       var html = '<thead><tr class="us-strip"><th class="day-label" title="US session phases, see the legend at the top">US</th>';
@@ -842,16 +814,16 @@
             var intensity = Math.max(0, Math.min(1, (val - minVal) / range));
             var bg = getHeatColor(intensity);
             var textColor = intensity > 0.5 ? (isDark ? '#000' : '#fff') : 'var(--text)';
-            var display = currentMetric === 'coins' ? '' + Math.round(val) : currentMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
+            var display = pageMetric === 'coins' ? '' + Math.round(val) : pageMetric === 'trades' ? Math.round(val / 1000) + 'K' : (val >= 1000000 ? '$' + (val / 1000000).toFixed(0) + 'M' : '$' + Math.round(val / 1000) + 'K');
             // Confidence: dim cells with low sample counts
             // Dim cells that rest on few days.
             var opacity = c.dayCount >= 3 ? 1 : (c.dayCount === 2 ? 0.75 : 0.55);
             var statWord = useMedian ? 'median' : 'avg';
-            var valStr = currentMetric === 'coins' ? (Math.round(val * 10) / 10) + ' coins' : currentMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString();
+            var valStr = pageMetric === 'coins' ? (Math.round(val * 10) / 10) + ' coins' : pageMetric === 'trades' ? Math.round(val).toLocaleString() + ' trades' : '$' + Math.round(val).toLocaleString();
             var spread;
-            if (useMedian && currentMetric === 'trades' && c.count > 1) {
+            if (useMedian && pageMetric === 'trades' && c.count > 1) {
               spread = ', IQR ' + Math.round(c.p75 - c.p25).toLocaleString();
-            } else if (!useMedian && currentMetric === 'trades' && c.std) {
+            } else if (!useMedian && pageMetric === 'trades' && c.std) {
               spread = ', \u03C3 ' + Math.round(c.std).toLocaleString();
             } else {
               spread = '';
@@ -869,15 +841,6 @@
       var bar = document.getElementById('legendBar');
       if (bar) bar.style.background = 'linear-gradient(to right, ' + getHeatColor(0) + ', ' + getHeatColor(0.5) + ', ' + getHeatColor(1) + ')';
     }
-
-    document.getElementById('metricToggle').addEventListener('click', function(e) {
-      var btn = e.target.closest('button');
-      if (!btn) return;
-      currentMetric = btn.dataset.metric;
-      document.querySelectorAll('#metricToggle button').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      buildHeatmap();
-    });
 
     document.getElementById('statToggle').addEventListener('click', function(e) {
       var btn = e.target.closest('button');
@@ -1116,13 +1079,13 @@
     // Activity by Hour: the selected groups' total per hour of day.
     function buildHourlyChart() {
       var isMedian = currentStat === 'median';
-      var source = hourlyMetric === 'coins' ? (isMedian ? hourlyCoinMedian : hourlyCoinAvg)
-        : hourlyMetric === 'volume' ? (isMedian ? hourlyVolMedian : hourlyVolAvg)
+      var source = pageMetric === 'coins' ? (isMedian ? hourlyCoinMedian : hourlyCoinAvg)
+        : pageMetric === 'volume' ? (isMedian ? hourlyVolMedian : hourlyVolAvg)
         : (isMedian ? hourlyMedian : hourlyAvg);
-      var readings = hourlyRaw[hourlyMetric];
-      document.getElementById('hourlySub').textContent = METRIC_NOUN[hourlyMetric] +
+      var readings = hourlyRaw[pageMetric];
+      document.getElementById('hourlySub').textContent = METRIC_NOUN[pageMetric] +
         ' per 5 min by hour of day, across all days in the period';
-      metricBars('hourlyChart', HOURS_OF_DAY.map(function(h) { return (h < 10 ? '0' : '') + h + ':00'; }), source, hourlyMetric, 3, {
+      metricBars('hourlyChart', HOURS_OF_DAY.map(function(h) { return (h < 10 ? '0' : '') + h + ':00'; }), source, pageMetric, 3, {
         by: 'hour of day',
         hours: HOURS_OF_DAY,
         detail: function(i, fmt) {
@@ -1139,34 +1102,34 @@
     function buildDayChart() {
       if (typeof Chart === 'undefined' || snapshots.length === 0) return;
       var isMedian = currentStat === 'median';
-      var source = dayMetric === 'coins' ? (isMedian ? dayCoinMedian : dayCoinAvg)
-        : dayMetric === 'volume' ? (isMedian ? dayVolMedian : dayVolAvg)
+      var source = pageMetric === 'coins' ? (isMedian ? dayCoinMedian : dayCoinAvg)
+        : pageMetric === 'volume' ? (isMedian ? dayVolMedian : dayVolAvg)
         : (isMedian ? dayMedian : dayAvg);
       var values = dayOrder.map(function(d) { return source[d] || 0; });
       var busiest = dayOrder[values.indexOf(Math.max.apply(null, values))];
       var quietest = dayOrder[values.indexOf(Math.min.apply(null, values))];
 
-      document.getElementById('dayLabel').textContent = METRIC_NOUN[dayMetric] + ' by weekday';
+      document.getElementById('dayLabel').textContent = METRIC_NOUN[pageMetric] + ' by weekday';
       var head = document.getElementById('dayHeadline');
       head.textContent = 'Busiest: ' + busiest;
-      head.className = 'brief-headline ' + dayMetric;
+      head.className = 'brief-headline ' + pageMetric;
       document.getElementById('daySub').textContent = 'Quietest: ' + quietest;
-      metricBars('dayChart', dayOrder, values, dayMetric, 1, { by: 'weekday', xFont: { size: 12, weight: '600' } });
+      metricBars('dayChart', dayOrder, values, pageMetric, 1, { by: 'weekday', xFont: { size: 12, weight: '600' } });
     }
 
-    // Wires a Coins / Trades / Volume toggle to its setter and chart.
-    function metricToggle(id, get, set, rebuild) {
-      document.getElementById(id).addEventListener('click', function(e) {
-        var btn = e.target.closest('button');
-        if (!btn || btn.dataset.metric === get()) return;
-        set(btn.dataset.metric);
-        document.querySelectorAll('#' + id + ' button').forEach(function(b) { b.classList.toggle('active', b === btn); });
-        if (dataReady) rebuild();
-      });
-    }
-    metricToggle('dayMetricToggle', function() { return dayMetric; }, function(m) { dayMetric = m; }, buildDayChart);
-    metricToggle('hourlyMetricToggle', function() { return hourlyMetric; }, function(m) { hourlyMetric = m; }, buildHourlyChart);
-    metricToggle('groupMetricToggle', function() { return groupMetric; }, function(m) { groupMetric = m; }, buildGroupCharts);
+    // The Coins / Trades / Volume toggle at the top switches every chart at once.
+    document.getElementById('measureToggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn || btn.dataset.metric === pageMetric) return;
+      pageMetric = btn.dataset.metric;
+      document.querySelectorAll('#measureToggle button').forEach(function(b) { b.classList.toggle('active', b === btn); });
+      if (!dataReady) return;
+      buildSessionBrief();
+      buildDayChart();
+      buildHeatmap();
+      buildHourlyChart();
+      buildGroupCharts();
+    });
 
     function onThemeChange() {
       renderUsLegend();
@@ -1196,16 +1159,16 @@
       if (!ctx) return;
       var c = getChartColors();
       var css = getComputedStyle(document.documentElement);
-      var fmt = metricFmt(groupMetric);
-      var noun = METRIC_NOUN[groupMetric].toLowerCase();
+      var fmt = metricFmt(pageMetric);
+      var noun = METRIC_NOUN[pageMetric].toLowerCase();
       var labels = HOURS_OF_DAY.map(function(h) { return (h < 10 ? '0' : '') + h + ':00'; });
       document.getElementById('groupChartSub').textContent = 'Each group’s share of the ' +
-        (groupMetric === 'coins' ? 'tradeable coins' : noun + ' of the tradeable coins') + ' by hour of day, your time';
+        (pageMetric === 'coins' ? 'tradeable coins' : noun + ' of the tradeable coins') + ' by hour of day, your time';
       ctx.setAttribute('role', 'img');
       ctx.setAttribute('aria-label', 'Stacked bar chart of each coin group’s share of ' + noun + ' by hour of day');
 
       var series = {};
-      GROUP_ORDER.forEach(function(g) { series[g] = groupHourly(g, groupMetric); });
+      GROUP_ORDER.forEach(function(g) { series[g] = groupHourly(g, pageMetric); });
       var totals = labels.map(function(_, i) { return GROUP_ORDER.reduce(function(a, g) { return a + series[g][i]; }, 0); });
       var datasets = GROUP_ORDER.map(function(g) {
         return {
