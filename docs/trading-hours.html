@@ -168,7 +168,9 @@
     .brief-sub { font-size: 0.75rem; color: var(--text-secondary); text-align: right; line-height: 1.35; }
 
     /* Heatmap */
-    .heat-box { flex: 1 1 0; min-height: 0; overflow: auto; }
+    /* The padding leaves room for a hovered cell to grow, so the edge cells
+       don't spill over and bring up a scrollbar; the margin takes it back. */
+    .heat-box { flex: 1 1 0; min-height: 0; overflow: auto; padding: 8px; margin: -8px; }
     .heatmap-table { width: 100%; height: 100%; border-collapse: separate; border-spacing: 3px; }
     .heatmap-table th { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; padding: 2px; text-align: center; white-space: nowrap; }
     .heatmap-table .day-label { text-align: right; padding-right: 10px; min-width: 44px; }
